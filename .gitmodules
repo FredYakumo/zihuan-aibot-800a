@@ -1,0 +1,3 @@
+[submodule "external/MiraiCP-template"]
+	path = external/MiraiCP-template
+	url = https://github.com/Nambers/MiraiCP-template
