@@ -4,6 +4,7 @@
 #include "MiraiCP.hpp"
 
 class AIBot : public MiraiCP::CPPPlugin {
+public:
   // 配置插件信息
   AIBot() : CPPPlugin() {}
   ~AIBot() override = default; // override关键字是为了防止内存泄漏
