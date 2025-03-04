@@ -20,6 +20,7 @@ add_library(
         ${CMAKE_CURRENT_SOURCE_DIR}/external/MiraiCP-template/single_include/MiraiCP/MiraiCP.cpp # MiraiCP 源文件
         ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/plugin.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/event.cpp
         ${PLUGIN_SOURCE_PATH}
 )
 
