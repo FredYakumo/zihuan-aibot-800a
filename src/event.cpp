@@ -7,7 +7,7 @@ void AIBot::onEnable() {
         auto msg = e.message.toString();
         
         if (msg.find(MiraiCP::At(2496875785).content) != std::string::npos) {
-            e.group.sendMessage("baka");
+            e.group.sendMessage(MiraiCP::At(e.sender.id()).content + "baka");
         }
     });
 }
