@@ -30,3 +30,14 @@ endforeach()
 add_library(MiraiCPPlugin SHARED ${ALL_SOURCES})
 
 target_compile_definitions(${MIRAICP_TARGET_NAME} PUBLIC JSON_MultipleHeaders=ON MIRAICP_LIB_SDK)
+
+# 安装指令
+install(TARGETS MiraiCPPlugin
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/mcl_bot/aibot_800a
+    RENAME libAIBot800a.so
+)
+
+if(APPLE)
+    # 对于 macOS，这里可能需要额外的配置，比如设置安装名称工具（install_name_tool）
+    set_target_properties(MiraiCPPlugin PROPERTIES INSTALL_NAME_DIR "@rpath")
+endif()
