@@ -11,7 +11,8 @@
 std::string simple_get_llm_response(const std::string_view prompt) {
     nlohmann::json body = {
     {"model", "DeepSeek-R1:7b"},
-    {"prompt", "你是一个语文老师，请通俗易懂地总结以下消息(总结内容不能太长)：" + std::string(prompt)}
+    {"prompt", "你是一个语文老师，请通俗易懂地总结以下消息(总结内容不能太长)：" + std::string(prompt)},
+    {"stream", false}
     };
     const auto json_str = body.dump();
     MiraiCP::Logger::logger.info("llm body: " + json_str);
