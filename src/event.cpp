@@ -3,6 +3,7 @@
 #include "nlohmann/detail/meta/type_traits.hpp"
 #include "nlohmann/detail/value_t.hpp"
 #include "plugin.h"
+#include <exception>
 #include <memory>
 #include <string>
 #include <cpr/cpr.h>
@@ -21,7 +22,13 @@ std::string simple_get_llm_response(const std::string_view prompt) {
         cpr::Body{json_str},
         cpr::Header{{"Content-Type", "application/json"}}
     );
-    return response.text;
+    try {
+        auto json = nlohmann::json::parse(response.text);
+        const std::string result = json["response"];
+        return result;
+    } catch (const std::exception &e) {
+        return std::string{"JSON 解析失败: "} + e.what();
+    }
 }
 
 void AIBot::onEnable() {
