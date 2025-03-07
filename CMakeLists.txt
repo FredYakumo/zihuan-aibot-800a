@@ -8,6 +8,8 @@ set(MIRAICP_TARGET_NAME AIBot800a)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+find_package(cpr REQUIRED)
+
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/MiraiCP-template/single_include/MiraiCP/)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/MiraiCP-template/single_include/3rd_include/json/)
@@ -28,6 +30,8 @@ endforeach()
 
 # 创建共享库
 add_library(${MIRAICP_TARGET_NAME} SHARED ${ALL_SOURCES})
+
+target_link_libraries(${MIRAICP_TARGET_NAME} PRIVATE cpr::cpr)
 
 target_compile_definitions(${MIRAICP_TARGET_NAME} PUBLIC JSON_MultipleHeaders=ON MIRAICP_LIB_SDK)
 

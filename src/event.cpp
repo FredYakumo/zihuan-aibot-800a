@@ -5,6 +5,17 @@
 #include "plugin.h"
 #include <memory>
 #include <string>
+#include <cpr/cpr.h>
+#include <string_view>
+
+std::string simple_get_llm_response(const std::string_view prompt) {
+    cpr::Response response = cpr::Post(
+        cpr::Url{"http://localhost:11434/api/generate"},
+        cpr::Body{std::string{"{\"model\": \"DeepSeek-R1:7b\", \"prompt\": 你是一个语文老师，请通俗易懂地总结以下消息(总结内容不能太长):\""} + std::string(prompt) +"\"})"},
+        cpr::Header{{"Content-Type", "application/json"}}
+    );
+    return response.text;
+}
 
 void AIBot::onEnable() {
     MiraiCP::Event::registerEvent<MiraiCP::GroupMessageEvent>([] (MiraiCP::GroupMessageEvent e) {
@@ -35,7 +46,7 @@ void AIBot::onEnable() {
             if (ref_msg_content == nullptr) {
                 msg_chain.add(MiraiCP::PlainText{std::string{" error: 请引用一个消息."}});
             } else {
-                msg_chain.add((MiraiCP::PlainText{std::string{" 让我总结消息: \""} + *ref_msg_content + std::string{"\", 但是现在model=DeepSeek-R1:0b"}}));
+                msg_chain.add((MiraiCP::PlainText{simple_get_llm_response(*ref_msg_content)}));
             }
 
             e.group.sendMessage(msg_chain);
