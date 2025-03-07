@@ -14,13 +14,12 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/MiraiCP-template/single
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/MiraiCP-template/single_include/3rd_include/)
 
 # 添加动态库编译目标
+aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/ SRC_FILES)
 add_library(
         MiraiCPPlugin
         SHARED
         ${CMAKE_CURRENT_SOURCE_DIR}/external/MiraiCP-template/single_include/MiraiCP/MiraiCP.cpp # MiraiCP 源文件
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/plugin.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/event.cpp
+        ${SRC_FILES}
         ${PLUGIN_SOURCE_PATH}
 )
 

@@ -3,11 +3,10 @@
 
 void AIBot::onEnable() {
     MiraiCP::Event::registerEvent<MiraiCP::GroupMessageEvent>([] (MiraiCP::GroupMessageEvent e) {
-        MiraiCP::Logger::logger.info(":)");
-        auto msg = e.message.toString();
-        
-        if (msg.find(MiraiCP::At(2496875785).content) != std::string::npos) {
-            e.group.sendMessage(MiraiCP::At(e.sender.id()).content + "baka");
+        MiraiCP::Logger::logger.info("Recv message: " + e.message.toString());
+        for (auto msg : e.message) {
+            MiraiCP::Logger::logger.info(std::string("Message Type: ") + msg->getTypeString(msg.getType()) + ", Content: " + msg->content);
         }
+
     });
 }
