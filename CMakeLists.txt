@@ -14,15 +14,19 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/MiraiCP-template/single
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/MiraiCP-template/single_include/3rd_include/)
 
 # 添加动态库编译目标
-add_library(
-        MiraiCPPlugin
-        SHARED
-        ${CMAKE_CURRENT_SOURCE_DIR}/external/MiraiCP-template/single_include/MiraiCP/MiraiCP.cpp # MiraiCP 源文件
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/plugin.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/event.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/utils.cpp
-        ${PLUGIN_SOURCE_PATH}
+aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/ SRC_FILES)
+
+set(ALL_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/MiraiCP-template/single_include/MiraiCP/MiraiCP.cpp # MiraiCP 源文件
+    ${SRC_FILES}
+    ${PLUGIN_SOURCE_PATH}
 )
+
+foreach(file IN LISTS ALL_SOURCES)
+    message(STATUS "Source file: ${file}")
+endforeach()
+
+# 创建共享库
+add_library(MiraiCPPlugin SHARED ${ALL_SOURCES})
 
 target_compile_definitions(${MIRAICP_TARGET_NAME} PUBLIC JSON_MultipleHeaders=ON MIRAICP_LIB_SDK)
