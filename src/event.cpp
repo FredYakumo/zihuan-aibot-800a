@@ -25,17 +25,14 @@ void AIBot::onEnable() {
             return;
         }
 
-        if (plain_msg->get()->content == "AI总结" || plain_msg->get()->content == "ai总结") {
+        if (plain_msg->get()->content.find("AI总结") != std::string::npos || plain_msg->get()->content.find("ai总结") != std::string::npos) {
             auto msg_chain = MiraiCP::MessageChain{e.sender.at()};
-
             if (ref_msg == nullptr) {
-                
                 msg_chain.emplace_back(MiraiCP::PlainText{std::string{"error: 请引用一个消息."}});
             } else {
                 msg_chain.emplace_back(MiraiCP::PlainText{std::string{"用户让我AI总结消息: \""} + 
                 ref_msg->get()->content + std::string{"\", 但是现在model=DeepSeek-R1:0b"}});
             }
-
 
             e.group.sendMessage(msg_chain);
         }
