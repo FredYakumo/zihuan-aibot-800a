@@ -9,11 +9,14 @@
 #include <string_view>
 
 std::string simple_get_llm_response(const std::string_view prompt) {
-    const auto p = std::string{"{\"model\": \"DeepSeek-R1:7b\", \"prompt\": 你是一个语文老师，请通俗易懂地总结以下消息(总结内容不能太长):\""} + std::string(prompt) +"\"}";
-    MiraiCP::Logger::logger.info("P: " + p);
+    nlohmann::json body = {
+    {"model", "DeepSeek-R1:7b"},
+    {"prompt", "你是一个语文老师，请通俗易懂地总结以下消息(总结内容不能太长)：" + std::string(prompt)}
+    };
+    MiraiCP::Logger::logger.info("llm body: " + body.dump());
     cpr::Response response = cpr::Post(
         cpr::Url{"http://localhost:11434/api/generate"},
-        cpr::Body{p},
+        cpr::Body{body},
         cpr::Header{{"Content-Type", "application/json"}}
     );
     return response.text;
