@@ -19,10 +19,8 @@ void AIBot::onEnable() {
             if (msg.getType() == MiraiCP::SingleMessageType::At_t && msg->content == std::to_string(e.bot.id())) {
                 at_me_msg = &msg;
             } else if (msg.getType() == MiraiCP::SingleMessageType::QuoteReply_t) {
-                ref_msg_content = std::make_unique<std::string>("");
-                for (auto content : msg.get()->toJson()["source"]["originalMessage"]) {
-                    ref_msg_content->append(content.get<std::string>());
-                }
+                MiraiCP::Logger::logger.info(msg.get()->toJson()["source"]["originalMessage"]);
+                ref_msg_content = std::make_unique<std::string>(msg.get()->toJson()["source"]["originalMessage"].dump());
             } else if (msg.getType() == MiraiCP::SingleMessageType::PlainText_t) {
                 plain_msg = &msg;
             }
