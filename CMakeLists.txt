@@ -27,12 +27,12 @@ foreach(file IN LISTS ALL_SOURCES)
 endforeach()
 
 # 创建共享库
-add_library(MiraiCPPlugin SHARED ${ALL_SOURCES})
+add_library(${MIRAICP_TARGET_NAME} SHARED ${ALL_SOURCES})
 
 target_compile_definitions(${MIRAICP_TARGET_NAME} PUBLIC JSON_MultipleHeaders=ON MIRAICP_LIB_SDK)
 
 # 安装指令
-install(TARGETS MiraiCPPlugin
+install(TARGETS ${MIRAICP_TARGET_NAME}
     # DESTINATION ${CMAKE_INSTALL_PREFIX}/aibot_800a
     DESTINATION ${CMAKE_INSTALL_PREFIX}
     RENAME libAIBot800a.so
@@ -40,5 +40,5 @@ install(TARGETS MiraiCPPlugin
 
 if(APPLE)
     # 对于 macOS，这里可能需要额外的配置，比如设置安装名称工具（install_name_tool）
-    set_target_properties(MiraiCPPlugin PROPERTIES INSTALL_NAME_DIR "@rpath")
+    set_target_properties(${MIRAICP_TARGET_NAME} PROPERTIES INSTALL_NAME_DIR "@rpath")
 endif()
