@@ -13,10 +13,11 @@ std::string simple_get_llm_response(const std::string_view prompt) {
     {"model", "DeepSeek-R1:7b"},
     {"prompt", "你是一个语文老师，请通俗易懂地总结以下消息(总结内容不能太长)：" + std::string(prompt)}
     };
-    MiraiCP::Logger::logger.info("llm body: " + body.dump());
+    const auto json_str = body.dump();
+    MiraiCP::Logger::logger.info("llm body: " + json_str);
     cpr::Response response = cpr::Post(
         cpr::Url{"http://localhost:11434/api/generate"},
-        cpr::Body{body},
+        cpr::Body{json_str},
         cpr::Header{{"Content-Type", "application/json"}}
     );
     return response.text;
