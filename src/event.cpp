@@ -29,9 +29,10 @@ void AIBot::onEnable() {
             auto msg_chain = MiraiCP::MessageChain{e.sender.at()};
 
             if (ref_msg == nullptr) {
-                msg_chain.add(MiraiCP::PlainText{std::string{"error: 请引用一个消息."}});
+                
+                msg_chain.emplace_back(MiraiCP::PlainText{std::string{"error: 请引用一个消息."}});
             } else {
-                msg_chain.add(MiraiCP::PlainText{std::string{"用户让我AI总结消息: \""} + 
+                msg_chain.emplace_back(MiraiCP::PlainText{std::string{"用户让我AI总结消息: \""} + 
                 ref_msg->get()->content + std::string{"\", 但是现在model=DeepSeek-R1:0b"}});
             }
 
