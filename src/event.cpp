@@ -20,7 +20,7 @@ void AIBot::onEnable() {
                 at_me_msg = &msg;
             } else if (msg.getType() == MiraiCP::SingleMessageType::QuoteReply_t) {
                 ref_msg_content = std::make_unique<std::string>("");
-                msg.get()->toJson()["originalMessage"].get_to(*ref_msg_content);
+                msg.get()->toJson()["source"]["originalMessage"].get_to(*ref_msg_content);
             } else if (msg.getType() == MiraiCP::SingleMessageType::PlainText_t) {
                 plain_msg = &msg;
             }
