@@ -33,7 +33,8 @@ target_compile_definitions(${MIRAICP_TARGET_NAME} PUBLIC JSON_MultipleHeaders=ON
 
 # 安装指令
 install(TARGETS MiraiCPPlugin
-    DESTINATION ${CMAKE_INSTALL_PREFIX}/mcl_bot/aibot_800a
+    # DESTINATION ${CMAKE_INSTALL_PREFIX}/aibot_800a
+    DESTINATION ${CMAKE_INSTALL_PREFIX}
     RENAME libAIBot800a.so
 )
 
