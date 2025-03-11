@@ -101,9 +101,10 @@ inline void release_processing_llm(MiraiCP::QQID id) {
 }
 
 void AIBot::onEnable() {
-    MiraiCP::Event::registerEvent<MiraiCP::BotOnlineEvent>([](MiraiCP::BotOnlineEvent e) {
-        init_config();
-    });
+    // MiraiCP::Event::registerEvent<MiraiCP::BotOnlineEvent>([](MiraiCP::BotOnlineEvent e) {
+    //     init_config();
+    // });
+    init_config();
 
     MiraiCP::Event::registerEvent<MiraiCP::GroupMessageEvent>([](MiraiCP::GroupMessageEvent e) {
         MiraiCP::Logger::logger.info("Recv message: " + e.message.toString());
