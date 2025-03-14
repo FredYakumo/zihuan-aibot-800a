@@ -15,7 +15,7 @@
 #include <utility>
 #include "mutex_data.hpp"
 
-constexpr size_t USER_SESSION_MSG_LIMIT = 5;
+constexpr size_t USER_SESSION_MSG_LIMIT = 10;
 
 struct ChatMessage {
     std::string role{};

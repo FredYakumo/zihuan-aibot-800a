@@ -1,10 +1,9 @@
-# 最低cmake版本
 cmake_minimum_required(VERSION 3.14)
-# C++ 标准：17+
 set(CMAKE_CXX_STANDARD 17)
 
 project(MiraiAIBot LANGUAGES CXX)
 set(MIRAICP_TARGET_NAME AIBot800a)
+set(MIRAICP_MSG_DB_TARGET_NAME AIBot800a_msg_db)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -29,13 +28,18 @@ foreach(file IN LISTS ALL_SOURCES)
     message(STATUS "Source file: ${file}")
 endforeach()
 
+
 # 创建共享库
 add_library(${MIRAICP_TARGET_NAME} SHARED ${ALL_SOURCES})
 
 target_link_libraries(${MIRAICP_TARGET_NAME} PRIVATE cpr::cpr)
 target_link_libraries(${MIRAICP_TARGET_NAME} PRIVATE fmt::fmt)
 
+
+
 target_compile_definitions(${MIRAICP_TARGET_NAME} PUBLIC JSON_MultipleHeaders=ON MIRAICP_LIB_SDK)
+
+
 
 # 安装指令
 install(TARGETS ${MIRAICP_TARGET_NAME}

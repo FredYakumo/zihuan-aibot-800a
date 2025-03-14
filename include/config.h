@@ -11,6 +11,8 @@ extern std::string CUSTOM_SYSTEM_PROMPT;
 // extern std::string BOT_NAME;
 // extern MiraiCP::QQID BOT_QQID;
 
+extern std::string MSG_DB_URL;
+
 
 void init_config();
 
