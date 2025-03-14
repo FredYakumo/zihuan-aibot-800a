@@ -6,6 +6,7 @@
 #include <fmt/format.h>
 #include <string>
 #include <string_view>
+#include <config.h>
 
 void insert_group_msg(MiraiCP::QQID group_id, const std::string_view group_name, MiraiCP::QQID sender_id,
                       const std::string_view sender_name, const std::string_view content) {

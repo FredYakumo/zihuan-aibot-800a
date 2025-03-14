@@ -12,7 +12,7 @@ std::string CUSTOM_SYSTEM_PROMPT;
 // std::string BOT_NAME;
 // MiraiCP::QQID BOT_QQID;
 
-std::string MSG_DB_URL = "http://localhost:28080/v1";
+std::string MSG_DB_URL = "http://localhost:8080/v1";
 
 void init_config() {
     const auto api_url = std::getenv("AIBOT_LLM_API_URL");

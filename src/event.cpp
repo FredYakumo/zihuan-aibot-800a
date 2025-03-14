@@ -133,6 +133,7 @@ void AIBot::onEnable() {
         const auto sender_name = e.sender.nickOrNameCard();
         
         auto msg_storage_thread = std::thread([msg_prop, group_id, sender_id, sender_name] {
+            set_thread_name("AIBot msg storage");
             MiraiCP::Logger::logger.info("Start message storage thread.");
             msg_storage(msg_prop, group_id, sender_id, sender_name);
         });
@@ -188,6 +189,7 @@ void AIBot::onEnable() {
         auto bot_id = e.bot.id();
 
         auto llm_thread = std::thread([e, msg_content_str, sender_id, bot_name, bot_id] {
+            set_thread_name("AIBot LLM process");
             MiraiCP::Logger::logger.info("Start llm thread.");
             auto msg_chain = MiraiCP::MessageChain{MiraiCP::At(sender_id)};
             auto msg_json =
