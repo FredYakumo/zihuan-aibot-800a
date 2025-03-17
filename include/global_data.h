@@ -13,9 +13,11 @@
 #include <unordered_map>
 #include <MiraiCP.hpp>
 #include <utility>
+#include <vector>
+#include "utils.h"
 #include "mutex_data.hpp"
 
-constexpr size_t USER_SESSION_MSG_LIMIT = 10;
+constexpr size_t USER_SESSION_MSG_LIMIT = 5;
 
 struct ChatMessage {
     std::string role{};
@@ -57,8 +59,19 @@ struct ChatSession {
     }
 };
 
+struct DBKnowledge {
+    std::string content;
+    std::string creator_name;
+    std::string create_dt;
+
+    DBKnowledge() = default;
+    DBKnowledge(const std::string_view content, const std::string_view creator_name): DBKnowledge(content, creator_name, get_current_time_db()) {}
+    DBKnowledge(const std::string_view content, const std::string_view creator_name, const std::string_view create_dt):
+        content(content), creator_name(creator_name), create_dt(create_dt) {}
+};
 
 extern MutexData<std::unordered_map<MiraiCP::QQID, ChatSession>> g_chat_session_map;
 extern std::pair<std::mutex, std::unordered_map<MiraiCP::QQID, bool>> g_chat_processing_map;
+extern MutexData<std::vector<DBKnowledge>> g_wait_add_knowledge_list;
 
 #endif

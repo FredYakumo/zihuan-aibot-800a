@@ -1,9 +1,11 @@
 #include "config.h"
+#include "utils.h"
 #include <cstdlib>
 #include <string>
 #include <fmt/format.h>
 #include <MiraiCP.hpp>
 #include <string_view>
+#include <unordered_set>
 
 std::string LLM_API_URL;
 std::string LLM_API_TOKEN;
@@ -13,6 +15,9 @@ std::string CUSTOM_SYSTEM_PROMPT;
 // MiraiCP::QQID BOT_QQID;
 
 std::string MSG_DB_URL = "http://localhost:8080/v1";
+
+std::unordered_set<std::string> ADMIN_ID_SET;
+
 
 void init_config() {
     const auto api_url = std::getenv("AIBOT_LLM_API_URL");
@@ -33,6 +38,16 @@ void init_config() {
     const auto db_url = std::getenv("AIBOT_MSG_DB_URL");
     MSG_DB_URL = std::string(db_url != nullptr ? db_url : "");
     MiraiCP::Logger::logger.info(fmt::format("MSG_DB_URL: {}", MSG_DB_URL));
+
+    const auto admin_id_list = std::getenv("AIBOT_ADMIN_ID_LIST");
+    if (admin_id_list != nullptr) {
+        MiraiCP::Logger::logger.info(fmt::format("AIBOT_ADMIN_ID_LIST: {}", admin_id_list));
+        for (auto e : SplitString(admin_id_list, ',')) {
+            auto admin = std::string(ltrim(rtrim(e)));
+            MiraiCP::Logger::logger.info("admin id: " + admin);
+            ADMIN_ID_SET.emplace(admin);
+        }
+    }
 
     // BOT_NAME = std::string(bot_name);
     // MiraiCP::Logger::logger.info(fmt::format("BOT_NAME: {}", BOT_NAME));

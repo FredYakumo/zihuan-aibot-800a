@@ -51,3 +51,59 @@ MessageProperties get_msg_prop_from_event(const MiraiCP::GroupMessageEvent &e) {
 
     return ret;
 }
+
+// 寻找字符串中第一个 #keyword (...) (中的内容
+std::string_view extract_quoted_content(const std::string_view s, const std::string_view keyword) {
+    size_t keyword_pos = s.find(keyword);
+    if (keyword_pos == std::string::npos) return "";
+    size_t start_quote = s.find('(', keyword_pos + keyword.size());
+    if (start_quote == std::string::npos) return "";
+    size_t end_quote = s.find(')', start_quote + 1);
+    if (end_quote == std::string::npos) return "";
+    return s.substr(start_quote + 1, end_quote - start_quote - 1);
+}
+
+// 替换字符串中第一个 #keyword (...) 的内容
+std::string replace_quoted_content(
+    const std::string_view original_str,
+    const std::string_view keyword,
+    const std::string_view replacement
+) {
+    size_t keyword_pos = original_str.find(keyword);
+    if (keyword_pos == std::string::npos) {
+        return std::string{original_str}; // 未找到关键词，直接返回原字符串
+    }
+    size_t start_quote = original_str.find('(', keyword_pos + keyword.size());
+    if (start_quote == std::string::npos) {
+        return std::string{original_str}; // 起始双引号未找到
+    }
+
+    size_t end_quote = original_str.find(')', start_quote + 1);
+    if (end_quote == std::string::npos) {
+        return std::string{original_str};
+    }
+    size_t replace_start = keyword_pos;
+    size_t replace_length = end_quote - keyword_pos + 1;
+
+    std::string result = std::string{original_str};
+    result.replace(replace_start, replace_length, replacement);
+    return result;
+}
+
+#include <string>
+
+bool is_strict_format(const std::string_view s, const std::string_view keyword) {
+    const size_t key_len = keyword.size();
+
+    if (s.size() < key_len + 2) return false;
+
+    if (s.substr(0, key_len) != keyword) return false;
+
+    size_t start_quote = s.find('(', key_len);
+    if (start_quote == std::string_view::npos || start_quote < key_len) return false;
+
+    size_t end_quote = s.find(')', start_quote + 1);
+    if (end_quote != s.size() - 1) return false;
+
+    return (end_quote > start_quote);
+}

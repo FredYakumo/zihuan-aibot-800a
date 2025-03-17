@@ -1,7 +1,11 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+#include <iterator>
 #include <string>
+#include <string_view>
+#include <unordered_set>
+#include <vector>
 #include "MiraiCP.hpp"
 
 extern std::string LLM_API_URL;
@@ -13,8 +17,18 @@ extern std::string CUSTOM_SYSTEM_PROMPT;
 
 extern std::string MSG_DB_URL;
 
+extern std::unordered_set<std::string> ADMIN_ID_SET;
+
 
 void init_config();
+
+inline bool is_admin(const std::string &id) {
+    return ADMIN_ID_SET.find(id) != std::cend(ADMIN_ID_SET);
+}
+
+inline bool is_admin(MiraiCP::QQID id) {
+    return is_admin(std::to_string(id));
+}
 
 
 #endif
