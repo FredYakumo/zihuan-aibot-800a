@@ -18,6 +18,13 @@ extern std::string CUSTOM_SYSTEM_PROMPT;
 extern std::string MSG_DB_URL;
 
 extern std::unordered_set<std::string> ADMIN_ID_SET;
+extern std::unordered_set<std::string> BANNED_ID_SET;
+
+extern std::string NET_SEARCH_API_URL;
+extern std::string NET_SEARCH_TOKEN;
+
+extern std::string URL_SEARCH_API_URL;
+extern std::string URL_SEARCH_TOKEN;
 
 
 void init_config();
@@ -30,5 +37,12 @@ inline bool is_admin(MiraiCP::QQID id) {
     return is_admin(std::to_string(id));
 }
 
+inline bool is_banned_id(const std::string &id) {
+    return BANNED_ID_SET.find(id) != std::cend(BANNED_ID_SET);
+}
+
+inline bool is_banned_id(MiraiCP::QQID id) {
+    return is_banned_id(std::to_string(id));
+}
 
 #endif
