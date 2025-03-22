@@ -171,7 +171,7 @@ namespace bot_cmd {
         }
         std::thread([context, search]() {
             MiraiCP::Logger::logger.info("Start net search thread");
-            auto search_text = replace_str(search, "#联网", "");
+            auto search_text = get_current_time_formatted() + replace_str(search, "#联网", "");
             auto net_search_res = rag::net_search_content(search_text);
             std::string net_search_str;
             if (net_search_res.empty()) {
