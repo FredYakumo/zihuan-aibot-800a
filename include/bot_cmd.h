@@ -50,7 +50,29 @@ namespace bot_cmd {
     CommandRes checkin_knowledge_command(CommandContext context);
     CommandRes query_memory_command(CommandContext context);
     CommandRes query_add_knowledge_list_command(CommandContext context);
+
+    /**
+     * @brief Handles a network search command based on the provided context.
+     *
+     * This function processes a network search command by extracting the search query from the message context.
+     * If no valid search query is found, it prompts the user to provide one. Otherwise, it initiates a
+     * background thread to perform the network search and process the results.
+     *
+     * @param context The command context containing message properties and sender information.
+     * @return bot_cmd::CommandRes Returns a bot_cmd::CommandRes object indicating the success of the command handling.
+     */
     CommandRes net_search_command(bot_cmd::CommandContext context);
+
+    /**
+     * @brief Handles a network search command based on the provided context.
+     *
+     * This function processes a network search command by extracting the search query from the message context.
+     * If no valid search query is found, it prompts the user to provide one. Otherwise, it initiates a
+     * background thread to perform the network search and process the results.
+     *
+     * @param context The command context containing message properties and sender information.
+     * @return bot_cmd::CommandRes Returns a bot_cmd::CommandRes object indicating the success of the command handling.
+     */
     CommandRes url_search_command(bot_cmd::CommandContext context);
 
     extern std::map<std::string, bot_cmd::CommandProperty> keyword_command_map;
