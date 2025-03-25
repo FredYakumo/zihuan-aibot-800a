@@ -9,11 +9,14 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(cpr REQUIRED)
 find_package(fmt REQUIRED)
+find_package(Boost REQUIRED)
+find_package(spdlog REQUIRED)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/MiraiCP-template/single_include/MiraiCP/)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/MiraiCP-template/single_include/3rd_include/json/)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/MiraiCP-template/single_include/3rd_include/)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/easywsclient/)
 
 # 添加动态库编译目标
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/ SRC_FILES)
@@ -22,6 +25,7 @@ set(ALL_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/external/MiraiCP-template/single_include/MiraiCP/MiraiCP.cpp # MiraiCP 源文件
     ${SRC_FILES}
     ${PLUGIN_SOURCE_PATH}
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/easywsclient/easywsclient.cpp
 )
 
 foreach(file IN LISTS ALL_SOURCES)
