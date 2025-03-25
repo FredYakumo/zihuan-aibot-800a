@@ -35,6 +35,7 @@ void AIBot::onEnable() {
         auto bot_id = e.bot.id();
         const auto msg_prop = get_msg_prop_from_event(e, bot_name);
         const auto group_id = e.group.id();
+        const auto group_name = e.group.nickOrNameCard();
         const auto sender_name = e.sender.nickOrNameCard();
         const auto admin = is_admin(sender_id);
 
@@ -77,10 +78,10 @@ void AIBot::onEnable() {
             }
         }
 
-        auto msg_storage_thread = std::thread([msg_prop, group_id, sender_id, sender_name] {
+        auto msg_storage_thread = std::thread([msg_prop, group_id, sender_id, sender_name, group_name] {
             set_thread_name("AIBot msg storage");
             MiraiCP::Logger::logger.info("Start message storage thread.");
-            msg_storage(msg_prop, group_id, sender_id, sender_name);
+            msg_storage(msg_prop, group_id, sender_id, sender_name, group_name);
         });
         msg_storage_thread.detach();
 

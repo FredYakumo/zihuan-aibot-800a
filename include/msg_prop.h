@@ -4,6 +4,7 @@
 #include <string>
 #include <MiraiCP.hpp>
 #include <fmt/format.h>
+#include <string_view>
 
 struct MessageProperties {
     bool is_at_me = false;
@@ -19,6 +20,6 @@ struct MessageProperties {
 MessageProperties get_msg_prop_from_event(const MiraiCP::GroupMessageEvent &e, const std::string_view bot_name);
 
 void msg_storage(const MessageProperties &msg_prop, MiraiCP::QQID group_id, MiraiCP::QQID sender_id,
-                 const std::string_view sender_name);
+                 const std::string_view sender_name, const std::string_view group_name);
 
 #endif

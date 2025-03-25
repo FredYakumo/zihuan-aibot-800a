@@ -1,3 +1,9 @@
 [submodule "external/MiraiCP-template"]
 	path = external/MiraiCP-template
 	url = https://github.com/Nambers/MiraiCP-template
+[submodule "external/u_web_sockets"]
+	path = external/u_web_sockets
+	url = https://github.com/uNetworking/uWebSockets.git
+[submodule "external/easywsclient"]
+	path = external/easywsclient
+	url = https://github.com/dhbaird/easywsclient

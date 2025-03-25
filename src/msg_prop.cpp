@@ -51,7 +51,7 @@ MessageProperties get_msg_prop_from_event(const MiraiCP::GroupMessageEvent &e, c
 }
 
 void msg_storage(const MessageProperties &msg_prop, MiraiCP::QQID group_id, MiraiCP::QQID sender_id,
-                 const std::string_view sender_name) {
+                 const std::string_view sender_name, const std::string_view group_name) {
     if ((msg_prop.plain_content == nullptr || *msg_prop.plain_content == EMPTY_MSG_TAG) &&
         (msg_prop.ref_msg_content == nullptr || *msg_prop.ref_msg_content == EMPTY_MSG_TAG)) {
         return;
@@ -62,5 +62,5 @@ void msg_storage(const MessageProperties &msg_prop, MiraiCP::QQID group_id, Mira
             ? *msg_prop.plain_content
             : fmt::format("引用了消息: {}\n{}", *msg_prop.ref_msg_content, *msg_prop.plain_content);
 
-    rag::insert_group_msg(group_id, sender_name, sender_id, sender_name, msg_content);
+    rag::insert_group_msg(group_id, group_name, sender_id, sender_name, msg_content);
 }
