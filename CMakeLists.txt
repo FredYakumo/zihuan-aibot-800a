@@ -18,6 +18,10 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/MiraiCP-template/single
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/MiraiCP-template/single_include/3rd_include/)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/easywsclient/)
 
+enable_testing()
+
+find_package(Catch2 REQUIRED)
+
 # 添加动态库编译目标
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/ SRC_FILES)
 
@@ -38,10 +42,14 @@ add_library(${MIRAICP_TARGET_NAME} SHARED ${ALL_SOURCES})
 
 target_link_libraries(${MIRAICP_TARGET_NAME} PRIVATE cpr::cpr)
 target_link_libraries(${MIRAICP_TARGET_NAME} PRIVATE fmt::fmt)
-
+target_link_libraries(utils_test Catch2::Catch2WithMain)
+include(CTest)
+include(Catch)
 
 
 target_compile_definitions(${MIRAICP_TARGET_NAME} PUBLIC JSON_MultipleHeaders=ON MIRAICP_LIB_SDK)
+
+add_test(NAME unit_test COMMAND unit_test)
 
 
 
@@ -55,4 +63,10 @@ install(TARGETS ${MIRAICP_TARGET_NAME}
 if(APPLE)
     # 对于 macOS，这里可能需要额外的配置，比如设置安装名称工具（install_name_tool）
     set_target_properties(${MIRAICP_TARGET_NAME} PROPERTIES INSTALL_NAME_DIR "@rpath")
+endif()
+
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_definitions(-DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_WARN)
+else()
+    add_definitions(-DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG)
 endif()
