@@ -2,6 +2,7 @@
 #define ADAPTER_MSG_H
 
 #include "nlohmann/json.hpp"
+#include "nlohmann/json_fwd.hpp"
 #include <string_view>
 
 namespace bot_adapter {
@@ -9,6 +10,25 @@ namespace bot_adapter {
         virtual std::string_view get_type() const = 0;
         virtual nlohmann::json to_json() const = 0;
     };
+
+
+    struct PlainTextMessage : public MessageBase {
+        PlainTextMessage(const std::string_view text): text(text) {}
+
+        inline std::string_view get_type() const override {
+            return "Plain";
+        }
+
+        inline nlohmann::json to_json() const override {
+            return {
+                {"type", get_type()},
+                {"text", text}
+            };
+        }
+
+        std::string text;
+    };
+
 } // namespace bot_adapter
 
 // Specialize nlohmann::adl_serializer for MessageBase

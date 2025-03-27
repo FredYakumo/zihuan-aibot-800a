@@ -24,7 +24,7 @@ namespace bot_adapter {
     };
 
     struct AdapterCommand {
-        uint64_t syncId;
+        uint64_t sync_id;
         std::string command;
         std::shared_ptr<AdapterCommandContentBase> content;
     };

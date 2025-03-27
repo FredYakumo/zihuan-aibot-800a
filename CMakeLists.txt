@@ -11,6 +11,7 @@ find_package(cpr REQUIRED)
 find_package(fmt REQUIRED)
 find_package(Boost REQUIRED)
 find_package(spdlog REQUIRED)
+find_package(GTest REQUIRED)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/MiraiCP-template/single_include/MiraiCP/)
@@ -19,8 +20,6 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/MiraiCP-template/single
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/easywsclient/)
 
 enable_testing()
-
-find_package(Catch2 REQUIRED)
 
 # 添加动态库编译目标
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/ SRC_FILES)
@@ -42,15 +41,14 @@ add_library(${MIRAICP_TARGET_NAME} SHARED ${ALL_SOURCES})
 
 target_link_libraries(${MIRAICP_TARGET_NAME} PRIVATE cpr::cpr)
 target_link_libraries(${MIRAICP_TARGET_NAME} PRIVATE fmt::fmt)
-target_link_libraries(utils_test Catch2::Catch2WithMain)
 include(CTest)
-include(Catch)
+
+add_executable(unit_test ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test.cpp)
+target_link_libraries(unit_test GTest::GTest GTest::Main)
+add_test(NAME unit_test COMMAND unit_test)
 
 
 target_compile_definitions(${MIRAICP_TARGET_NAME} PUBLIC JSON_MultipleHeaders=ON MIRAICP_LIB_SDK)
-
-add_test(NAME unit_test COMMAND unit_test)
-
 
 
 # 安装指令
