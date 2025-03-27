@@ -222,7 +222,7 @@ namespace bot_cmd {
 
             std::vector<std::string> url_list;
             for (const auto url : SplitString(search_text, ',')) {
-                auto u = std::string{url};
+                auto u = std::string{ltrim(rtrim(url))};
                 MiraiCP::Logger::logger.info("URL: " + u);
                 url_list.emplace_back(u);
             }
