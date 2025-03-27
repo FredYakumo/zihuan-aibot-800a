@@ -143,16 +143,6 @@ namespace bot_cmd {
         return CommandRes{true};
     }
 
-    /**
-     * @brief Handles a network search command based on the provided context.
-     *
-     * This function processes a network search command by extracting the search query from the message context.
-     * If no valid search query is found, it prompts the user to provide one. Otherwise, it initiates a
-     * background thread to perform the network search and process the results.
-     *
-     * @param context The command context containing message properties and sender information.
-     * @return bot_cmd::CommandRes Returns a bot_cmd::CommandRes object indicating the success of the command handling.
-     */
     bot_cmd::CommandRes net_search_command(bot_cmd::CommandContext context) {
         std::string search{};
         if (context.msg_prop.ref_msg_content != nullptr && !rtrim(ltrim(*context.msg_prop.ref_msg_content)).empty()) {
@@ -190,16 +180,6 @@ namespace bot_cmd {
         return bot_cmd::CommandRes{true};
     }
 
-        /**
-     * @brief Handles a network search command based on the provided context.
-     *
-     * This function processes a network search command by extracting the search query from the message context.
-     * If no valid search query is found, it prompts the user to provide one. Otherwise, it initiates a
-     * background thread to perform the network search and process the results.
-     *
-     * @param context The command context containing message properties and sender information.
-     * @return bot_cmd::CommandRes Returns a bot_cmd::CommandRes object indicating the success of the command handling.
-     */
     bot_cmd::CommandRes url_search_command(bot_cmd::CommandContext context) {
         std::string search{};
         if (context.msg_prop.ref_msg_content != nullptr && !rtrim(ltrim(*context.msg_prop.ref_msg_content)).empty()) {

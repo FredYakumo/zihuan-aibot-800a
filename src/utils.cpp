@@ -1,7 +1,5 @@
 #include "utils.h"
 #include "config.h"
-#include "constants.hpp"
-#include "global_data.h"
 #include <cstdint>
 #include <fmt/format.h>
 #include <string_view>
