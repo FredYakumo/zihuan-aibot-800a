@@ -1,11 +1,13 @@
 #ifndef BOT_ADAPTER_H
 #define BOT_ADAPTER_H
 
+#include "adapter_message.h"
 #include <easywsclient.hpp>
 #include <spdlog/spdlog.h>
 #include <string>
 #include <string_view>
 #include <functional>
+#include <vector>
 
 namespace bot_adapter {
     class BotAdapter {
@@ -27,6 +29,7 @@ namespace bot_adapter {
 
       private:
         void handle_message(const std::string &message);
+        std::vector<std::function<void(const MessageBase &msg)>> msg_handle_func_list;
 
         easywsclient::WebSocket::pointer ws;
     };

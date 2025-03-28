@@ -43,8 +43,8 @@ target_link_libraries(${MIRAICP_TARGET_NAME} PRIVATE cpr::cpr)
 target_link_libraries(${MIRAICP_TARGET_NAME} PRIVATE fmt::fmt)
 include(CTest)
 
-add_executable(unit_test ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test.cpp)
-target_link_libraries(unit_test GTest::GTest GTest::Main)
+add_executable(unit_test ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/bot_adapter.cpp ${CMAKE_CURRENT_SOURCE_DIR}/external/easywsclient/easywsclient.cpp)
+target_link_libraries(unit_test GTest::GTest GTest::Main fmt::fmt)
 add_test(NAME unit_test COMMAND unit_test)
 
 
