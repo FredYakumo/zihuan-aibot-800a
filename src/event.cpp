@@ -91,6 +91,6 @@ void AIBot::onEnable() {
 
         auto context = bot_cmd::CommandContext(e, "", false, 
             sender_id, group_id, sender_name, bot_name, bot_id, msg_prop);
-        process_llm(context);
+        process_llm(context, std::nullopt);
     });
 }

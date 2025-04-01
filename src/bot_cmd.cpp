@@ -165,7 +165,7 @@ namespace bot_cmd {
             auto net_search_res = rag::net_search_content(search_text);
             std::string net_search_str;
             if (net_search_res.empty()) {
-                net_search_str = fmt::format("你联网搜索了{}, 但是没有搜到任何东西。", search_text);
+                net_search_str = fmt::format("联网搜索了{}, 但是没有搜到任何东西。", search_text);
             } else {
                 net_search_str += "以下是联网查询的结果:\n";
                 for (const auto res : net_search_res) {
@@ -173,8 +173,8 @@ namespace bot_cmd {
                 }
             }
             MiraiCP::Logger::logger.info(net_search_str);
-            *context.msg_prop.plain_content = replace_str(search, "#联网", net_search_str);
-            process_llm(context);
+            *context.msg_prop.plain_content = replace_str(search, "#联网", "");
+            process_llm(context, net_search_str);
         }).detach();
 
         return bot_cmd::CommandRes{true};
@@ -209,8 +209,8 @@ namespace bot_cmd {
 
             auto net_search_res = rag::url_search_content(url_list);
             MiraiCP::Logger::logger.info(net_search_res);
-            *context.msg_prop.plain_content = replace_keyword_and_parentheses_content(search, "#url", net_search_res);
-            process_llm(context);
+            *context.msg_prop.plain_content = replace_keyword_and_parentheses_content(search, "#url", "");
+            process_llm(context, net_search_res);
         }).detach();
 
         return bot_cmd::CommandRes{true};
