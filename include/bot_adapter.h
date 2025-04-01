@@ -8,6 +8,7 @@
 #include <string_view>
 #include <functional>
 #include <vector>
+#include "adapter_event.h"
 
 namespace bot_adapter {
     class BotAdapter {
@@ -29,7 +30,7 @@ namespace bot_adapter {
 
       private:
         void handle_message(const std::string &message);
-        std::vector<std::function<void(const MessageBase &msg)>> msg_handle_func_list;
+        std::vector<std::function<void(const MessageEvent &msg)>> msg_handle_func_list;
 
         easywsclient::WebSocket::pointer ws;
     };
