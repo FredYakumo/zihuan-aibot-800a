@@ -240,7 +240,7 @@ namespace rag {
     // }
 
     std::string url_search_content(const std::vector<std::string> &url_list) {
-        std::string results {"(以下引用了一些网页链接和它的内容:)\n"};
+        std::string results {"(以下引用了一些网页链接和它的内容，必要时你可以详细列出这些内容:)\n"};
         nlohmann::json request_body{{"urls", url_list}, {"extract_depth", "advanced"}};
 
         cpr::Response r = cpr::Post(cpr::Url{URL_SEARCH_API_URL},
