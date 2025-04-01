@@ -173,7 +173,7 @@ namespace bot_cmd {
                 }
             }
             MiraiCP::Logger::logger.info(net_search_str);
-            *context.msg_prop.plain_content = replace_str(search, "#联网", "");
+            *context.msg_prop.plain_content = replace_str(search, "#联网", net_search_str);
             process_llm(context, net_search_str);
         }).detach();
 
@@ -209,7 +209,7 @@ namespace bot_cmd {
 
             auto net_search_res = rag::url_search_content(url_list);
             MiraiCP::Logger::logger.info(net_search_res);
-            *context.msg_prop.plain_content = replace_keyword_and_parentheses_content(search, "#url", "");
+            *context.msg_prop.plain_content = replace_keyword_and_parentheses_content(search, "#url", net_search_res);
             process_llm(context, net_search_res);
         }).detach();
 
