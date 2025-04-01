@@ -31,7 +31,7 @@ ChatMessage get_llm_response(const nlohmann::json &msg_json) {
     return ChatMessage();
 }
 
-void process_llm(bot_cmd::CommandContext context) {
+void process_llm(bot_cmd::CommandContext context, const std::optional<std::string> &additional_system_prompt_option) {
     MiraiCP::Logger::logger.info("开始处理LLM信息");
 
     if (!try_begin_processing_llm(context.sender_id)) {
@@ -52,7 +52,7 @@ void process_llm(bot_cmd::CommandContext context) {
         msg_content_str.append(*context.msg_prop.plain_content);
     }
     MiraiCP::Logger::logger.info(msg_content_str);
-    auto llm_thread = std::thread([context, msg_content_str] {
+    auto llm_thread = std::thread([context, msg_content_str, additional_system_prompt_option] {
         MiraiCP::Logger::logger.info("Start llm thread.");
         set_thread_name("AIBot LLM process");
         auto system_prompt =
@@ -65,13 +65,13 @@ void process_llm(bot_cmd::CommandContext context) {
         if (!msg_knowledge_list.empty()) {
             query_result_str += "\n以下是相关知识:";
             for (const auto &knowledge : msg_knowledge_list) {
-                query_result_str.append(fmt::format("\n{},关联度:{:.4f}", knowledge.first.content, knowledge.second));
+                query_result_str.append(fmt::format("\n{}", knowledge.first.content));
             }
         }
         if (!sender_name_knowledge_list.empty())  {
             query_result_str += "\n以下是跟你聊天的用户的相关知识:";
             for (const auto &knowledge : sender_name_knowledge_list) {
-                query_result_str.append(fmt::format("\n{},关联度:{:.4f}", knowledge.first.content, knowledge.second));
+                query_result_str.append(fmt::format("\n{}", knowledge.first.content));
             }
         }
         if (!query_result_str.empty()) {
@@ -79,6 +79,9 @@ void process_llm(bot_cmd::CommandContext context) {
             system_prompt += query_result_str;
         } else {
             MiraiCP::Logger::logger.info("未查询到关联的知识");
+        }
+        if (additional_system_prompt_option.has_value()) {
+            system_prompt += additional_system_prompt_option.value();
         }
         auto msg_json = get_msg_json(system_prompt, context.sender_id, context.sender_name);
 

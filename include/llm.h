@@ -3,7 +3,7 @@
 #include "bot_cmd.h"
 #include "global_data.h"
 
-void process_llm(bot_cmd::CommandContext context);
+void process_llm(bot_cmd::CommandContext context, const std::optional<std::string> &additional_system_prompt_option);
 
 inline bool try_begin_processing_llm(MiraiCP::QQID id) {
     std::lock_guard lock(g_chat_processing_map.first);
