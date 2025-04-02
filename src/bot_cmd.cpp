@@ -177,7 +177,7 @@ namespace bot_cmd {
             if (net_search_res.empty()) {
                 net_search_str = fmt::format("联网搜索了{}, 但是没有搜到任何东西。", search_text);
             } else {
-                net_search_str += "以下是联网查询的结果, 请在回答中详细总结一下:\n";
+                net_search_str += "\n以下是联网查询的结果, 请在回答中详细列出查询结果并总结一下:\n";
                 for (const auto res : net_search_res) {
                     net_search_str.append(fmt::format("{},{}:{}\n", res.url, res.title, res.content));
                 }
