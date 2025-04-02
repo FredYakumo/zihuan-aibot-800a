@@ -1,11 +1,16 @@
 #include "bot_adapter.h"
 #include "adapter_event.h"
+#include "adapter_message.h"
 #include "adapter_model.h"
+#include "constants.hpp"
 #include "easywsclient.hpp"
 #include "nlohmann/json_fwd.hpp"
 #include <chrono>
+#include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <vector>
 
 namespace bot_adapter {
 
@@ -26,7 +31,29 @@ namespace bot_adapter {
     }
 
 
+    std::vector<std::shared_ptr<MessageBase>> parse_message_chain(const nlohmann::json &msg_chain) {
+        std::vector<std::shared_ptr<MessageBase>> ret;
+        for  (const auto &msg : msg_chain) {
+            const std::optional<std::string> &type = msg["type"];
+            const std::optional<std::string> &text = msg["text"];
+            spdlog::debug("Message type: {}, text: \"{}\"", msg["type"], msg["text"]);
+            if (!type.has_value()) {
+                continue;
+            }
 
+            if ("Plain" == type) {
+                ret.push_back(std::make_shared<PlainTextMessage>(text.value_or(std::string(EMPTY_MSG_TAG))));
+            } else if ("At" == type) {
+                const std::optional<uint64_t> target = msg["target"];
+                if (!target.has_value()) {
+                    continue;
+                }
+                ret.push_back(std::make_shared<AtTargetMessage>(target.value()));
+            } else if ("Quo")
+        }
+
+        return ret;
+    }
 
 
     void BotAdapter::handle_message(const std::string &message) {
@@ -37,7 +64,9 @@ namespace bot_adapter {
             const std::string type = data["type"];
 
             if ("GroupMessage" == type) {
-                auto message_event = GroupMessageEvent();
+                Sender sender { data["sender"]};
+                Group group { data["group"]};
+                auto message_event = GroupMessageEvent(sender, group, ))
             }
             for (const auto &func : msg_handle_func_list) {
             }
