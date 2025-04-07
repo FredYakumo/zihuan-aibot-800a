@@ -5,6 +5,7 @@
 #include "adapter_model.h"
 #include "nlohmann/json_fwd.hpp"
 #include <algorithm>
+#include <memory>
 #include <string_view>
 #include <vector>
 
@@ -15,17 +16,24 @@ namespace bot_adapter {
     };
 
     struct GroupMessageEvent : public MessageEvent {
-        GroupMessageEvent(Sender sender, Group group, std::vector<MessageBase> messge_chain)
+        GroupMessageEvent(GroupSender sender, Group group, std::vector<std::shared_ptr<MessageBase>> messge_chain)
             : sender(std::move(sender)), group(std::move(group)), message_chain(std::move(messge_chain)) {}
         inline virtual std::string_view get_typename() const override { return "GroupMessageEvent"; }
         inline virtual nlohmann::json to_json() const override {
-            return nlohmann::json{{"type", get_typename()}
+            std::vector<nlohmann::json> message_chain_json{};
+            for (const auto &msg : message_chain) {
+                if (msg != nullptr) {
+                    message_chain_json.push_back(msg->to_json());
+                }
+            }
+            return nlohmann::json{{"type", get_typename()},
 
+                {"messageChain", message_chain_json}
             };
         }
-        Sender sender;
+        GroupSender sender;
         Group group;
-        std::vector<MessageBase> message_chain;
+        std::vector<std::shared_ptr<MessageBase>> message_chain;
     };
 } // namespace bot_adapter
 

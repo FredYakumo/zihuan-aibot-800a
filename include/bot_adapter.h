@@ -26,11 +26,21 @@ namespace bot_adapter {
             ws = easywsclient::WebSocket::from_url(std::string(url));
         }
         ~BotAdapter();
+        
         int start();
+
+        template <typename EventFuncT>
+        inline void register_event(std::function<void(const EventFuncT &e)> func) {
+            msg_handle_func_list.push_back([func] (const MessageEvent &e) {
+                if (auto specific_event = dynamic_cast<const EventFuncT *>(&e)) {
+                    func(*specific_event);
+                }
+            });
+        }
 
       private:
         void handle_message(const std::string &message);
-        std::vector<std::function<void(const MessageEvent &msg)>> msg_handle_func_list;
+        std::vector<std::function<void(const MessageEvent &e)>> msg_handle_func_list;
 
         easywsclient::WebSocket::pointer ws;
     };

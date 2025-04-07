@@ -5,6 +5,7 @@
 #include "constants.hpp"
 #include "easywsclient.hpp"
 #include "nlohmann/json_fwd.hpp"
+#include "utils.h"
 #include <chrono>
 #include <memory>
 #include <optional>
@@ -30,45 +31,79 @@ namespace bot_adapter {
         return 0;
     }
 
-
     std::vector<std::shared_ptr<MessageBase>> parse_message_chain(const nlohmann::json &msg_chain) {
         std::vector<std::shared_ptr<MessageBase>> ret;
-        for  (const auto &msg : msg_chain) {
-            const std::optional<std::string> &type = msg["type"];
-            const std::optional<std::string> &text = msg["text"];
-            spdlog::debug("Message type: {}, text: \"{}\"", msg["type"], msg["text"]);
+        for (const auto &msg : msg_chain) {
+
+            const auto type = get_optional<std::string>(msg, "type");
+            const auto text = get_optional<std::string>(msg, "text");
+
+            spdlog::debug("Message type: {}, text: \"{}\"", type.value_or(std::string{EMPTY_JSON_STR_VALUE}),
+                          text.value_or(std::string{EMPTY_JSON_STR_VALUE}));
+
             if (!type.has_value()) {
                 continue;
             }
 
-            if ("Plain" == type) {
+            if (*type == "Plain") {
                 ret.push_back(std::make_shared<PlainTextMessage>(text.value_or(std::string(EMPTY_MSG_TAG))));
-            } else if ("At" == type) {
-                const std::optional<uint64_t> target = msg["target"];
+            } else if (*type == "At") {
+                // 使用 get_optional 获取 target
+                const auto target = get_optional<uint64_t>(msg, "target");
                 if (!target.has_value()) {
                     continue;
                 }
-                ret.push_back(std::make_shared<AtTargetMessage>(target.value()));
-            } else if ("Quo")
+                ret.push_back(std::make_shared<AtTargetMessage>(*target));
+            } else if (*type == "Quote") {
+                //
+            }
         }
 
         return ret;
     }
 
-
     void BotAdapter::handle_message(const std::string &message) {
         spdlog::info("On recv message: {}", message);
         try {
+            spdlog::debug("Parse recv json");
             auto msg_json = nlohmann::json::parse(message);
-            const auto data = msg_json["data"];
-            const std::string type = data["type"];
-
-            if ("GroupMessage" == type) {
-                Sender sender { data["sender"]};
-                Group group { data["group"]};
-                auto message_event = GroupMessageEvent(sender, group, ))
+            const auto data = get_optional(msg_json, "data");
+            if (data->empty()) {
+                return;
             }
-            for (const auto &func : msg_handle_func_list) {
+            const auto &type = get_optional<std::string>(*data, "type");
+            if (type->empty()) {
+                return;
+            }
+            spdlog::debug("Check event type");
+            if ("GroupMessage" == type) {
+
+                auto sender_json = get_optional(*data, "sender");
+                if (!sender_json) {
+                    spdlog::warn("GroupMessage event中, 收到的数据没有sender");
+                    return;
+                }
+                GroupSender sender{*sender_json};
+
+                auto group_json = get_optional(*data, "group");
+                if (!group_json) {
+                    spdlog::warn("GroupMessage event中, 收到的数据没有group");
+                    return;
+                }
+                Group group{*group_json};
+
+                auto msg_chain_json = get_optional(*data, "messageChain");
+                if (!msg_chain_json) {
+                    spdlog::warn("GroupMessage event中, 收到的数据没有messageChain");
+                    return;
+                }
+                spdlog::debug("parse message chain");
+                const auto message_chain = parse_message_chain(*msg_chain_json);
+                auto message_event = GroupMessageEvent(sender, group, message_chain);
+                spdlog::debug("Call register event functions");
+                for (const auto &func : msg_handle_func_list) {
+                    func(message_event);
+                }
             }
 
         } catch (const nlohmann::json::parse_error &e) {

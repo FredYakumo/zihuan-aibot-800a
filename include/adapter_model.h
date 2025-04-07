@@ -33,30 +33,44 @@ namespace bot_adapter {
     };
 
     /**
-     * @brief Represents a message sender in the chat system
+     * @brief Represents a group message sender with additional group-specific information
      *
-     * Contains information about a user who can send messages,
-     * including their identification, permissions, and activity timestamps.
+     * Extends the basic Sender with group-related metadata like join time and last activity.
      */
-    struct GroupSender {
+    struct GroupSender : public Sender {
+        // Permission level in the group (e.g., "MEMBER", "ADMINISTRATOR")
+        std::string permission;
+        // When the sender joined the group (empty if unknown)
         std::optional<std::chrono::system_clock::time_point> join_time;
-        //  When the sender last spoke
+        // When the sender last spoke in the group
         std::chrono::system_clock::time_point last_speak_time;
 
         /**
-         * @brief Constructs a new Sender object
+         * @brief Constructs a new GroupSender object
          *
          * @param id Unique identifier
          * @param name Display name
-         * @param permission Permission level
-         * @param last_speak_time When the sender last spoke
+         * @param remark Optional remark about the sender
+         * @param permission Permission level in group
+         * @param join_time Optional join time in group
+         * @param last_speak_time Last speaking time in group
          */
-        GroupSender(uint64_t id, std::string name, std::string permission,
-               std::chrono::system_clock::time_point last_speak_time) std::chrono::system_clock::from_time_t(sender["lastSpeakTimeStamp"]
-            : Sender(id, name, last_s) id(id), name(std::move(name)), permission(std::move(permission)), last_speak_time(last_speak_time) {}
+        GroupSender(uint64_t id, std::string name, std::optional<std::string> remark, std::string permission,
+                    std::optional<std::chrono::system_clock::time_point> join_time,
+                    std::chrono::system_clock::time_point last_speak_time)
+            : Sender(id, std::move(name), std::move(remark)), permission(std::move(permission)), join_time(join_time),
+              last_speak_time(last_speak_time) {}
 
-        Sender(const nlohmann::json::value_type &sender)
-            : id(sender["id"]), name(sender["memberName"]), permission(sender["permission"]),
+        /**
+         * @brief Constructs from JSON data
+         *
+         * @param sender JSON object containing sender information
+         */
+        GroupSender(const nlohmann::json &sender)
+            : Sender(sender["id"], sender["memberName"], sender["remark"]), permission(sender["permission"]),
+              join_time(sender.contains("joinTimestamp")
+                            ? std::make_optional(std::chrono::system_clock::from_time_t(sender["joinTimestamp"]))
+                            : std::nullopt),
               last_speak_time(std::chrono::system_clock::from_time_t(sender["lastSpeakTimeStamp"])) {}
     };
 
