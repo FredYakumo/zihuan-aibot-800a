@@ -85,7 +85,7 @@ namespace bot_adapter {
                 }
                 GroupSender sender{*sender_json};
 
-                auto group_json = get_optional(*data, "group");
+                auto group_json = get_optional(*sender_json, "group");
                 if (!group_json) {
                     spdlog::warn("GroupMessage event中, 收到的数据没有group");
                     return;

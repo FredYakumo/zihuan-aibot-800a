@@ -1,6 +1,7 @@
 #ifndef ADAPTER_MODEL_H
 #define ADAPTER_MODEL_H
 
+#include "utils.h"
 #include <chrono>
 #include <cstdint>
 #include <nlohmann/json.hpp>
@@ -67,11 +68,19 @@ namespace bot_adapter {
          * @param sender JSON object containing sender information
          */
         GroupSender(const nlohmann::json &sender)
-            : Sender(sender["id"], sender["memberName"], sender["remark"]), permission(sender["permission"]),
-              join_time(sender.contains("joinTimestamp")
-                            ? std::make_optional(std::chrono::system_clock::from_time_t(sender["joinTimestamp"]))
-                            : std::nullopt),
-              last_speak_time(std::chrono::system_clock::from_time_t(sender["lastSpeakTimeStamp"])) {}
+            : Sender(get_optional<uint64_t>(sender, "id").value_or(0),
+                     get_optional<std::string>(sender, "memberName").value_or(""),
+                     get_optional<std::string>(sender, "remark").value_or("")),
+              permission(get_optional<std::string>(sender, "permission").value_or("")),
+              join_time([&sender]() -> std::optional<std::chrono::system_clock::time_point> {
+                  auto join_timestamp = get_optional<time_t>(sender, "joinTimestamp");
+                  if (join_timestamp) {
+                      return std::chrono::system_clock::from_time_t(*join_timestamp);
+                  }
+                  return std::nullopt;
+              }()),
+              last_speak_time(std::chrono::system_clock::from_time_t(
+                  get_optional<time_t>(sender, "lastSpeakTimeStamp").value_or(0))) {}
     };
 
     /**
@@ -95,8 +104,15 @@ namespace bot_adapter {
         Group(uint64_t id, std::string name, std::string permission)
             : id(id), name(std::move(name)), permission(std::move(permission)) {}
 
+        /**
+         * @brief Constructs a new Group object from JSON data
+         *
+         * @param group JSON object containing group information
+         */
         Group(const nlohmann::json::value_type &group)
-            : id(group["id"]), name(group["name"]), permission(group["permission"]) {}
+            : id(get_optional<uint64_t>(group, "id").value_or(0)),
+              name(get_optional<std::string>(group, "name").value_or("")),
+              permission(get_optional<std::string>(group, "permission").value_or("")) {}
     };
 } // namespace bot_adapter
 

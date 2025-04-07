@@ -15,7 +15,7 @@ TEST(UnitTest, BotAdapterTest) {
     bot_adapter::BotAdapter adapter{"ws://localhost:13378/all"};
 
     adapter.register_event<bot_adapter::GroupMessageEvent>([](const bot_adapter::GroupMessageEvent &e) {
-        spdlog::info("接受到消息, 从sender: {}", e.sender.id);
+        spdlog::info("接受到消息, 从sender: {}, group: {}", e.sender.id, e.group.name);
     });
 
     adapter.start();
