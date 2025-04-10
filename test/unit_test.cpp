@@ -16,7 +16,6 @@ TEST(UnitTest, BotAdapterTest) {
     const auto test_sender_id = 3507578481;
     adapter.register_event<bot_adapter::GroupMessageEvent>([&adapter](const bot_adapter::GroupMessageEvent &e) {
         spdlog::info("接受到消息, 从sender: {}, group: {}", e.sender.id, e.group.name);
-
         if (e.sender.id == test_sender_id) {
             adapter.send_message(e.group,
                                 bot_adapter::make_message_chain_list(
