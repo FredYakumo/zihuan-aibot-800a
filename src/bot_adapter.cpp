@@ -57,7 +57,7 @@ namespace bot_adapter {
                 }
                 ret.push_back(std::make_shared<AtTargetMessage>(*target));
             } else if (*type == "Quote") {
-                //
+                // TODO: 处理Quote信息的parse
             }
         }
 
