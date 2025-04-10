@@ -113,7 +113,28 @@ namespace bot_adapter {
             : id(get_optional<uint64_t>(group, "id").value_or(0)),
               name(get_optional<std::string>(group, "name").value_or("")),
               permission(get_optional<std::string>(group, "permission").value_or("")) {}
+
+        /**
+         * @brief Implicit conversion operator to std::string
+         *
+         * @return std::string String representation of the Group object
+         */
+        operator std::string() const { return fmt::format("[Group]{}({})", name, id); }
     };
 } // namespace bot_adapter
+
+/**
+ * @brief Converts a Group object to a formatted std::string representation
+ *
+ * This function provides a string representation of a Group object in a specific format:
+ * "[Group]name(id)", where `name` is the group's display name and `id` is its unique identifier.
+ *
+ * @param group The Group object to convert to a string
+ * @return std::string A formatted string representing the Group object
+ */
+
+inline std::string to_string(const bot_adapter::Group &group) {
+    return fmt::format("[Group]{}({})", group.name, group.id);
+}
 
 #endif

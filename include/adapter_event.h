@@ -28,8 +28,7 @@ namespace bot_adapter {
             }
             return nlohmann::json{{"type", get_typename()},
 
-                {"messageChain", message_chain_json}
-            };
+                                  {"messageChain", message_chain_json}};
         }
         GroupSender sender;
         Group group;
@@ -37,13 +36,10 @@ namespace bot_adapter {
     };
 } // namespace bot_adapter
 
-
 // Specialize nlohmann::adl_serializer for MessageEvent
 namespace nlohmann {
     template <> struct adl_serializer<bot_adapter::MessageEvent> {
-        static void to_json(json &j, const bot_adapter::MessageEvent &message_event) { 
-            j = message_event.to_json();
-        }
+        static void to_json(json &j, const bot_adapter::MessageEvent &message_event) { j = message_event.to_json(); }
     };
 } // namespace nlohmann
 

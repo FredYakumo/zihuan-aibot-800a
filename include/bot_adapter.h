@@ -39,6 +39,8 @@ namespace bot_adapter {
             });
         }
 
+        int send_message(const Group &group, const MessageChainPtrList &message_chain);
+
       private:
         void handle_message(const std::string &message);
         std::vector<std::function<void(const MessageEvent &e)>> msg_handle_func_list;

@@ -3,6 +3,7 @@
 
 #include "nlohmann/json.hpp"
 #include "nlohmann/json_fwd.hpp"
+#include <memory>
 #include <string_view>
 
 namespace bot_adapter {
@@ -30,6 +31,22 @@ namespace bot_adapter {
 
         uint64_t target;
     };
+
+    using MessageChainPtrList = std::vector<std::shared_ptr<MessageBase>>;
+
+    inline nlohmann::json to_json(const MessageChainPtrList &message_chain) {
+        auto ret = nlohmann::json::array();
+        for (const auto &item : message_chain) {
+            if (item != nullptr) {
+                ret.push_back(item->to_json());
+            }
+        }
+        return ret;
+    }
+
+    template <typename... Args> MessageChainPtrList make_message_chain_list(Args &&...args) {
+        return {std::make_shared<std::decay_t<Args>>(std::forward<Args>(args))...};
+    }
 
 } // namespace bot_adapter
 

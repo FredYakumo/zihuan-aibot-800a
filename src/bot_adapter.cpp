@@ -115,4 +115,19 @@ namespace bot_adapter {
         }
     }
 
+    int BotAdapter::send_message(const Group &group, const MessageChainPtrList &message_chain) {
+        spdlog::info("Send message to group: {}", to_string(group));
+        const auto message_json = to_json(message_chain);
+        auto ws_json = nlohmann::json {
+            {"syncId", ""},
+            {"command", "sendGroupMessage"},
+            {"content", {
+                {"target", group.id},
+                {"messageChain", message_json}
+            }}
+        };
+        ws->send(ws_json.dump());
+        return 0;
+    }
+
 } // namespace bot_adapter
