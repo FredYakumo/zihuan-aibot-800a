@@ -3,11 +3,14 @@
 
 #include "adapter_event.h"
 #include "adapter_message.h"
+#include "mutex_data.hpp"
 #include <easywsclient.hpp>
 #include <functional>
+#include <optional>
 #include <spdlog/spdlog.h>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace bot_adapter {
@@ -39,11 +42,17 @@ namespace bot_adapter {
             });
         }
 
-        int send_message(const Group &group, const MessageChainPtrList &message_chain);
+        void send_message(const Group &group, const MessageChainPtrList &message_chain,
+                         std::optional<std::function<void(uint64_t &out_message_id)>> out_message_id_option = std::nullopt);
 
       private:
         void handle_message(const std::string &message);
         std::vector<std::function<void(const MessageEvent &e)>> msg_handle_func_list;
+
+        MutexData<std::unordered_map<std::string, std::function<void(uint64_t message_id)>>>
+            send_msg_result_handle_map;
+
+        void handle_send_msg_result(const std::string &sync_id, const nlohmann::json &data_json);
 
         easywsclient::WebSocket::pointer ws;
     };
