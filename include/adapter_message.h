@@ -3,7 +3,9 @@
 
 #include "nlohmann/json.hpp"
 #include "nlohmann/json_fwd.hpp"
+#include <chrono>
 #include <memory>
+#include <optional>
 #include <string_view>
 
 namespace bot_adapter {
@@ -11,6 +13,8 @@ namespace bot_adapter {
         virtual std::string_view get_type() const = 0;
         virtual nlohmann::json to_json() const = 0;
     };
+
+    using MessageChainPtrList = std::vector<std::shared_ptr<MessageBase>>;
 
     struct PlainTextMessage : public MessageBase {
         PlainTextMessage(const std::string_view text) : text(text) {}
@@ -22,6 +26,101 @@ namespace bot_adapter {
         std::string text;
     };
 
+    struct QuoteMessage : public MessageBase {
+        QuoteMessage(const std::string_view text, uint64_t message_id,
+                     std::shared_ptr<MessageBase> origin_message_ptr = nullptr)
+            : text(text), message_id(message_id), origin_message_ptr(origin_message_ptr) {}
+
+        inline std::string_view get_type() const override { return "Quote"; }
+
+        nlohmann::json to_json() const override {
+            nlohmann::json json_obj = {{"type", get_type()}, {"text", text}, {"messageId", message_id}};
+
+            if (origin_message_ptr) {
+                json_obj["origin"] = origin_message_ptr->to_json();
+            }
+
+            return json_obj;
+        }
+
+        std::string text;
+        uint64_t message_id;
+        std::shared_ptr<MessageBase> origin_message_ptr = nullptr;
+    };
+
+    struct ForwardMessageNode {
+        // Constructor remains the same as before
+        ForwardMessageNode(uint64_t sender_id, std::chrono::system_clock::time_point time, std::string sender_name,
+                           MessageChainPtrList message_chain, std::optional<uint64_t> message_id = std::nullopt,
+                           std::optional<uint64_t> message_ref = std::nullopt)
+            : sender_id(sender_id), time(time), sender_name(std::move(sender_name)),
+              message_chain(std::move(message_chain)), message_id(message_id), message_ref(message_ref) {}
+
+        nlohmann::json to_json() const {
+            // Convert time_point to time_t
+            auto time_t = std::chrono::system_clock::to_time_t(time);
+
+            // Convert to local time (or UTC if preferred)
+            std::tm tm = *std::localtime(&time_t);
+
+            // Format as YYYY年MM月dd日 HH:mm:SS
+            std::ostringstream oss;
+            oss << std::put_time(&tm, "%Y年%m月%d日 %H:%M:%S");
+            std::string time_str = oss.str();
+            nlohmann::json node_json = {{"senderId", sender_id},
+                                        {"time", time_str},
+                                        {"senderName", sender_name},
+                                        {"messageChain", nlohmann::json::array()}};
+
+            // Add messageId only if it exists
+            if (message_id.has_value()) {
+                node_json["messageId"] = *message_id;
+            }
+
+            // Add messageRef only if it exists
+            if (message_ref.has_value()) {
+                node_json["messageRef"] = *message_ref;
+            }
+
+            // Serialize each message in the chain
+            for (const auto &msg_ptr : message_chain) {
+                if (msg_ptr) {
+                    node_json["messageChain"].push_back(msg_ptr->to_json());
+                }
+            }
+
+            return node_json;
+        }
+
+        uint64_t sender_id = 0;
+        std::chrono::system_clock::time_point time;
+        std::string sender_name;
+        MessageChainPtrList message_chain;
+        std::optional<uint64_t> message_id;
+        std::optional<uint64_t> message_ref;
+    };
+
+    struct ForwardMessage : public MessageBase {
+        ForwardMessage(std::vector<ForwardMessageNode> nodes, std::optional<std::string> display = std::nullopt)
+            : node_list(std::move(nodes)), display(display) {}
+
+        std::string_view get_type() const override { return "Forward"; }
+
+        nlohmann::json to_json() const override {
+            nlohmann::json json_msg = {
+                {"type", get_type()}, {"display", display ? *display : nullptr}, {"nodeList", nlohmann::json::array()}};
+
+            for (const auto &node : node_list) {
+                json_msg["nodeList"].push_back(node.to_json());
+            }
+
+            return json_msg;
+        }
+
+        std::vector<ForwardMessageNode> node_list;
+        std::optional<std::string> display;
+    };
+
     struct AtTargetMessage : public MessageBase {
         AtTargetMessage(uint64_t target) : target(target) {}
 
@@ -31,8 +130,6 @@ namespace bot_adapter {
 
         uint64_t target;
     };
-
-    using MessageChainPtrList = std::vector<std::shared_ptr<MessageBase>>;
 
     inline nlohmann::json to_json(const MessageChainPtrList &message_chain) {
         auto ret = nlohmann::json::array();
@@ -58,7 +155,8 @@ namespace bot_adapter {
         return std::nullopt;
     }
 
-    inline std::optional<std::reference_wrapper<const PlainTextMessage>> try_plain_text_message(const MessageBase &msg) {
+    inline std::optional<std::reference_wrapper<const PlainTextMessage>>
+    try_plain_text_message(const MessageBase &msg) {
         if (msg.get_type() == "Plain") {
             auto *ptr = dynamic_cast<const PlainTextMessage *>(&msg);
             if (ptr) {
