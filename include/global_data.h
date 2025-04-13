@@ -11,7 +11,6 @@
 #include <string_view>
 #include <tuple>
 #include <unordered_map>
-#include <MiraiCP.hpp>
 #include <utility>
 #include <vector>
 #include "utils.h"
@@ -70,8 +69,8 @@ struct DBKnowledge {
         content(content), creator_name(creator_name), create_dt(create_dt) {}
 };
 
-extern MutexData<std::unordered_map<MiraiCP::QQID, ChatSession>> g_chat_session_map;
-extern std::pair<std::mutex, std::unordered_map<MiraiCP::QQID, bool>> g_chat_processing_map;
+extern MutexData<std::unordered_map<uint64_t, ChatSession>> g_chat_session_map;
+extern std::pair<std::mutex, std::unordered_map<uint64_t, bool>> g_chat_processing_map;
 extern MutexData<std::vector<DBKnowledge>> g_wait_add_knowledge_list;
 
 #endif

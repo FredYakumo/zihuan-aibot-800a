@@ -1,7 +1,6 @@
 #include "rag.h"
 #include "nlohmann/json_fwd.hpp"
 #include "utils.h"
-#include <MiraiCP.hpp>
 #include <config.h>
 #include <cpr/cpr.h>
 #include <fmt/format.h>
@@ -13,7 +12,7 @@
 
 namespace rag {
     std::vector<std::pair<DBGroupMessage, double>> query_group_msg(const std::string_view query,
-                                                                   std::optional<MiraiCP::QQID> group_id_option) {
+                                                                   std::optional<uint64_t> group_id_option) {
         std::vector<std::pair<DBGroupMessage, double>> result;
 
         std::string escaped_query = replace_str(query, "\"", "\\\"");
@@ -138,21 +137,19 @@ namespace rag {
                 result.push_back(std::make_pair(std::move(db_msg), score));
             }
         } catch (const nlohmann::json::exception &e) {
-            MiraiCP::Logger::logger.error(std::string("查询知识出错: ") + e.what());
+            spdlog::error("查询知识出错: {}", e.what());
         } catch (const std::invalid_argument &e) {
-            MiraiCP::Logger::logger.error(std::string("查询知识时转换得分出错: ") + e.what());
-
+            spdlog::error("查询知识时转换得分出错: {}", e.what());
         } catch (const std::out_of_range &e) {
-            MiraiCP::Logger::logger.error(std::string("查询知识时转换得分出错, 数据超出范围: ") + e.what());
+            spdlog::error("查询知识时转换得分出错，数据超出范围: {}", e.what());
         }
 
         return result;
     }
 
-    void insert_group_msg(MiraiCP::QQID group_id, const std::string_view group_name, MiraiCP::QQID sender_id,
+    void insert_group_msg(uint64_t group_id, const std::string_view group_name, uint64_t sender_id,
                           const std::string_view sender_name, const std::string_view content) {
-        MiraiCP::Logger::logger.info("Insert msg to Group_message collection");
-
+        spdlog::info("Insert msg to Group_message collection");
         std::string group_name_str(group_name);
         std::string sender_name_str(sender_name);
         std::string content_str(content);
@@ -165,7 +162,7 @@ namespace rag {
                                                                         {"group_id", std::to_string(group_id)},
                                                                         {"group_name", group_name_str},
                                                                         {"content", content_str}}}}})}};
-        MiraiCP::Logger::logger.info(request.dump());
+        spdlog::info("{}", request.dump());
 
         cpr::Response response =
             cpr::Post(cpr::Url{fmt::format("{}/batch/objects", MSG_DB_URL)}, cpr::Body{request.dump()},
@@ -173,22 +170,21 @@ namespace rag {
 
         if (response.status_code == 200) {
             // MiraiCP::Logger::logger.info(fmt::format("Insert msg db res: {}", response.text));
-            MiraiCP::Logger::logger.info("Insert msg db successed");
-
+            spdlog::info("insert msg db successed");
         } else {
-            MiraiCP::Logger::logger.error(fmt::format("Failed to insert msg: {}", response.text));
+            spdlog::error("Failed to insert msg: {}", response.text);
         }
     }
 
     void insert_knowledge(const DBKnowledge &knowledge) {
-        MiraiCP::Logger::logger.info("Insert msg to AIBot_knowledge collection");
+        spdlog::info("Insert msg to AIBot_knowledge collection");
 
         nlohmann::json request = {{"objects", nlohmann::json::array({{{"class", "AIBot_knowledge"},
                                                                       {"properties",
                                                                        {{"creator_name", knowledge.creator_name},
                                                                         {"create_time", knowledge.create_dt},
                                                                         {"content", knowledge.content}}}}})}};
-        MiraiCP::Logger::logger.info(request.dump());
+        spdlog::info("{}", request.dump());
 
         cpr::Response response =
             cpr::Post(cpr::Url{fmt::format("{}/batch/objects", MSG_DB_URL)}, cpr::Body{request.dump()},
@@ -196,10 +192,10 @@ namespace rag {
 
         if (response.status_code == 200) {
             // MiraiCP::Logger::logger.info(fmt::format("Insert msg db res: {}", response.text));
-            MiraiCP::Logger::logger.info("Insert knowledge db successed");
+            spdlog::info("Insert knowledge db successed");
 
         } else {
-            MiraiCP::Logger::logger.error(fmt::format("Failed to insert knowledge: {}", response.text));
+            spdlog::error("Failed to insert knowledge: {}", response.text);
         }
     }
 
@@ -214,7 +210,7 @@ namespace rag {
                                     cpr::Body{request_body.dump()});
 
         if (r.status_code != 200) {
-            MiraiCP::Logger::logger.error("请求失败: " + r.text);
+            spdlog::error("请求失败: {}", r.text);
         }
         try {
 
@@ -230,7 +226,7 @@ namespace rag {
                 results.push_back(result);
             }
         } catch (const nlohmann::json::exception &e) {
-            MiraiCP::Logger::logger.error("JSON解析失败: " + std::string(e.what()));
+            spdlog::error("JSON解析失败: {}", e.what());
         }
         return results;
     }
@@ -250,7 +246,7 @@ namespace rag {
                                     cpr::Body{request_body.dump()});
 
         if (r.status_code != 200) {
-            MiraiCP::Logger::logger.error("请求失败: " + r.text);
+            spdlog::error("请求失败: {}", r.text);
         }
         try {
 
@@ -263,7 +259,7 @@ namespace rag {
                 results += '\n';
             }
         } catch (const nlohmann::json::exception &e) {
-            MiraiCP::Logger::logger.error("JSON解析失败: " + std::string(e.what()));
+            spdlog::error("JSON解析失败: {}", e.what());
         }
         return results;
     }

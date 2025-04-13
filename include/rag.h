@@ -1,8 +1,8 @@
 #ifndef MSG_DB_H
 #define MSG_DB_H
 
-#include "MiraiCP.hpp"
 #include "global_data.h"
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -33,11 +33,11 @@ namespace rag {
     };
 
     std::vector<std::pair<DBGroupMessage, double>>
-    query_group_msg(const std::string_view query, std::optional<MiraiCP::QQID> group_id_option = std::nullopt);
+    query_group_msg(const std::string_view query, std::optional<uint64_t> group_id_option = std::nullopt);
 
     std::vector<std::pair<DBKnowledge, double>> query_knowledge(const std::string_view query);
 
-    void insert_group_msg(MiraiCP::QQID group_id, const std::string_view group_name, MiraiCP::QQID sender_id,
+    void insert_group_msg(uint64_t group_id, const std::string_view group_name,uint64_t sender_id,
                           const std::string_view sender_name, const std::string_view content);
 
     void insert_knowledge(const DBKnowledge &knowledge);

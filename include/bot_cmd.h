@@ -1,26 +1,21 @@
 #ifndef BOT_CMD_H
 #define BOT_CMD_H
 
+#include "adapter_event.h"
+#include "adapter_model.h"
+#include "bot_adapter.h"
 #include "msg_prop.h"
-#include <MiraiCP.hpp>
 
 namespace bot_cmd {
     struct CommandContext {
-        MiraiCP::GroupMessageEvent e;
+        bot_adapter::BotAdapter &adapter;
+        std::shared_ptr<bot_adapter::MessageEvent> e;
         std::string param;
         bool is_command_only;
-        MiraiCP::QQID sender_id;
-        MiraiCP::QQID group_id;
-        std::string sender_name;
-        std::string bot_name;
-        MiraiCP::QQID bot_id;
         MessageProperties msg_prop;
 
-        CommandContext(MiraiCP::GroupMessageEvent e, std::string_view param, bool is_command_only,
-                       MiraiCP::QQID sender_id, MiraiCP::QQID group_id, std::string_view sender_name,
-                       std::string_view bot_name, MiraiCP::QQID bot_id, MessageProperties msg_prop)
-            : e(e), param(param), is_command_only(is_command_only), sender_id(sender_id), group_id(group_id),
-              sender_name(sender_name), bot_name(bot_name), bot_id(bot_id), msg_prop(msg_prop) {}
+        CommandContext(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_adapter::MessageEvent> e, std::string_view param, bool is_command_only, MessageProperties msg_prop)
+            : adapter(adapter), e(e), param(param), is_command_only(is_command_only), msg_prop(msg_prop) {}
     };
 
     struct CommandRes {
@@ -78,12 +73,15 @@ namespace bot_cmd {
     extern std::map<std::string, bot_cmd::CommandProperty> keyword_command_map;
 
     inline void init_command_map() {
-        keyword_command_map.emplace("#语录", bot_cmd::CommandProperty{false, true, bot_cmd::queto_command});
-        keyword_command_map.emplace("#查询知识", bot_cmd::CommandProperty{true, true, bot_cmd::query_knowledge_command});
+        // keyword_command_map.emplace("#语录", bot_cmd::CommandProperty{false, true, bot_cmd::queto_command});
+        keyword_command_map.emplace("#查询知识",
+                                    bot_cmd::CommandProperty{true, true, bot_cmd::query_knowledge_command});
         keyword_command_map.emplace("#添加知识", bot_cmd::CommandProperty{false, true, bot_cmd::add_knowledge_command});
-        keyword_command_map.emplace("#入库知识", bot_cmd::CommandProperty{true, true, bot_cmd::checkin_knowledge_command});
+        keyword_command_map.emplace("#入库知识",
+                                    bot_cmd::CommandProperty{true, true, bot_cmd::checkin_knowledge_command});
         keyword_command_map.emplace("#查看记忆", bot_cmd::CommandProperty{true, bot_cmd::query_memory_command});
-        keyword_command_map.emplace("#待添加知识", bot_cmd::CommandProperty{true, bot_cmd::query_add_knowledge_list_command});
+        keyword_command_map.emplace("#待添加知识",
+                                    bot_cmd::CommandProperty{true, bot_cmd::query_add_knowledge_list_command});
         keyword_command_map.emplace("#联网", bot_cmd::CommandProperty{false, false, bot_cmd::net_search_command});
         keyword_command_map.emplace("#url", bot_cmd::CommandProperty{false, true, bot_cmd::url_search_command});
     }

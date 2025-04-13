@@ -48,6 +48,26 @@ namespace bot_adapter {
         return {std::make_shared<std::decay_t<Args>>(std::forward<Args>(args))...};
     }
 
+    inline std::optional<std::reference_wrapper<const AtTargetMessage>> try_at_me_message(const MessageBase &msg) {
+        if (msg.get_type() == "At") {
+            auto *ptr = dynamic_cast<const AtTargetMessage *>(&msg);
+            if (ptr) {
+                return std::cref(*ptr);
+            }
+        }
+        return std::nullopt;
+    }
+
+    inline std::optional<std::reference_wrapper<const PlainTextMessage>> try_plain_text_message(const MessageBase &msg) {
+        if (msg.get_type() == "Plain") {
+            auto *ptr = dynamic_cast<const PlainTextMessage *>(&msg);
+            if (ptr) {
+                return std::cref(*ptr);
+            }
+        }
+        return std::nullopt;
+    }
+
 } // namespace bot_adapter
 
 // Specialize nlohmann::adl_serializer for MessageBase

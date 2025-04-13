@@ -1,7 +1,9 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-#include "MiraiCP.hpp"
+#include "adapter_message.h"
+#include "adapter_model.h"
+#include "bot_adapter.h"
 #include "constants.hpp"
 #include <chrono>
 #include <fmt/chrono.h>
@@ -12,7 +14,7 @@
 #include "i18n.hpp"
 #include "nlohmann/json_fwd.hpp"
 
-std::string gen_common_prompt(const std::string_view bot_name, const MiraiCP::QQID bot_id,
+std::string gen_common_prompt(const std::string_view bot_name, uint64_t bot_id,
                               const std::string_view user_name, const uint64_t user_id);
 
 inline std::string_view ltrim(const std::string_view str) {
@@ -272,7 +274,7 @@ inline std::string replace_str(std::string_view str, std::string_view pattern, s
         // Find the next occurrence of the pattern.
         const size_t pos = str.find(pattern, start);
         if (pos == std::string_view::npos) {
-            break; // No more matches found.
+            break; // No more matches fsnd.
         }
         // Ensure the match starts at a valid UTF-8 leader byte.
         if (!is_utf8_leader_byte(str[pos])) {
@@ -297,26 +299,6 @@ inline std::string replace_str(std::string_view str, std::string_view pattern, s
     return result;
 }
 
-inline void output_in_split_string(const MiraiCP::GroupMessageEvent &e, const MiraiCP::QQID target,
-                                   const std::string_view content) {
-    auto split_output = Utf8Splitter(content, MAX_OUTPUT_LENGTH);
-    size_t output_number = 0;
-    for (auto chunk : split_output) {
-        MiraiCP::Logger::logger.info(fmt::format("正在输出块: {}", output_number));
-        auto msg_chain = MiraiCP::MessageChain{};
-        if (output_number == 0) {
-            msg_chain.add(MiraiCP::At(target));
-            msg_chain.add(MiraiCP::PlainText(" "));
-        }
-        ++output_number;
-        msg_chain.add(MiraiCP::PlainText{std::string(chunk)});
-        try {
-            e.group.sendMessage(msg_chain);
-        } catch (std::exception &e) {
-            MiraiCP::Logger::logger.info(fmt::format("发送消息失败, 原因: {}", e.what()));
-        }
-    }
-}
 
 inline void remove_text_between_markers(std::string &str, const std::string &start_marker,
                                         const std::string &end_marker) {
@@ -326,32 +308,6 @@ inline void remove_text_between_markers(std::string &str, const std::string &sta
     if (start_pos != std::string::npos && end_pos != std::string::npos && end_pos > start_pos) {
         str.erase(start_pos, end_pos - start_pos + end_marker.length());
     }
-}
-
-/**
- * @brief Converts a JSON field to an `std::optional<T>`.
- *
- * This function checks if the specified key exists in the JSON object and if the value is not null.
- * If both conditions are met, it attempts to convert the value to the specified type `T`.
- * If the key does not exist, the value is null, or the conversion fails, it returns `std::nullopt`.
- *
- * @tparam T The type to which the JSON value should be converted.
- * @param j The JSON object from which to extract the value.
- * @param key The key of the field to extract from the JSON object.
- * @return An `std::optional<T>` containing the converted value if successful; otherwise, `std::nullopt`.
- */
-template <typename T = nlohmann::json>
-std::optional<T> get_optional(const nlohmann::json &j, const std::string_view key) {
-    if (j.contains(key) && !j[key].is_null()) {
-        try {
-            return j[key].get<T>();
-        } catch (const nlohmann::json::exception &) {
-            // If the type conversion fails, return an empty optional.
-            return std::nullopt;
-        }
-    }
-    // Return an empty optional if the key does not exist or the value is null.
-    return std::nullopt;
 }
 
 

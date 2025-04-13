@@ -10,36 +10,60 @@
 #include <vector>
 
 namespace bot_adapter {
-    struct MessageEvent {
+    struct Event {
+        virtual ~Event() = default;
         virtual std::string_view get_typename() const = 0;
         virtual nlohmann::json to_json() const = 0;
     };
 
-    struct GroupMessageEvent : public MessageEvent {
-        GroupMessageEvent(GroupSender sender, Group group, std::vector<std::shared_ptr<MessageBase>> messge_chain)
-            : sender(std::move(sender)), group(std::move(group)), message_chain(std::move(messge_chain)) {}
-        inline virtual std::string_view get_typename() const override { return "GroupMessageEvent"; }
-        inline virtual nlohmann::json to_json() const override {
-            std::vector<nlohmann::json> message_chain_json{};
+    struct MessageEvent : public Event {
+        MessageEvent(std::shared_ptr<Sender> sender_ptr, MessageChainPtrList message_chain)
+            : sender_ptr(sender_ptr), message_chain(std::move(message_chain)) {}
+
+        std::string_view get_typename() const override = 0;
+
+        nlohmann::json to_json() const override {
+            nlohmann::json message_chain_json = nlohmann::json::array();
+
             for (const auto &msg : message_chain) {
-                if (msg != nullptr) {
+                if (msg) {
                     message_chain_json.push_back(msg->to_json());
                 }
             }
-            return nlohmann::json{{"type", get_typename()},
+            nlohmann::json ret_json = {{"type", get_typename()}, {"messageChain", std::move(message_chain_json)}};
 
-                                  {"messageChain", message_chain_json}};
+            if (sender_ptr != nullptr) {
+                ret_json["sender"] = sender_ptr->to_json();
+            }
+
+            return ret_json;
         }
-        GroupSender sender;
-        Group group;
-        std::vector<std::shared_ptr<MessageBase>> message_chain;
+
+        std::shared_ptr<Sender> sender_ptr;
+        MessageChainPtrList message_chain;
     };
+
+    struct GroupMessageEvent final : public MessageEvent {
+        GroupMessageEvent(std::shared_ptr<GroupSender> sender_ptr, MessageChainPtrList message_chain)
+            : MessageEvent(sender_ptr, std::move(message_chain)) {}
+
+        std::string_view get_typename() const override { return "GroupMessageEvent"; }
+
+        const GroupSender &get_group_sender() const {
+            auto *gs = dynamic_cast<const GroupSender *>(sender_ptr.get());
+            if (!gs) {
+                throw std::bad_cast();
+            }
+            return *gs;
+        }
+    };
+
 } // namespace bot_adapter
 
 // Specialize nlohmann::adl_serializer for MessageEvent
 namespace nlohmann {
-    template <> struct adl_serializer<bot_adapter::MessageEvent> {
-        static void to_json(json &j, const bot_adapter::MessageEvent &message_event) { j = message_event.to_json(); }
+    template <> struct adl_serializer<bot_adapter::Event> {
+        static void to_json(json &j, const bot_adapter::Event &message_event) { j = message_event.to_json(); }
     };
 } // namespace nlohmann
 

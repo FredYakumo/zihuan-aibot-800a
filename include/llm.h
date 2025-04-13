@@ -3,18 +3,18 @@
 #include "bot_cmd.h"
 #include "global_data.h"
 
-void process_llm(bot_cmd::CommandContext context, const std::optional<std::string> &additional_system_prompt_option);
+void process_llm(const bot_cmd::CommandContext &context, const std::optional<std::string> &additional_system_prompt_option);
 
-inline bool try_begin_processing_llm(MiraiCP::QQID id) {
+inline bool try_begin_processing_llm(uint64_t target_id) {
     std::lock_guard lock(g_chat_processing_map.first);
-    if (auto it = g_chat_processing_map.second.find(id); it != std::cend(g_chat_processing_map.second)) {
+    if (auto it = g_chat_processing_map.second.find(target_id); it != std::cend(g_chat_processing_map.second)) {
         if (it->second) {
             return false;
         }
         it->second = true;
         return true;
     }
-    g_chat_processing_map.second.emplace(id, true);
+    g_chat_processing_map.second.emplace(target_id, true);
     return true;
 }
 
@@ -36,7 +36,7 @@ inline nlohmann::json msg_list_to_json(const std::string_view system_prompt, con
         nlohmann::json msg_entry;
         msg_entry["role"] = msg.role;
         msg_entry["content"] = msg.content;
-        MiraiCP::Logger::logger.info(msg_entry);
+        spdlog::info("msg_entry: role={}, content={}", msg.role, msg.content);
         msg_json.push_back(msg_entry);
     }
     return msg_json;
@@ -47,7 +47,7 @@ inline nlohmann::json &add_to_msg_json(nlohmann::json &msg_json, const ChatMessa
     return msg_json;
 }
 
-inline nlohmann::json get_msg_json(const std::string_view system_prompt, const MiraiCP::QQID id, const std::string_view name) {
+inline nlohmann::json get_msg_json(const std::string_view system_prompt, const uint64_t id, const std::string_view name) {
     {
         auto session = g_chat_session_map.read();
         if (auto iter = session->find(id); iter != session->cend()) {
@@ -58,7 +58,7 @@ inline nlohmann::json get_msg_json(const std::string_view system_prompt, const M
     return msg_list_to_json(system_prompt, session.first->second.message_list);
 }
 
-inline void release_processing_llm(MiraiCP::QQID id) {
+inline void release_processing_llm(uint64_t id) {
     std::lock_guard lock(g_chat_processing_map.first);
     g_chat_processing_map.second[id] = false;
 }

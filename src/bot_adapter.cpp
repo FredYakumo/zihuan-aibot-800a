@@ -1,9 +1,11 @@
 #include "bot_adapter.h"
+#include "adapter_cmd.hpp"
 #include "adapter_event.h"
 #include "adapter_message.h"
 #include "adapter_model.h"
 #include "constants.hpp"
 #include "easywsclient.hpp"
+#include "get_optional.hpp"
 #include "nlohmann/json_fwd.hpp"
 #include "utils.h"
 #include <chrono>
@@ -64,27 +66,17 @@ namespace bot_adapter {
         return ret;
     }
 
-    void BotAdapter::handle_send_msg_result(const std::string &sync_id, const nlohmann::json &data_json) {
+    void BotAdapter::handle_command_result(const std::string &sync_id, const nlohmann::json &data_json) {
 
         try {
-            const std::optional<std::string> result_msg = get_optional(data_json, "msg");
-            const auto msg_id = get_optional(data_json, "messageId");
-            if (result_msg.has_value() && *result_msg == "success" && msg_id.has_value()) {
-                spdlog::info("Send message success, message id: {}", msg_id->get<uint64_t>());
-                auto handle_map = send_msg_result_handle_map.write();
-                auto iter = handle_map->find(sync_id);
-                if (iter != handle_map->cend()) {
-                    iter->second(*msg_id);
-                    handle_map->erase(iter);
-                }
-            } else {
-                spdlog::error("Send message failed, reason: {}", result_msg.value_or(std::string("unknown")));
-                auto handle_map = send_msg_result_handle_map.write();
-                auto iter = handle_map->find(sync_id);
-                if (iter != handle_map->cend()) {
-                    handle_map->erase(iter);
-                }
+            spdlog::info("Send command success, data json: {}", data_json.dump());
+            auto handle_map = command_result_handle_map.write();
+            auto iter = handle_map->find(sync_id);
+            if (iter != handle_map->cend()) {
+                iter->second(data_json);
+                handle_map->erase(iter);
             }
+
         } catch (const nlohmann::json::parse_error &e) {
             spdlog::error("JSON parsing error: {}, json is: {}", e.what(), data_json.dump());
         } catch (const std::exception &e) {
@@ -108,7 +100,7 @@ namespace bot_adapter {
                 // std::optional<std::function<void(uint64_t message_id)>> func_option = std::nullopt;
                 bool have_sync_id = false;
                 {
-                    const auto handle_map = send_msg_result_handle_map.read();
+                    const auto handle_map = command_result_handle_map.read();
                     auto iter = handle_map->find(*sync_id);
                     if (iter != handle_map->cend()) {
                         // func_option = iter->second;
@@ -120,7 +112,7 @@ namespace bot_adapter {
                 //     (*func)(*data);
                 // }
                 if (have_sync_id) {
-                    handle_send_msg_result(*sync_id, *data);
+                    handle_command_result(*sync_id, *data);
                     return;
                 }
             }
@@ -137,7 +129,6 @@ namespace bot_adapter {
                     spdlog::warn("GroupMessage event中, 收到的数据没有sender");
                     return;
                 }
-                GroupSender sender{*sender_json};
 
                 auto group_json = get_optional(*sender_json, "group");
                 if (!group_json) {
@@ -146,6 +137,8 @@ namespace bot_adapter {
                 }
                 Group group{*group_json};
 
+                std::shared_ptr<GroupSender> sender_ptr = std::make_shared<GroupSender>(*sender_json, group_json);
+
                 auto msg_chain_json = get_optional(*data, "messageChain");
                 if (!msg_chain_json) {
                     spdlog::warn("GroupMessage event中, 收到的数据没有messageChain");
@@ -153,10 +146,12 @@ namespace bot_adapter {
                 }
                 spdlog::debug("parse message chain");
                 const auto message_chain = parse_message_chain(*msg_chain_json);
-                auto message_event = GroupMessageEvent(sender, group, message_chain);
+                spdlog::debug("Sender: {}", sender_ptr->to_json().dump());
+                auto message_event = GroupMessageEvent(sender_ptr, message_chain);
+                spdlog::info("Event json: {}", message_event.to_json().dump());
                 spdlog::debug("Call register event functions");
                 for (const auto &func : msg_handle_func_list) {
-                    func(message_event);
+                    func(std::make_shared<bot_adapter::GroupMessageEvent>(message_event));
                 }
             }
 
@@ -170,26 +165,106 @@ namespace bot_adapter {
     }
 
     std::string generate_send_message_sync_id(const Group &group) {
-        return fmt::format("group_{}_{}", group.id, get_current_time_formatted());
+        return fmt::format("send_group_msg_{}_{}", group.id, get_current_time_formatted());
+    }
+
+    std::string generate_send_replay_sync_id(const Sender &sender) {
+        return fmt::format("sender_replay_target_{}_{}", sender.id, get_current_time_formatted());
+    }
+
+    void BotAdapter::send_command(const AdapterCommand &command,
+                                  const std::optional<std::function<void(const nlohmann::json &command_res_json)>>
+                                      command_res_handle_func_option) {
+        ws->send(command.to_json().dump());
+
+        // Add command result handle
+        if (auto func = command_res_handle_func_option) {
+            auto handle_map = command_result_handle_map.write();
+            handle_map->insert(std::make_pair(
+                command.sync_id, [func](const nlohmann::json &cmd_res_data_json) { (*func)(cmd_res_data_json); }));
+        }
     }
 
     void BotAdapter::send_message(const Group &group, const MessageChainPtrList &message_chain,
+                                  std::optional<std::string_view> sync_id_option,
                                   std::optional<std::function<void(uint64_t &out_message_id)>> out_message_id_option) {
-        const auto sync_id = generate_send_message_sync_id(group);
+        const auto sync_id = sync_id_option.value_or(generate_send_message_sync_id(group));
         spdlog::info("Send message to group: {}, sync id: {}", to_string(group), sync_id);
-        const auto message_json = to_json(message_chain);
-        auto ws_json = nlohmann::json{{"syncId", sync_id},
-                                      {"command", "sendGroupMessage"},
-                                      {"content", {{"target", group.id}, {"messageChain", message_json}}}};
-        ws->send(ws_json.dump());
+        // const auto message_json = to_json(message_chain);
 
-        // Add send msg result handle
-        auto handle_map = send_msg_result_handle_map.write();
-        handle_map->insert(std::make_pair(sync_id, [out_message_id_option](uint64_t message_id) {
-            if (const auto out_func = out_message_id_option) {
-                (*out_func)(message_id);
-            }
-        }));
+        send_command(AdapterCommand(sync_id, "sendGroupMessage",
+                                    std::make_shared<bot_adapter::SendGroupMsgContent>(group.id, message_chain)));
+    }
+
+    void
+    BotAdapter::send_replay_msg(const Sender &sender, const MessageChainPtrList &message_chain,
+                                std::optional<std::function<void(uint64_t &out_message_id)>> out_message_id_option) {
+        const auto sync_id = generate_send_replay_sync_id(sender);
+        spdlog::info("Send replay message to {}({}), sync id: {}", sender.name, sender.id, sync_id);
+
+        if (const auto &group_sender = try_group_sender(sender)) {
+            MessageChainPtrList msg_chain_list =
+                make_message_chain_list(AtTargetMessage(sender.id), PlainTextMessage(" "));
+            msg_chain_list.insert(msg_chain_list.cend(), message_chain.cbegin(), message_chain.cend());
+
+            send_message(group_sender->get().group, msg_chain_list);
+        } else {
+            // TODO: 实现私聊发送
+        }
+    }
+
+    void BotAdapter::send_long_plain_text_replay(const Sender &sender, const std::string_view text,
+                                                 uint64_t msg_length_limit) {
+        const auto sync_id_base = generate_send_replay_sync_id(sender);
+        const auto split_output = Utf8Splitter(text, msg_length_limit);
+        std::function<void(const std::string_view msg, const std::string_view sync_id)> send_func;
+        bool first_msg = true;
+        if (const auto group_sender = try_group_sender(sender)) {
+            send_func = [this, group_sender, &first_msg](const std::string_view msg, const std::string_view sync_id) {
+                send_message(group_sender->get().group,
+                             first_msg ? make_message_chain_list(AtTargetMessage(group_sender->get().id),
+                                                                 PlainTextMessage(" "), PlainTextMessage(msg))
+                                       : make_message_chain_list(PlainTextMessage(msg)),
+                             sync_id);
+            };
+        } else {
+            send_func = [this, sender](const std::string_view msg, const std::string_view sync_id) {
+                // TODO: 实现私聊发送
+            };
+        }
+        size_t index = 0;
+        for (auto chunk : split_output) {
+            const auto sync_id = fmt::format("{}_{}", sync_id_base, index);
+            spdlog::info("正在输出块: {}, syncId: {}", index, sync_id);
+            send_func(chunk, sync_id);
+
+            ++index;
+        }
+    }
+
+    void BotAdapter::update_bot_profile() {
+        send_command(AdapterCommand("get_bot_profile_" + get_current_time_formatted(), "botProfile"),
+                     [this](const auto &json) {
+                         spdlog::info("Get bot profile successed.");
+                         if (const auto id = get_optional(json, "id")) {
+                             this->bot_profile.id = *id;
+                         }
+                         if (const auto name = get_optional(json, "nickname")) {
+                             this->bot_profile.name = *name;
+                         }
+                         get_optional(json, "email").transform([this](const auto email) {
+                             return this->bot_profile.email = email;
+                         });
+                         if (const auto age = get_optional<uint32_t>(json, "age")) {
+                             this->bot_profile.age = *age;
+                         }
+                         if (const auto level = get_optional(json, "level")) {
+                             this->bot_profile.level = *level;
+                         }
+                         if (const auto sex = get_optional<std::string>(json, "sex")) {
+                             this->bot_profile.sex = from_string(*sex);
+                         }
+                     });
     }
 
 } // namespace bot_adapter
