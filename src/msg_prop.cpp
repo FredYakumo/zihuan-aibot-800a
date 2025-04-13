@@ -6,7 +6,8 @@
 #include "utils.h"
 #include <cstdint>
 
-MessageProperties get_msg_prop_from_event(const bot_adapter::GroupMessageEvent &e, const std::string_view bot_name, uint64_t bot_id) {
+MessageProperties get_msg_prop_from_event(const bot_adapter::GroupMessageEvent &e, const std::string_view bot_name,
+                                          uint64_t bot_id) {
     MessageProperties ret{};
     for (auto msg : e.message_chain) {
         if (msg == nullptr) {
@@ -18,17 +19,16 @@ MessageProperties get_msg_prop_from_event(const bot_adapter::GroupMessageEvent &
             if (at_me_msg->get().target == bot_id) {
                 ret.is_at_me = true;
             }
-        }
-        // else if (msg.getType() == MiraiCP::SingleMessageType::QuoteReply_t) {
-        //     std::string s = msg.get()->toJson()["source"]["originalMessage"].dump();
-        //     MiraiCP::Logger::logger.info(msg.get()->toJson());
-        //     if (ret.ref_msg_content == nullptr) {
-        //         ret.ref_msg_content = std::make_unique<std::string>(s);
-        //     } else {
-        //         *ret.ref_msg_content += s;
-        //     }
-        // }
-        else if (auto plain = bot_adapter::try_plain_text_message(*msg)) {
+        } else if (auto quote_msg = bot_adapter::try_quote_message(*msg)) {
+            spdlog::info("引用信息: {}", quote_msg->get().to_json().dump());
+            std::string s = fmt::format("引用了一段消息文本: \"{}\"", quote_msg->get().get_quote_text());
+            spdlog::debug("文本: {}", quote_msg->get().get_quote_text());
+            if (ret.ref_msg_content == nullptr) {
+                ret.ref_msg_content = std::make_unique<std::string>(s);
+            } else {
+                *ret.ref_msg_content += s;
+            }
+        } else if (auto plain = bot_adapter::try_plain_text_message(*msg)) {
             if (ret.plain_content == nullptr) {
                 ret.plain_content = std::make_unique<std::string>(plain->get().text);
             } else {
@@ -43,7 +43,7 @@ MessageProperties get_msg_prop_from_event(const bot_adapter::GroupMessageEvent &
         *ret.plain_content = std::string{rtrim(ltrim(*ret.plain_content))};
         if (ret.plain_content->empty()) {
             *ret.plain_content = EMPTY_MSG_TAG;
-        } else if (const auto at_me_str = fmt::format("@{}", bot_name );
+        } else if (const auto at_me_str = fmt::format("@{}", bot_name);
                    !bot_name.empty() && ret.plain_content->find(at_me_str) != std::string::npos) {
             ret.is_at_me = true;
             size_t pos = 0;

@@ -59,7 +59,42 @@ namespace bot_adapter {
                 }
                 ret.push_back(std::make_shared<AtTargetMessage>(*target));
             } else if (*type == "Quote") {
-                // TODO: 处理Quote信息的parse
+                std::string quote_text = "";
+                get_optional(msg, "origin")
+                    .and_then([&msg](const auto &origin) { return get_optional(origin[0], "text"); })
+                    .and_then([&quote_text](const auto &text) {
+                        quote_text = text;
+                        return std::optional<std::string>{text};
+                    });
+                spdlog::debug("quote text: {}, json: {}", quote_text, msg.dump());
+                const auto id = get_optional<uint64_t>(msg, "id");
+                const auto group_id = get_optional<uint64_t>(msg, "group_id");
+                if (id && group_id) {
+                    // TODO: 获取原始message
+                }
+                ret.push_back(std::make_shared<QuoteMessage>(quote_text, id.value_or(0)));
+            } else if (*type == "Forward") {
+                const auto display_option = get_optional(msg, "display");
+                std::vector<ForwardMessageNode> node_vec;
+                if (const auto &node_list = get_optional<nlohmann::json>(msg, "nodeList")) {
+                    for (const nlohmann::json &node : *node_list) {
+                        MessageChainPtrList msg_chain_vec;
+                        if (const auto &msg_chain_json = get_optional<nlohmann::json>(node, "messageChain")) {
+                            for (const auto &msg : *msg_chain_json) {
+                                get_optional<std::string>(msg, "text").and_then([&msg_chain_vec](const auto &text) {
+                                    msg_chain_vec.push_back(std::make_shared<PlainTextMessage>(text));
+                                    return std::optional(text);
+                                });
+                            }
+                        }
+                        node_vec.emplace_back(
+                            get_optional(node, "senderId").value_or(0),
+                            std::chrono::system_clock::from_time_t(get_optional(node, "time").value_or(0)),
+                            get_optional(node, "senderName").value_or(EMPTY_JSON_STR_VALUE), std::move(msg_chain_vec),
+                            get_optional(node, "messageId"), get_optional(node, "messageRef"));
+                    }
+                }
+                ret.push_back(std::make_shared<ForwardMessage>(node_vec, display_option));
             }
         }
 

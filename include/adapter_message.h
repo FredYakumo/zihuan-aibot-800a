@@ -26,12 +26,34 @@ namespace bot_adapter {
         std::string text;
     };
 
+    inline std::optional<std::reference_wrapper<const PlainTextMessage>>
+    try_plain_text_message(const MessageBase &msg) {
+        if (msg.get_type() == "Plain") {
+            auto *ptr = dynamic_cast<const PlainTextMessage *>(&msg);
+            if (ptr) {
+                return std::cref(*ptr);
+            }
+        }
+        return std::nullopt;
+    }
+
     struct QuoteMessage : public MessageBase {
         QuoteMessage(const std::string_view text, uint64_t message_id,
                      std::shared_ptr<MessageBase> origin_message_ptr = nullptr)
             : text(text), message_id(message_id), origin_message_ptr(origin_message_ptr) {}
 
         inline std::string_view get_type() const override { return "Quote"; }
+
+        inline std::string get_quote_text() const {
+            // std::string ret = "";
+            // if (origin_message_ptr == nullptr) {
+            //     return ret;
+            // }
+            // if (const auto plain_text = try_plain_text_message(*origin_message_ptr)) {
+            //     ret = plain_text->get().text;
+            // }
+            return text;
+        }
 
         nlohmann::json to_json() const override {
             nlohmann::json json_obj = {{"type", get_type()}, {"text", text}, {"messageId", message_id}};
@@ -107,9 +129,10 @@ namespace bot_adapter {
         std::string_view get_type() const override { return "Forward"; }
 
         nlohmann::json to_json() const override {
-            nlohmann::json json_msg = {
-                {"type", get_type()}, {"display", display ? *display : nullptr}, {"nodeList", nlohmann::json::array()}};
-
+            nlohmann::json json_msg = {{"type", get_type()}, {"nodeList", nlohmann::json::array()}};
+            if (const auto &d = display) {
+                json_msg["display"] = d;
+            }
             for (const auto &node : node_list) {
                 json_msg["nodeList"].push_back(node.to_json());
             }
@@ -155,10 +178,10 @@ namespace bot_adapter {
         return std::nullopt;
     }
 
-    inline std::optional<std::reference_wrapper<const PlainTextMessage>>
-    try_plain_text_message(const MessageBase &msg) {
-        if (msg.get_type() == "Plain") {
-            auto *ptr = dynamic_cast<const PlainTextMessage *>(&msg);
+    inline std::optional<std::reference_wrapper<const QuoteMessage>>
+    try_quote_message(const MessageBase &msg) {
+        if (msg.get_type() == "Quote") {
+            auto *ptr = dynamic_cast<const QuoteMessage *>(&msg);
             if (ptr) {
                 return std::cref(*ptr);
             }
