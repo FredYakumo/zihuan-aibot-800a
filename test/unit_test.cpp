@@ -27,3 +27,14 @@ TEST(UnitTest, BotAdapterTest) {
 
     // adapter.start();
 }
+
+
+TEST(UnitTest, GetMessageIdTest) {
+    spdlog::set_level(spdlog::level::debug);
+    bot_adapter::BotAdapter adapter{"ws://localhost:13378/all"};
+    adapter.get_message_id(2259, 790544814, [](const nlohmann::json &data) {
+        spdlog::debug("message data: {}", data.dump());
+    });
+
+    adapter.start();
+}

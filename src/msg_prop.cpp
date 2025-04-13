@@ -8,7 +8,6 @@
 
 MessageProperties get_msg_prop_from_event(const bot_adapter::GroupMessageEvent &e, const std::string_view bot_name, uint64_t bot_id) {
     MessageProperties ret{};
-    spdlog::debug("bot name: {}, bot id: {}", bot_name, bot_id);
     for (auto msg : e.message_chain) {
         if (msg == nullptr) {
             continue;
