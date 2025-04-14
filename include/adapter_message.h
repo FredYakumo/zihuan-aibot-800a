@@ -131,7 +131,7 @@ namespace bot_adapter {
         nlohmann::json to_json() const override {
             nlohmann::json json_msg = {{"type", get_type()}, {"nodeList", nlohmann::json::array()}};
             if (const auto &d = display) {
-                json_msg["display"] = d;
+                json_msg["display"] = *d;
             }
             for (const auto &node : node_list) {
                 json_msg["nodeList"].push_back(node.to_json());

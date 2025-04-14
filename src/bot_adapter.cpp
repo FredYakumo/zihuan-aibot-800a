@@ -172,7 +172,7 @@ namespace bot_adapter {
                 }
                 Group group{*group_json};
 
-                std::shared_ptr<GroupSender> sender_ptr = std::make_shared<GroupSender>(*sender_json, group_json);
+                std::shared_ptr<GroupSender> sender_ptr = std::make_shared<GroupSender>(*sender_json, *group_json);
 
                 auto msg_chain_json = get_optional(*data, "messageChain");
                 if (!msg_chain_json) {

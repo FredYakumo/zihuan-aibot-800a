@@ -6,6 +6,7 @@
 #include <string_view>
 #include <unordered_set>
 #include <vector>
+#include <cstdint>
 
 extern std::string LLM_API_URL;
 extern std::string LLM_API_TOKEN;
