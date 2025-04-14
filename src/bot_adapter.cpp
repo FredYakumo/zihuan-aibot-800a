@@ -261,6 +261,7 @@ namespace bot_adapter {
                                                                  PlainTextMessage(" "), PlainTextMessage(msg))
                                        : make_message_chain_list(PlainTextMessage(msg)),
                              sync_id);
+                first_msg = false;
             };
         } else {
             send_func = [this, sender](const std::string_view msg, const std::string_view sync_id) {
