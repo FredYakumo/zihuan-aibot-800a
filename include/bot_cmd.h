@@ -5,6 +5,7 @@
 #include "adapter_model.h"
 #include "bot_adapter.h"
 #include "msg_prop.h"
+#include <utility>
 
 namespace bot_cmd {
     struct CommandContext {
@@ -19,12 +20,12 @@ namespace bot_cmd {
     };
 
     struct CommandRes {
-        bool is_stop_command;
+        bool is_disable_normal_llm;
         std::optional<std::function<void(const MessageProperties &)>> is_modify_msg;
 
-        CommandRes(bool is_stop_command = false,
+        CommandRes(bool is_disable_normal_llm = false,
                    std::optional<std::function<void(const MessageProperties &)>> is_modify_msg = std::nullopt)
-            : is_stop_command(is_stop_command), is_modify_msg(is_modify_msg) {}
+            : is_disable_normal_llm(is_disable_normal_llm), is_modify_msg(is_modify_msg) {}
     };
 
     struct CommandProperty {
@@ -70,20 +71,20 @@ namespace bot_cmd {
      */
     CommandRes url_search_command(bot_cmd::CommandContext context);
 
-    extern std::map<std::string, bot_cmd::CommandProperty> keyword_command_map;
+    extern std::vector<std::pair<std::string, bot_cmd::CommandProperty>> keyword_command_map;
 
     inline void init_command_map() {
         // keyword_command_map.emplace("#语录", bot_cmd::CommandProperty{false, true, bot_cmd::queto_command});
-        keyword_command_map.emplace("#查询知识",
-                                    bot_cmd::CommandProperty{true, true, bot_cmd::query_knowledge_command});
-        keyword_command_map.emplace("#添加知识", bot_cmd::CommandProperty{false, true, bot_cmd::add_knowledge_command});
-        keyword_command_map.emplace("#入库知识",
-                                    bot_cmd::CommandProperty{true, true, bot_cmd::checkin_knowledge_command});
-        keyword_command_map.emplace("#查看记忆", bot_cmd::CommandProperty{true, bot_cmd::query_memory_command});
-        keyword_command_map.emplace("#待添加知识",
-                                    bot_cmd::CommandProperty{true, bot_cmd::query_add_knowledge_list_command});
-        keyword_command_map.emplace("#联网", bot_cmd::CommandProperty{false, false, bot_cmd::net_search_command});
-        keyword_command_map.emplace("#url", bot_cmd::CommandProperty{false, true, bot_cmd::url_search_command});
+        keyword_command_map.push_back(std::make_pair("#查询知识",
+                                    bot_cmd::CommandProperty{true, true, bot_cmd::query_knowledge_command}));
+        keyword_command_map.push_back(std::make_pair("#添加知识", bot_cmd::CommandProperty{false, true, bot_cmd::add_knowledge_command}));
+        keyword_command_map.push_back(std::make_pair("#入库知识",
+                                    bot_cmd::CommandProperty{true, true, bot_cmd::checkin_knowledge_command}));
+        keyword_command_map.push_back(std::make_pair("#查看记忆", bot_cmd::CommandProperty{true, bot_cmd::query_memory_command}));
+        keyword_command_map.push_back(std::make_pair("#待添加知识",
+                                    bot_cmd::CommandProperty{true, bot_cmd::query_add_knowledge_list_command}));
+        keyword_command_map.push_back(std::make_pair("#联网", bot_cmd::CommandProperty{false, false, bot_cmd::net_search_command}));
+        keyword_command_map.push_back(std::make_pair("#url", bot_cmd::CommandProperty{false, true, bot_cmd::url_search_command}));
     }
 
 } // namespace bot_cmd

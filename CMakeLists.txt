@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.14)
 cmake_policy(SET CMP0167 NEW)
 set(CMAKE_CXX_STANDARD 23)
-project(MiraiAIBot LANGUAGES CXX)
+project(ZiHuanAIBot LANGUAGES CXX)
 
 # 设置默认构建类型为 Debug（如果没有通过命令行指定）
 if(NOT CMAKE_BUILD_TYPE)

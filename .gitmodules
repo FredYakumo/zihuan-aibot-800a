@@ -7,3 +7,6 @@
 [submodule "external/easywsclient"]
 	path = external/easywsclient
 	url = https://github.com/dhbaird/easywsclient
+[submodule "external/cpr"]
+	path = external/cpr
+	url = git@github.com:libcpr/cpr.git

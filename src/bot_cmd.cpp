@@ -8,10 +8,10 @@
 #include <charconv>
 #include <chrono>
 #include <optional>
+#include <utility>
 
 namespace bot_cmd {
-
-    std::map<std::string, bot_cmd::CommandProperty> keyword_command_map;
+    std::vector<std::pair<std::string, bot_cmd::CommandProperty>> keyword_command_map;
 
     // CommandRes queto_command(bot_adapter::BotAdapter &adapter, CommandContext context) {
     //     std::string res{};

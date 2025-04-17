@@ -68,7 +68,7 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
                     continue;
                 }
             }
-            if (res.is_stop_command) {
+            if (res.is_disable_normal_llm) {
                 return;
             }
             if (res.is_modify_msg) {

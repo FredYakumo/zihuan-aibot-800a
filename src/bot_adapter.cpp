@@ -251,31 +251,41 @@ namespace bot_adapter {
     void BotAdapter::send_long_plain_text_replay(const Sender &sender, const std::string_view text,
                                                  uint64_t msg_length_limit) {
         const auto sync_id_base = generate_send_replay_sync_id(sender);
+
+        if (text.length() <= msg_length_limit) {
+            send_replay_msg(sender, make_message_chain_list(PlainTextMessage(text)));
+            return;
+        }
+
         const auto split_output = Utf8Splitter(text, msg_length_limit);
-        std::function<void(const std::string_view msg, const std::string_view sync_id)> send_func;
-        bool first_msg = true;
+        std::function<void(const std::string_view sync_id, const MessageChainPtrList &msg_chain)> send_func;
         if (const auto group_sender = try_group_sender(sender)) {
-            send_func = [this, group_sender, &first_msg](const std::string_view msg, const std::string_view sync_id) {
+            send_func = [this, group_sender](const std::string_view sync_id, const MessageChainPtrList &msg_chain) {
                 send_message(group_sender->get().group,
-                             first_msg ? make_message_chain_list(AtTargetMessage(group_sender->get().id),
-                                                                 PlainTextMessage(" "), PlainTextMessage(msg))
-                                       : make_message_chain_list(PlainTextMessage(msg)),
+                             msg_chain,
                              sync_id);
-                first_msg = false;
             };
         } else {
-            send_func = [this, sender](const std::string_view msg, const std::string_view sync_id) {
+            send_func = [this, sender](const std::string_view sync_id, const MessageChainPtrList &msg_chain) {
                 // TODO: 实现私聊发送
             };
         }
+        const auto bot_profile = get_bot_profile();
         size_t index = 0;
+        std::vector<ForwardMessageNode> forward_nodes;
         for (auto chunk : split_output) {
-            const auto sync_id = fmt::format("{}_{}", sync_id_base, index);
-            spdlog::info("正在输出块: {}, syncId: {}", index, sync_id);
-            send_func(chunk, sync_id);
-
+            spdlog::info("长文块: {}, {}", index, chunk);
+            forward_nodes.push_back(ForwardMessageNode(
+                bot_profile.id, std::chrono::system_clock::now(), bot_profile.name,
+                make_message_chain_list(PlainTextMessage(chunk)), std::nullopt, std::nullopt));
             ++index;
         }
+        spdlog::info("输出长文信息");
+        send_func(fmt::format("{}_at", sync_id_base), make_message_chain_list(AtTargetMessage(sender.id)));
+        const auto forward_msg = ForwardMessage(forward_nodes, std::nullopt);
+        spdlog::debug("forward message: {}", forward_msg.to_json().dump());
+        send_func(fmt::format("{}_forward", sync_id_base),
+                  make_message_chain_list(forward_msg));
     }
 
     void BotAdapter::update_bot_profile() {
