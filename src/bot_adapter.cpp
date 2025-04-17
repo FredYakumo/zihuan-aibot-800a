@@ -223,7 +223,7 @@ namespace bot_adapter {
     void BotAdapter::send_message(const Group &group, const MessageChainPtrList &message_chain,
                                   std::optional<std::string_view> sync_id_option,
                                   std::optional<std::function<void(uint64_t &out_message_id)>> out_message_id_option) {
-        const auto sync_id = sync_id_option.value_or(generate_send_message_sync_id(group));
+        const auto sync_id = std::string(sync_id_option.value_or(generate_send_message_sync_id(group)));
         spdlog::info("Send message to group: {}, sync id: {}", to_string(group), sync_id);
         // const auto message_json = to_json(message_chain);
 
