@@ -280,8 +280,9 @@ namespace bot_adapter {
                 make_message_chain_list(PlainTextMessage(chunk)), std::nullopt, std::nullopt));
             ++index;
         }
-        spdlog::info("输出长文信息");
+        spdlog::info("输出长文信息: @target");
         send_func(fmt::format("{}_at", sync_id_base), make_message_chain_list(AtTargetMessage(sender.id)));
+        spdlog::info("输出长文信息: long text");
         const auto forward_msg = ForwardMessage(forward_nodes, std::nullopt);
         spdlog::debug("forward message: {}", forward_msg.to_json().dump());
         send_func(fmt::format("{}_forward", sync_id_base),

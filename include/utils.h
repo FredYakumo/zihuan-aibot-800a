@@ -1,21 +1,16 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-#include "adapter_message.h"
-#include "adapter_model.h"
-#include "bot_adapter.h"
-#include "constants.hpp"
+#include "i18n.hpp"
 #include <chrono>
 #include <fmt/chrono.h>
 #include <fmt/core.h>
 #include <fmt/format.h>
 #include <string>
 #include <string_view>
-#include "i18n.hpp"
-#include "nlohmann/json_fwd.hpp"
 
-std::string gen_common_prompt(const std::string_view bot_name, uint64_t bot_id,
-                              const std::string_view user_name, const uint64_t user_id);
+std::string gen_common_prompt(const std::string_view bot_name, uint64_t bot_id, const std::string_view user_name,
+                              const uint64_t user_id);
 
 inline std::string_view ltrim(const std::string_view str) {
     const size_t start = str.find_first_not_of(" \n\r");
@@ -61,29 +56,31 @@ inline std::string get_current_time_db() {
 
 /**
  * Extracts the content inside the parentheses following the first occurrence of #keyword in the string.
- * 
+ *
  * @param s The input string to search.
  * @param keyword The keyword to search for, expected to be in the format "#keyword".
- * @return A string_view containing the content inside the parentheses. If the keyword or parentheses are not found, an empty string_view is returned.
+ * @return A string_view containing the content inside the parentheses. If the keyword or parentheses are not found, an
+ * empty string_view is returned.
  */
 std::string_view extract_parentheses_content_after_keyword(const std::string_view s, const std::string_view keyword);
 
 /**
  * Replaces the first occurrence of #keyword and its following parentheses content in the string.
- * 
+ *
  * @param original_str The original string to search and modify.
  * @param keyword The keyword to search for, expected to be in the format "#keyword".
  * @param replacement The string to replace the matched content with.
- * @return A new string with the replacement applied. If the keyword or parentheses are not found, the original string is returned.
+ * @return A new string with the replacement applied. If the keyword or parentheses are not found, the original string
+ * is returned.
  */
 std::string replace_keyword_and_parentheses_content(const std::string_view original_str, const std::string_view keyword,
-                                   const std::string_view replacement);
+                                                    const std::string_view replacement);
 
 #include <string>
 
 /**
  * Checks if the string strictly follows the format: "#keyword(content)".
- * 
+ *
  * @param s The input string to validate.
  * @param keyword The keyword to check for, expected to be in the format "#keyword".
  * @return True if the string strictly matches the format, false otherwise.
@@ -255,10 +252,9 @@ class Utf8Splitter {
     size_t m_max_chars;
 };
 
-
 /**
  * Replaces all occurrences of a pattern in a string with a replacement string, ensuring UTF-8 compatibility.
- * 
+ *
  * @param str The input string to process.
  * @param pattern The pattern to search for and replace.
  * @param replace The string to replace the pattern with.
@@ -284,7 +280,7 @@ inline std::string replace_str(std::string_view str, std::string_view pattern, s
         // Verify the match is complete and valid.
         if (pos + pattern.size() > str.size() || str.substr(pos, pattern.size()) != pattern) {
             const size_t step = utf8_char_length(str[pos]); // Handle multi-byte UTF-8 characters.
-            start = pos + (step > 0 ? step : 1); // Move to the next character.
+            start = pos + (step > 0 ? step : 1);            // Move to the next character.
             continue;
         }
         // Append the part of the string before the match.
@@ -299,7 +295,6 @@ inline std::string replace_str(std::string_view str, std::string_view pattern, s
     return result;
 }
 
-
 inline void remove_text_between_markers(std::string &str, const std::string &start_marker,
                                         const std::string &end_marker) {
     size_t start_pos = str.find(start_marker);
@@ -309,6 +304,5 @@ inline void remove_text_between_markers(std::string &str, const std::string &sta
         str.erase(start_pos, end_pos - start_pos + end_marker.length());
     }
 }
-
 
 #endif

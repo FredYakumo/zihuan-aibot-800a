@@ -3,9 +3,11 @@
 
 #include "nlohmann/json.hpp"
 #include "nlohmann/json_fwd.hpp"
+#include "time_utils.h"
 #include <chrono>
 #include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
 
 namespace bot_adapter {
@@ -78,21 +80,17 @@ namespace bot_adapter {
             : sender_id(sender_id), time(time), sender_name(std::move(sender_name)),
               message_chain(std::move(message_chain)), message_id(message_id), message_ref(message_ref) {}
 
-        nlohmann::json to_json() const {
-            // Convert time_point to time_t
-            auto time_t = std::chrono::system_clock::to_time_t(time);
+        nlohmann::json to_json(bool is_format_dt = false) const {
 
-            // Convert to local time (or UTC if preferred)
-            std::tm tm = *std::localtime(&time_t);
+            nlohmann::json node_json = {
+                {"senderId", sender_id}, {"senderName", sender_name}, {"messageChain", nlohmann::json::array()}};
 
-            // Format as YYYY年MM月dd日 HH:mm:SS
-            std::ostringstream oss;
-            oss << std::put_time(&tm, "%Y年%m月%d日 %H:%M:%S");
-            std::string time_str = oss.str();
-            nlohmann::json node_json = {{"senderId", sender_id},
-                                        {"time", time_str},
-                                        {"senderName", sender_name},
-                                        {"messageChain", nlohmann::json::array()}};
+            if (is_format_dt) {
+                node_json["time"] = system_clock_to_string(time);
+            } else {
+                auto time_t = std::chrono::system_clock::to_time_t(time);
+                node_json["time"] = time_t;
+            }
 
             // Add messageId only if it exists
             if (message_id.has_value()) {
@@ -178,8 +176,7 @@ namespace bot_adapter {
         return std::nullopt;
     }
 
-    inline std::optional<std::reference_wrapper<const QuoteMessage>>
-    try_quote_message(const MessageBase &msg) {
+    inline std::optional<std::reference_wrapper<const QuoteMessage>> try_quote_message(const MessageBase &msg) {
         if (msg.get_type() == "Quote") {
             auto *ptr = dynamic_cast<const QuoteMessage *>(&msg);
             if (ptr) {
