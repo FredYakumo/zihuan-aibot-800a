@@ -82,7 +82,7 @@ namespace bot_cmd {
     inline void init_command_map() {
         // keyword_command_map.emplace("#语录", bot_cmd::CommandProperty{false, true, bot_cmd::queto_command});
         keyword_command_map.push_back(
-            std::make_pair("#新对话", bot_cmd::CommandProperty{false, false, bot_cmd::deep_think_command}));
+            std::make_pair("#新对话", bot_cmd::CommandProperty{false, false, bot_cmd::clear_chat_session_command}));
         keyword_command_map.push_back(
             std::make_pair("#思考", bot_cmd::CommandProperty{false, false, bot_cmd::deep_think_command}));
         keyword_command_map.push_back(
