@@ -5,6 +5,7 @@
 #include "rag.h"
 #include "utils.h"
 #include <cstdint>
+#include <spdlog/spdlog.h>
 
 MessageProperties get_msg_prop_from_event(const bot_adapter::GroupMessageEvent &e, const std::string_view bot_name,
                                           uint64_t bot_id) {

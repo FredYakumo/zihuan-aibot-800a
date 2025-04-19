@@ -74,7 +74,6 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
             if (res.is_modify_msg) {
                 res.is_modify_msg.value()(msg_prop);
             }
-            break;
         }
     }
 

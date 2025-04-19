@@ -5,6 +5,7 @@
 #include <fmt/format.h>
 #include <string_view>
 #include <unordered_set>
+#include <spdlog/spdlog.h>
 
 std::string LLM_API_URL;
 std::string LLM_API_TOKEN;

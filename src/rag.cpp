@@ -9,6 +9,7 @@
 #include <string_view>
 #include <utility>
 #include "config.h"
+#include <spdlog/spdlog.h>
 
 namespace rag {
     std::vector<std::pair<DBGroupMessage, double>> query_group_msg(const std::string_view query,
