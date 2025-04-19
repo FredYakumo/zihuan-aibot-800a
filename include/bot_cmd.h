@@ -20,12 +20,12 @@ namespace bot_cmd {
     };
 
     struct CommandRes {
-        bool is_disable_normal_llm;
+        bool is_break_cmd_process;
         std::optional<std::function<void(const MessageProperties &)>> is_modify_msg;
 
-        CommandRes(bool is_disable_normal_llm = false,
+        CommandRes(bool is_break_cmd_process = false,
                    std::optional<std::function<void(const MessageProperties &)>> is_modify_msg = std::nullopt)
-            : is_disable_normal_llm(is_disable_normal_llm), is_modify_msg(is_modify_msg) {}
+            : is_break_cmd_process(is_break_cmd_process), is_modify_msg(is_modify_msg) {}
     };
 
     struct CommandProperty {
