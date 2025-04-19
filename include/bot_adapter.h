@@ -11,6 +11,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <queue>
 #include <spdlog/spdlog.h>
 #include <string>
 #include <string_view>
@@ -84,6 +85,8 @@ namespace bot_adapter {
 
         void send_command(const bot_adapter::AdapterCommand &cmd,
                           const std::optional<CommandResHandleFunc> command_res_handle_func_option = std::nullopt);
+
+        std::queue<std::string> send_cmd_queue;
 
         Profile bot_profile;
 

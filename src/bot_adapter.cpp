@@ -30,6 +30,11 @@ namespace bot_adapter {
         while (ws->getReadyState() != easywsclient::WebSocket::CLOSED) {
             ws->poll();
             ws->dispatch([this](const std::string &msg) { handle_message(msg); });
+            if (!send_cmd_queue.empty()) {
+                ws->send(send_cmd_queue.front());
+                send_cmd_queue.pop();
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
 
         return 0;
@@ -210,7 +215,8 @@ namespace bot_adapter {
     void BotAdapter::send_command(const AdapterCommand &command,
                                   const std::optional<std::function<void(const nlohmann::json &command_res_json)>>
                                       command_res_handle_func_option) {
-        ws->send(command.to_json().dump());
+        // ws->send(cmd_str);
+        send_cmd_queue.push(command.to_json().dump());
 
         // Add command result handle
         if (auto func = command_res_handle_func_option) {
