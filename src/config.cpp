@@ -10,7 +10,9 @@
 std::string LLM_API_URL;
 std::string LLM_API_TOKEN;
 std::string LLM_MODEL_NAME;
+std::string LLM_DEEP_THINK_MODEL_NAME;
 std::string CUSTOM_SYSTEM_PROMPT;
+std::optional<std::string> CUSTOM_DEEP_THINK_SYSTEM_PROMPT_OPTION;
 // std::string BOT_NAME;
 // MiraiCP::QQID BOT_QQID;
 
@@ -56,9 +58,21 @@ void init_config() {
     LLM_MODEL_NAME = std::string(model_name != nullptr ? model_name : "");
     spdlog::info("LLM_MODEL_NAME: {}", LLM_MODEL_NAME);
 
+    const auto deep_think_model_name = std::getenv("AIBOT_LLM_DEEP_THINK_MODEL_NAME");
+    LLM_DEEP_THINK_MODEL_NAME = std::string(deep_think_model_name != nullptr ? deep_think_model_name : "");
+    spdlog::info("LLM_DEEP_THINK_MODEL_NAME: {}", LLM_DEEP_THINK_MODEL_NAME);
+
     const auto custom_system_prompt = std::getenv("AIBOT_CUSTOM_SYSTEM_PROMPT");
     CUSTOM_SYSTEM_PROMPT = std::string(custom_system_prompt != nullptr ? custom_system_prompt : "");
     spdlog::info("CUSTOM_SYSTEM_PROMPT: {}", CUSTOM_SYSTEM_PROMPT);
+
+    const auto custom_deep_think_system_prompt_option = std::getenv("AIBOT_CUSTOM_DEEP_THINK_SYSTEM_PROMPT");
+    if (custom_deep_think_system_prompt_option != nullptr) {
+        CUSTOM_DEEP_THINK_SYSTEM_PROMPT_OPTION = std::string(custom_deep_think_system_prompt_option);
+        spdlog::info("CUSTOM_DEEP_THINK_SYSTEM_PROMPT: {}", CUSTOM_DEEP_THINK_SYSTEM_PROMPT_OPTION.value());
+    } else {
+        CUSTOM_DEEP_THINK_SYSTEM_PROMPT_OPTION = std::nullopt;
+    }
 
     const auto db_url = std::getenv("AIBOT_MSG_DB_URL");
     MSG_DB_URL = std::string(db_url != nullptr ? db_url : "");

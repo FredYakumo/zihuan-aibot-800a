@@ -189,6 +189,17 @@ namespace bot_adapter {
         return UNKNOWN; // default case
     }
 
+    inline std::string to_chs_string(const ProfileSex profile_sex) {
+        switch (profile_sex) {
+        case FEMALE:
+            return "女";
+        case MALE:
+            return "男";
+        case UNKNOWN:
+            return "未知";
+        }
+    }
+
     /**
      * @brief Represents a user profile containing personal information.
      */

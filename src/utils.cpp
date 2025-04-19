@@ -1,14 +1,8 @@
 #include "utils.h"
+#include "adapter_model.h"
 #include "config.h"
-#include <cstdint>
 #include <fmt/format.h>
 #include <string_view>
-
-std::string gen_common_prompt(const std::string_view bot_name, uint64_t bot_id,
-                              const std::string_view user_name, const uint64_t user_id) {
-    return fmt::format("你的名字叫{}(qq号{})，{}。当前时间是: {}，当前跟你聊天的群友的名字叫\"{}\"(qq号{})，", bot_name,
-                       bot_id, CUSTOM_SYSTEM_PROMPT, get_current_time_formatted(), user_name, user_id);
-}
 
 std::string_view extract_parentheses_content_after_keyword(
     const std::string_view s,

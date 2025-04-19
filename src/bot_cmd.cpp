@@ -3,6 +3,7 @@
 #include "adapter_model.h"
 #include "bot_adapter.h"
 #include "llm.h"
+#include "msg_prop.h"
 #include "rag.h"
 #include "utils.h"
 #include <charconv>
@@ -35,7 +36,8 @@ namespace bot_cmd {
 
     //     if (context.is_command_only) {
     //         output_in_split_string(adapter, bot_adapter::Group(context.group_id, "", ""),
-    //                                bot_adapter::GroupSender(*context.e.sender_ptr_id, *context.e.sender_ptr_name, std::nullopt, "",
+    //                                bot_adapter::GroupSender(*context.e.sender_ptr_id, *context.e.sender_ptr_name,
+    //                                std::nullopt, "",
     //                                                         std::nullopt, std::chrono::system_clock::now()),
     //                                res);
     //         return CommandRes{true};
@@ -46,6 +48,36 @@ namespace bot_cmd {
     //                               *msg_prop.plain_content, "#语录", fmt::format("在本群中关于: {}的消息", res));
     //                       }};
     // }
+
+    CommandRes clear_chat_session_command(CommandContext context) {
+        spdlog::info("开始清除聊天记录");
+        auto chat_session_map = g_chat_session_map.write();
+        if (auto it = chat_session_map->find(context.e->sender_ptr->id); it != chat_session_map->cend()) {
+            chat_session_map->erase(it);
+        }
+        if ((context.msg_prop.plain_content != nullptr && !ltrim(rtrim(*context.msg_prop.plain_content)).empty()) ||
+            (context.msg_prop.ref_msg_content != nullptr && !ltrim(rtrim(*context.msg_prop.ref_msg_content)).empty())) {
+            return CommandRes{false,
+                              [](const MessageProperties &msg_prop) {
+                                  *msg_prop.plain_content = replace_str(*msg_prop.plain_content, "#新对话", "");
+                              },
+                              false};
+        }
+        context.adapter.send_replay_msg(
+            *context.e->sender_ptr,
+            bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("成功清除了对话上下文，请继续跟我聊天吧。")));
+        return CommandRes{true};
+    }
+
+    CommandRes deep_think_command(CommandContext context) {
+        spdlog::info("开始深度思考");
+
+        return CommandRes{false,
+                          [](const MessageProperties &msg_prop) {
+                              *msg_prop.plain_content = replace_str(*msg_prop.plain_content, "#思考", "");
+                          },
+                          true};
+    }
 
     CommandRes query_knowledge_command(CommandContext context) {
         std::string res{};
@@ -136,8 +168,9 @@ namespace bot_cmd {
     CommandRes query_add_knowledge_list_command(CommandContext context) {
         auto wait_add_list = g_wait_add_knowledge_list.read();
         if (wait_add_list->empty()) {
-            context.adapter.send_replay_msg(*context.e->sender_ptr, bot_adapter::make_message_chain_list(
-                                                                bot_adapter::PlainTextMessage("暂无待添加知识。")));
+            context.adapter.send_replay_msg(
+                *context.e->sender_ptr,
+                bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("暂无待添加知识。")));
             return CommandRes{true};
         }
         std::string wait_add_list_str{" 待添加知识列表:"};
@@ -165,8 +198,8 @@ namespace bot_cmd {
 
         // If no search query is provided, prompt the user to enter one
         if (search.empty() || search == "#联网") {
-            context.adapter.send_replay_msg(
-                *context.e->sender_ptr, bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("请输入查询。")));
+            context.adapter.send_replay_msg(*context.e->sender_ptr, bot_adapter::make_message_chain_list(
+                                                                        bot_adapter::PlainTextMessage("请输入查询。")));
             return bot_cmd::CommandRes{true};
         }
         std::thread([context, search]() {
@@ -202,8 +235,8 @@ namespace bot_cmd {
 
         // If no search query is provided, prompt the user to enter one
         if (search.empty() || search == "#url") {
-            context.adapter.send_replay_msg(
-                *context.e->sender_ptr, bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("请输入查询。")));
+            context.adapter.send_replay_msg(*context.e->sender_ptr, bot_adapter::make_message_chain_list(
+                                                                        bot_adapter::PlainTextMessage("请输入查询。")));
             return bot_cmd::CommandRes{true};
         }
         std::thread([context, search]() {

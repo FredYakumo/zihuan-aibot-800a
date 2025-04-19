@@ -11,7 +11,9 @@
 extern std::string LLM_API_URL;
 extern std::string LLM_API_TOKEN;
 extern std::string LLM_MODEL_NAME;
+extern std::string LLM_DEEP_THINK_MODEL_NAME;
 extern std::string CUSTOM_SYSTEM_PROMPT;
+extern std::optional<std::string> CUSTOM_DEEP_THINK_SYSTEM_PROMPT_OPTION;
 // extern std::string BOT_NAME;
 // extern MiraiCP::QQID BOT_QQID;
 

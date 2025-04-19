@@ -3,7 +3,10 @@
 #include "bot_cmd.h"
 #include "global_data.h"
 
-void process_llm(const bot_cmd::CommandContext &context, const std::optional<std::string> &additional_system_prompt_option);
+std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot_adapter::Sender &sender, bool is_deep_think = false);
+
+void process_llm(const bot_cmd::CommandContext &context,
+                 const std::optional<std::string> &additional_system_prompt_option);
 
 inline bool try_begin_processing_llm(uint64_t target_id) {
     std::lock_guard lock(g_chat_processing_map.first);
@@ -47,7 +50,8 @@ inline nlohmann::json &add_to_msg_json(nlohmann::json &msg_json, const ChatMessa
     return msg_json;
 }
 
-inline nlohmann::json get_msg_json(const std::string_view system_prompt, const uint64_t id, const std::string_view name) {
+inline nlohmann::json get_msg_json(const std::string_view system_prompt, const uint64_t id,
+                                   const std::string_view name) {
     {
         auto session = g_chat_session_map.read();
         if (auto iter = session->find(id); iter != session->cend()) {

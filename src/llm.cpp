@@ -8,8 +8,20 @@
 #include <nlohmann/json.hpp>
 #include <string>
 
-ChatMessage get_llm_response(const nlohmann::json &msg_json) {
-    nlohmann::json body = {{"model", LLM_MODEL_NAME}, {"messages", msg_json}, {"stream", false}};
+std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot_adapter::Sender &sender,
+                              bool is_deep_think) {
+    return fmt::format(
+        "你的名字叫{}(qq号{}),性别是: {}，{}。当前时间是: {}，当前跟你聊天的群友的名字叫\"{}\"(qq号{})，",
+        bot_profile.name, bot_profile.name, bot_adapter::to_chs_string(bot_profile.sex),
+        (is_deep_think && CUSTOM_DEEP_THINK_SYSTEM_PROMPT_OPTION) ? *CUSTOM_DEEP_THINK_SYSTEM_PROMPT_OPTION
+                                                                  : CUSTOM_SYSTEM_PROMPT,
+        get_current_time_formatted(), sender.name, sender.id);
+}
+
+ChatMessage get_llm_response(const nlohmann::json &msg_json, bool is_deep_think = false) {
+    nlohmann::json body = {{"model", is_deep_think ? LLM_DEEP_THINK_MODEL_NAME : LLM_MODEL_NAME},
+                           {"messages", msg_json},
+                           {"stream", false}};
     const auto json_str = body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
     spdlog::info("llm body: {}", json_str);
     cpr::Response response =
@@ -30,17 +42,20 @@ ChatMessage get_llm_response(const nlohmann::json &msg_json) {
     return ChatMessage();
 }
 
-void process_llm(const bot_cmd::CommandContext &context, const std::optional<std::string> &additional_system_prompt_option) {
+void process_llm(const bot_cmd::CommandContext &context,
+                 const std::optional<std::string> &additional_system_prompt_option) {
     spdlog::info("开始处理LLM信息");
 
     if (!try_begin_processing_llm(context.e->sender_ptr->id)) {
         spdlog::warn("User {} try to let bot answer, but bot is still thiking", context.e->sender_ptr->id);
-        context.adapter.send_replay_msg(*context.e->sender_ptr, bot_adapter::make_message_chain_list(
-                                                            bot_adapter::PlainTextMessage("我还在思考中...你别急")));
+        context.adapter.send_replay_msg(
+            *context.e->sender_ptr,
+            bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("我还在思考中...你别急")));
         return;
     }
 
-    spdlog::debug("Event type: {}, Sender json: {}", context.e->get_typename(), context.e->sender_ptr->to_json().dump());
+    spdlog::debug("Event type: {}, Sender json: {}", context.e->get_typename(),
+                  context.e->sender_ptr->to_json().dump());
 
     std::string msg_content_str{};
     if (context.msg_prop.ref_msg_content != nullptr && !context.msg_prop.ref_msg_content->empty()) {
@@ -51,13 +66,16 @@ void process_llm(const bot_cmd::CommandContext &context, const std::optional<std
     }
     spdlog::info(msg_content_str);
     auto llm_thread = std::thread([context, msg_content_str, additional_system_prompt_option] {
-        spdlog::debug("Event type: {}, Sender json: {}", context.e->get_typename(), context.e->sender_ptr->to_json().dump());
+        spdlog::debug("Event type: {}, Sender json: {}", context.e->get_typename(),
+                      context.e->sender_ptr->to_json().dump());
 
         spdlog::info("Start llm thread.");
         set_thread_name("AIBot LLM process");
+        if (context.is_deep_think) {
+            spdlog::info("开始深度思考");
+        }
         const auto bot_profile = context.adapter.get_bot_profile();
-        auto system_prompt =
-            gen_common_prompt(bot_profile.name, bot_profile.id, context.e->sender_ptr->name, context.e->sender_ptr->id);
+        auto system_prompt = gen_common_prompt(bot_profile, *context.e->sender_ptr, context.is_deep_think);
 
         spdlog::info("Try query knowledge");
         std::string query_result_str{""};
@@ -89,11 +107,11 @@ void process_llm(const bot_cmd::CommandContext &context, const std::optional<std
         auto user_chat_msg = ChatMessage(ROLE_USER, msg_content_str);
         add_to_msg_json(msg_json, user_chat_msg);
 
-        auto llm_chat_msg = get_llm_response(msg_json);
+        auto llm_chat_msg = get_llm_response(msg_json, context.is_deep_think);
 
         auto session_map = g_chat_session_map.write();
         auto &session = session_map->find(context.e->sender_ptr->id)->second;
-        
+
         if (session.user_msg_count + 1 >= USER_SESSION_MSG_LIMIT) {
             session.message_list.pop_front();
             session.message_list.pop_front();

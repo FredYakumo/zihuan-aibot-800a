@@ -280,6 +280,11 @@ namespace bot_adapter {
                 make_message_chain_list(PlainTextMessage(chunk)), std::nullopt, std::nullopt));
             ++index;
         }
+        
+        for (size_t i = 0; i < forward_nodes.size(); ++i) {
+            forward_nodes[forward_nodes.size() - i].time -= std::chrono::seconds(i);
+        }
+
         spdlog::info("输出长文信息: @target");
         send_func(fmt::format("{}_at", sync_id_base), make_message_chain_list(AtTargetMessage(sender.id)));
         spdlog::info("输出长文信息: long text");

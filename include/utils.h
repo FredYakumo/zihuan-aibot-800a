@@ -1,6 +1,7 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#include "adapter_model.h"
 #include "i18n.hpp"
 #include <chrono>
 #include <fmt/chrono.h>
@@ -8,9 +9,6 @@
 #include <fmt/format.h>
 #include <string>
 #include <string_view>
-
-std::string gen_common_prompt(const std::string_view bot_name, uint64_t bot_id, const std::string_view user_name,
-                              const uint64_t user_id);
 
 inline std::string_view ltrim(const std::string_view str) {
     const size_t start = str.find_first_not_of(" \n\r");

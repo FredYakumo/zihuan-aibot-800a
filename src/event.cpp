@@ -39,6 +39,8 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
 
     const auto admin = is_admin(sender_id);
 
+    bool is_deep_think = false;
+
     // @TODO: need optim
     if (msg_prop.is_at_me) {
         spdlog::info("开始处理指令信息");
@@ -54,7 +56,7 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
                 if (auto param = extract_parentheses_content_after_keyword(*msg_prop.plain_content, cmd.first);
                     !param.empty()) {
                     res = cmd.second.runer(bot_cmd::CommandContext(
-                        adapter, event, param, is_strict_format(*msg_prop.plain_content, cmd.first), msg_prop));
+                        adapter, event, param, is_strict_format(*msg_prop.plain_content, cmd.first), is_deep_think, msg_prop));
                 } else {
                     // auto msg_chain = MiraiCP::MessageChain{MiraiCP::At(sender_id)};
                     // msg_chain.add(MiraiCP::PlainText{fmt::format(" 错误。请指定参数, 用法 {} (...)",
@@ -63,7 +65,7 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
                 }
             } else {
                 if (msg_prop.plain_content->find(cmd.first) != std::string::npos) {
-                    res = cmd.second.runer(bot_cmd::CommandContext(adapter, event, "", true, msg_prop));
+                    res = cmd.second.runer(bot_cmd::CommandContext(adapter, event, "", true, is_deep_think, msg_prop));
                 } else {
                     continue;
                 }
@@ -71,6 +73,10 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
             if (res.is_break_cmd_process) {
                 return;
             }
+            if (res.is_deep_think) {
+                is_deep_think = true;
+            }
+
             if (res.is_modify_msg) {
                 res.is_modify_msg.value()(msg_prop);
             }
@@ -88,7 +94,7 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
         return;
     }
 
-    auto context = bot_cmd::CommandContext(adapter, event, "", false, msg_prop);
+    auto context = bot_cmd::CommandContext(adapter, event, "", false, is_deep_think, msg_prop);
     process_llm(context, std::nullopt);
 }
 
