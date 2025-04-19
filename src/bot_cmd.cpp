@@ -55,8 +55,8 @@ namespace bot_cmd {
         if (auto it = chat_session_map->find(context.e->sender_ptr->id); it != chat_session_map->cend()) {
             chat_session_map->erase(it);
         }
-        if ((context.msg_prop.plain_content != nullptr && !ltrim(rtrim(*context.msg_prop.plain_content)).empty()) ||
-            (context.msg_prop.ref_msg_content != nullptr && !ltrim(rtrim(*context.msg_prop.ref_msg_content)).empty())) {
+        if ((context.msg_prop.plain_content != nullptr || !ltrim(rtrim(*context.msg_prop.plain_content)).empty()) &&
+            (context.msg_prop.ref_msg_content != nullptr || !ltrim(rtrim(*context.msg_prop.ref_msg_content)).empty())) {
             return CommandRes{false,
                               [](const MessageProperties &msg_prop) {
                                   *msg_prop.plain_content = replace_str(*msg_prop.plain_content, "#新对话", "");
