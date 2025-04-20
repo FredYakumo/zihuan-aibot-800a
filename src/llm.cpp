@@ -12,7 +12,7 @@ std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot
                               bool is_deep_think) {
     return fmt::format(
         "你的名字叫{}(qq号{}),性别是: {}，{}。当前时间是: {}，当前跟你聊天的群友的名字叫\"{}\"(qq号{})，",
-        bot_profile.name, bot_profile.name, bot_adapter::to_chs_string(bot_profile.sex),
+        bot_profile.name, bot_profile.id, bot_adapter::to_chs_string(bot_profile.sex),
         (is_deep_think && CUSTOM_DEEP_THINK_SYSTEM_PROMPT_OPTION) ? *CUSTOM_DEEP_THINK_SYSTEM_PROMPT_OPTION
                                                                   : CUSTOM_SYSTEM_PROMPT,
         get_current_time_formatted(), sender.name, sender.id);
