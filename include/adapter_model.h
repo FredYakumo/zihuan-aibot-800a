@@ -229,6 +229,16 @@ namespace bot_adapter {
     };
 } // namespace bot_adapter
 
+
+/**
+ * @brief Converts a bot_adapter::Sender object to its string representation
+ * @param sender The sender object to convert
+ * @return A formatted string containing the sender's name and ID in the format "[Sender]name(id)"
+ */
+inline std::string to_string(const bot_adapter::Sender &sender) {
+    return fmt::format("[Sender]{}({})", sender.name, sender.id);
+}
+
 /**
  * @brief Converts a Group object to a formatted std::string representation
  *

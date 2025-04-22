@@ -204,7 +204,11 @@ namespace bot_adapter {
         }
     }
 
-    std::string generate_send_message_sync_id(const Group &group) {
+    std::string generate_send_message_sync_id(const Sender &sender) {
+        return fmt::format("send_msg_{}_{}", sender.id, get_current_time_formatted());
+    }
+
+    std::string generate_send_group_message_sync_id(const Group &group) {
         return fmt::format("send_group_msg_{}_{}", group.id, get_current_time_formatted());
     }
 
@@ -226,16 +230,28 @@ namespace bot_adapter {
         }
     }
 
-    void BotAdapter::send_message(const Group &group, const MessageChainPtrList &message_chain,
+    void BotAdapter::send_message(const Sender &sender, const MessageChainPtrList &message_chain,
                                   std::optional<std::string_view> sync_id_option,
                                   std::optional<std::function<void(uint64_t &out_message_id)>> out_message_id_option) {
-        const auto sync_id = std::string(sync_id_option.value_or(generate_send_message_sync_id(group)));
+        const auto sync_id = std::string(sync_id_option.value_or(generate_send_message_sync_id(sender)));
+        spdlog::info("Send message to sender: {}, sync id: {}", to_string(sender), sync_id);
+        // const auto message_json = to_json(message_chain);
+
+        send_command(AdapterCommand(sync_id, "sendFriendMessage",
+                                    std::make_shared<bot_adapter::SendMsgContent>(sender.id, message_chain)));
+    }
+
+    void BotAdapter::send_group_message(const Group &group, const MessageChainPtrList &message_chain,
+                                  std::optional<std::string_view> sync_id_option,
+                                  std::optional<std::function<void(uint64_t &out_message_id)>> out_message_id_option) {
+        const auto sync_id = std::string(sync_id_option.value_or(generate_send_group_message_sync_id(group)));
         spdlog::info("Send message to group: {}, sync id: {}", to_string(group), sync_id);
         // const auto message_json = to_json(message_chain);
 
         send_command(AdapterCommand(sync_id, "sendGroupMessage",
                                     std::make_shared<bot_adapter::SendGroupMsgContent>(group.id, message_chain)));
     }
+    
 
     void
     BotAdapter::send_replay_msg(const Sender &sender, const MessageChainPtrList &message_chain,
@@ -248,7 +264,7 @@ namespace bot_adapter {
                 make_message_chain_list(AtTargetMessage(sender.id), PlainTextMessage(" "));
             msg_chain_list.insert(msg_chain_list.cend(), message_chain.cbegin(), message_chain.cend());
 
-            send_message(group_sender->get().group, msg_chain_list);
+            send_group_message(group_sender->get().group, msg_chain_list);
         } else {
             // TODO: 实现私聊发送
         }
@@ -267,7 +283,7 @@ namespace bot_adapter {
         std::function<void(const std::string_view sync_id, const MessageChainPtrList &msg_chain)> send_func;
         if (const auto group_sender = try_group_sender(sender)) {
             send_func = [this, group_sender](const std::string_view sync_id, const MessageChainPtrList &msg_chain) {
-                send_message(group_sender->get().group,
+                send_group_message(group_sender->get().group,
                              msg_chain,
                              sync_id);
             };

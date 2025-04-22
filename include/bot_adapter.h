@@ -51,8 +51,12 @@ namespace bot_adapter {
             });
         }
 
+        void send_message(const Sender &sender, const MessageChainPtrList &message_chain,
+                          std::optional<std::string_view> sync_id_option = std::nullopt,
+                          std::optional<std::function<void(uint64_t &out_message_id)>> out_message_id_option = std::nullopt);
+
         void
-        send_message(const Group &group, const MessageChainPtrList &message_chain,
+        send_group_message(const Group &group, const MessageChainPtrList &message_chain,
                      std::optional<std::string_view> sync_id_option = std::nullopt,
                      std::optional<std::function<void(uint64_t &out_message_id)>> out_message_id_option = std::nullopt);
 
