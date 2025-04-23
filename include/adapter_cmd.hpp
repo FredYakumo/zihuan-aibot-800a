@@ -24,11 +24,11 @@ namespace bot_adapter {
         inline nlohmann::json to_json() const override { return content; }
     };
 
-    struct SendGroupMsgContent : public AdapterCommandContentBase {
+    struct SendMsgContent : public AdapterCommandContentBase {
         uint64_t target;
         std::vector<std::shared_ptr<MessageBase>> message_chain;
 
-        SendGroupMsgContent(uint64_t target, const std::vector<std::shared_ptr<MessageBase>> message_chain)
+        SendMsgContent(uint64_t target, const std::vector<std::shared_ptr<MessageBase>> message_chain)
             : target(target), message_chain(message_chain) {}
 
         inline nlohmann::json to_json() const override {

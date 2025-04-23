@@ -249,7 +249,7 @@ namespace bot_adapter {
         // const auto message_json = to_json(message_chain);
 
         send_command(AdapterCommand(sync_id, "sendGroupMessage",
-                                    std::make_shared<bot_adapter::SendGroupMsgContent>(group.id, message_chain)));
+                                    std::make_shared<bot_adapter::SendMsgContent>(group.id, message_chain)));
     }
     
 
@@ -266,7 +266,7 @@ namespace bot_adapter {
 
             send_group_message(group_sender->get().group, msg_chain_list);
         } else {
-            // TODO: 实现私聊发送
+            send_message(sender, message_chain);
         }
     }
 
