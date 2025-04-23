@@ -37,6 +37,8 @@ namespace bot_adapter {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
 
+        // TODO: Handle reconnection logic
+
         return 0;
     }
 
@@ -286,7 +288,7 @@ namespace bot_adapter {
                                                  uint64_t msg_length_limit) {
         const auto sync_id_base = generate_send_replay_sync_id(sender);
 
-        if (text.length() <= msg_length_limit) {
+        if (text.length() < msg_length_limit) {
             send_replay_msg(sender, make_message_chain_list(PlainTextMessage(text)));
             return;
         }
@@ -299,9 +301,11 @@ namespace bot_adapter {
                              msg_chain,
                              sync_id);
             };
+            spdlog::info("输出长文信息: @target");
+            send_func(fmt::format("{}_at", sync_id_base), make_message_chain_list(AtTargetMessage(sender.id)));
         } else {
             send_func = [this, sender](const std::string_view sync_id, const MessageChainPtrList &msg_chain) {
-                // TODO: 实现私聊发送
+                send_message(sender, msg_chain, sync_id);
             };
         }
         const auto bot_profile = get_bot_profile();
@@ -318,9 +322,6 @@ namespace bot_adapter {
         for (size_t i = 0; i < forward_nodes.size(); ++i) {
             forward_nodes[forward_nodes.size() - i].time -= std::chrono::seconds(i);
         }
-
-        spdlog::info("输出长文信息: @target");
-        send_func(fmt::format("{}_at", sync_id_base), make_message_chain_list(AtTargetMessage(sender.id)));
         spdlog::info("输出长文信息: long text");
         const auto forward_msg = ForwardMessage(forward_nodes, std::nullopt);
         spdlog::debug("forward message: {}", forward_msg.to_json().dump());
