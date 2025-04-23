@@ -211,8 +211,9 @@ namespace bot_adapter {
             return "女";
         case MALE:
             return "男";
+        default:
+            return "未知";
         }
-        return "未知";
     }
 
     /**
