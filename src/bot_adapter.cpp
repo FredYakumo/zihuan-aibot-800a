@@ -124,6 +124,51 @@ namespace bot_adapter {
         }
     }
 
+    void handle_message_event(const std::string &type, const nlohmann::json &data, const std::vector<std::function<void(std::shared_ptr<Event> e)>> &msg_handle_func_list) {
+        auto sender_json = get_optional(data, "sender");
+        if (!sender_json) {
+            spdlog::warn("{} event中, 收到的数据没有sender", type);
+            return;
+        }
+
+        auto msg_chain_json = get_optional(data, "messageChain");
+        if (!msg_chain_json) {
+            spdlog::warn("{} event中, 收到的数据没有messageChain", type);
+            return;
+        }
+
+        spdlog::debug("parse message chain");
+        const auto message_chain = parse_message_chain(*msg_chain_json);
+
+        // 使用通用的处理逻辑
+        auto process_event = [&](auto sender_ptr, auto create_event) {
+            spdlog::debug("Sender: {}", sender_ptr->to_json().dump());
+            auto message_event = create_event(sender_ptr, message_chain);
+            spdlog::info("Event json: {}", message_event.to_json().dump());
+            spdlog::debug("Call register event functions");
+            for (const auto &func : msg_handle_func_list) {
+                func(std::make_shared<std::decay_t<decltype(message_event)>>(message_event));
+            }
+        };
+
+        if (type == "GroupMessage") {
+            auto group_json = get_optional(*sender_json, "group");
+            if (!group_json) {
+                spdlog::warn("GroupMessage event中, 收到的数据没有group");
+                return;
+            }
+            auto group_sender_ptr = std::make_shared<GroupSender>(*sender_json, *group_json);
+            process_event(group_sender_ptr, [](auto sender, const auto &chain) {
+                return GroupMessageEvent(sender, chain);
+            });
+        } else if (type == "FriendMessage") {
+            auto sender_ptr = std::make_shared<Sender>(*sender_json);
+            process_event(sender_ptr, [](auto sender, const auto &chain) {
+                return FriendMessageEvent(sender, chain);
+            });
+        }
+    }
+
     void BotAdapter::handle_message(const std::string &message) {
         spdlog::info("On recv message: {}", message);
         try {
@@ -137,20 +182,15 @@ namespace bot_adapter {
 
             const auto sync_id = get_optional(msg_json, "syncId");
             if (sync_id.has_value()) {
-                // std::optional<std::function<void(uint64_t message_id)>> func_option = std::nullopt;
                 bool have_sync_id = false;
                 {
                     const auto handle_map = command_result_handle_map.read();
                     auto iter = handle_map->find(*sync_id);
                     if (iter != handle_map->cend()) {
-                        // func_option = iter->second;
                         have_sync_id = true;
                     }
                 }
 
-                // if (const auto func = func_option) {
-                //     (*func)(*data);
-                // }
                 if (have_sync_id) {
                     handle_command_result(*sync_id, *data);
                     return;
@@ -161,38 +201,10 @@ namespace bot_adapter {
             if (type->empty()) {
                 return;
             }
+
             spdlog::debug("Check event type");
-            if ("GroupMessage" == type) {
-
-                auto sender_json = get_optional(*data, "sender");
-                if (!sender_json) {
-                    spdlog::warn("GroupMessage event中, 收到的数据没有sender");
-                    return;
-                }
-
-                auto group_json = get_optional(*sender_json, "group");
-                if (!group_json) {
-                    spdlog::warn("GroupMessage event中, 收到的数据没有group");
-                    return;
-                }
-                Group group{*group_json};
-
-                std::shared_ptr<GroupSender> sender_ptr = std::make_shared<GroupSender>(*sender_json, *group_json);
-
-                auto msg_chain_json = get_optional(*data, "messageChain");
-                if (!msg_chain_json) {
-                    spdlog::warn("GroupMessage event中, 收到的数据没有messageChain");
-                    return;
-                }
-                spdlog::debug("parse message chain");
-                const auto message_chain = parse_message_chain(*msg_chain_json);
-                spdlog::debug("Sender: {}", sender_ptr->to_json().dump());
-                auto message_event = GroupMessageEvent(sender_ptr, message_chain);
-                spdlog::info("Event json: {}", message_event.to_json().dump());
-                spdlog::debug("Call register event functions");
-                for (const auto &func : msg_handle_func_list) {
-                    func(std::make_shared<bot_adapter::GroupMessageEvent>(message_event));
-                }
+            if (*type == "GroupMessage" || *type == "FriendMessage") {
+                handle_message_event(*type, *data, msg_handle_func_list);
             }
 
         } catch (const nlohmann::json::parse_error &e) {

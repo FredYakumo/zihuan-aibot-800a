@@ -16,6 +16,14 @@ namespace bot_adapter {
      * Contains information about a user who can send messages,
      * including their identification, permissions, and activity timestamps.
      */
+    /**
+     * @brief Represents a message sender in the chat system
+     * 
+     * Contains information about a user who can send messages,
+     * including their unique identifier, display name, and optional remark.
+
+     */
+
     struct Sender {
         // Unique identifier for the sender
         uint64_t id;
@@ -33,6 +41,14 @@ namespace bot_adapter {
          */
         Sender(uint64_t id, std::string name, std::optional<std::string> remark)
             : id(id), name(std::move(name)), remark(remark) {}
+
+        /**
+         * @brief Constructs a new Sender object from JSON datas
+         */
+        Sender(const nlohmann::json &sender)
+            : id(get_optional<uint64_t>(sender, "id").value_or(0)),
+              name(get_optional<std::string>(sender, "name").value_or("")),
+              remark(get_optional<std::string>(sender, "remark")) {}
 
         virtual nlohmann::json to_json() const {
             nlohmann::json js = {{"id", id}, {"name", name}};
@@ -195,9 +211,8 @@ namespace bot_adapter {
             return "女";
         case MALE:
             return "男";
-        case UNKNOWN:
-            return "未知";
         }
+        return "未知";
     }
 
     /**

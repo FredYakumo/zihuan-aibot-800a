@@ -43,6 +43,13 @@ namespace bot_adapter {
         MessageChainPtrList message_chain;
     };
 
+    struct FriendMessageEvent final : public MessageEvent {
+        FriendMessageEvent(std::shared_ptr<Sender> sender_ptr, MessageChainPtrList message_chain)
+            : MessageEvent(sender_ptr, std::move(message_chain)) {}
+
+        std::string_view get_typename() const override { return "FriendMessageEvent"; }
+    };
+
     struct GroupMessageEvent final : public MessageEvent {
         GroupMessageEvent(std::shared_ptr<GroupSender> sender_ptr, MessageChainPtrList message_chain)
             : MessageEvent(sender_ptr, std::move(message_chain)) {}
