@@ -119,40 +119,49 @@ void init_config() {
 
 
     // load config from env
-    const auto api_url = std::getenv("AIBOT_LLM_API_URL");
-    LLM_API_URL = std::string(api_url != nullptr ? api_url : "");
-    spdlog::info("LLM_API_URL: {} (from env)", LLM_API_URL);
+    if (const auto api_url = std::getenv("AIBOT_LLM_API_URL")) {
+        LLM_API_URL = std::string(api_url);
+        spdlog::info("LLM_API_URL: {} (from env)", LLM_API_URL);
+    }
 
-    const auto api_token = std::getenv("AIBOT_LLM_API_TOKEN");
-    LLM_API_TOKEN = std::string(api_token != nullptr ? api_token : "");
+    if (const auto api_token = std::getenv("AIBOT_LLM_API_TOKEN")) {
+        LLM_API_TOKEN = std::string(api_token);
+    }
 
-    const auto net_search_api_url = std::getenv("AIBOT_NET_SEARCH_API_URL");
-    NET_SEARCH_API_URL = std::string(net_search_api_url != nullptr ? net_search_api_url : "");
-    spdlog::info("NET_SEARCH_API_URL: {} (from env)", NET_SEARCH_API_URL);
+    if (const auto net_search_api_url = std::getenv("AIBOT_NET_SEARCH_API_URL")) {
+        NET_SEARCH_API_URL = std::string(net_search_api_url);
+        spdlog::info("NET_SEARCH_API_URL: {} (from env)", NET_SEARCH_API_URL);
+    }
 
-    const auto net_search_token = std::getenv("AIBOT_NET_SEARCH_TOKEN");
-    NET_SEARCH_TOKEN = std::string(net_search_token != nullptr ? net_search_token : "");
-    spdlog::info("NET_SEARCH_TOKEN: {} (from env)", NET_SEARCH_TOKEN);
+    if (const auto net_search_token = std::getenv("AIBOT_NET_SEARCH_TOKEN")) {
+        NET_SEARCH_TOKEN = std::string(net_search_token);
+        spdlog::info("NET_SEARCH_TOKEN: {} (from env)", NET_SEARCH_TOKEN);
+    }
 
-    const auto url_search_api_url = std::getenv("AIBOT_URL_SEARCH_API_URL");
-    URL_SEARCH_API_URL = std::string(url_search_api_url != nullptr ? url_search_api_url : "");
-    spdlog::info("URL_SEARCH_API_URL: {} (from env)", URL_SEARCH_API_URL);
+    if (const auto url_search_api_url = std::getenv("AIBOT_URL_SEARCH_API_URL")) {
+        URL_SEARCH_API_URL = std::string(url_search_api_url);
+        spdlog::info("URL_SEARCH_API_URL: {} (from env)", URL_SEARCH_API_URL);
+    }
 
-    const auto url_search_token = std::getenv("AIBOT_URL_SEARCH_TOKEN");
-    URL_SEARCH_TOKEN = std::string(url_search_token != nullptr ? url_search_token : "");
-    spdlog::info("URL_SEARCH_TOKEN: {} (from env)", URL_SEARCH_TOKEN);
+    if (const auto url_search_token = std::getenv("AIBOT_URL_SEARCH_TOKEN")) {
+        URL_SEARCH_TOKEN = std::string(url_search_token);
+        spdlog::info("URL_SEARCH_TOKEN: {} (from env)", URL_SEARCH_TOKEN);
+    }
 
-    const auto model_name = std::getenv("AIBOT_LLM_MODEL_NAME");
-    LLM_MODEL_NAME = std::string(model_name != nullptr ? model_name : "");
-    spdlog::info("LLM_MODEL_NAME: {} (from env)", LLM_MODEL_NAME);
+    if (const auto model_name = std::getenv("AIBOT_LLM_MODEL_NAME")) {
+        LLM_MODEL_NAME = std::string(model_name);
+        spdlog::info("LLM_MODEL_NAME: {} (from env)", LLM_MODEL_NAME);
+    }
 
-    const auto deep_think_model_name = std::getenv("AIBOT_LLM_DEEP_THINK_MODEL_NAME");
-    LLM_DEEP_THINK_MODEL_NAME = std::string(deep_think_model_name != nullptr ? deep_think_model_name : "");
-    spdlog::info("LLM_DEEP_THINK_MODEL_NAME: {} (from env)", LLM_DEEP_THINK_MODEL_NAME);
+    if (const auto deep_think_model_name = std::getenv("AIBOT_LLM_DEEP_THINK_MODEL_NAME")) {
+        LLM_DEEP_THINK_MODEL_NAME = std::string(deep_think_model_name);
+        spdlog::info("LLM_DEEP_THINK_MODEL_NAME: {} (from env)", LLM_DEEP_THINK_MODEL_NAME);
+    }
 
-    const auto custom_system_prompt = std::getenv("AIBOT_CUSTOM_SYSTEM_PROMPT");
-    CUSTOM_SYSTEM_PROMPT = std::string(custom_system_prompt != nullptr ? custom_system_prompt : "");
-    spdlog::info("CUSTOM_SYSTEM_PROMPT: {} (from env)", CUSTOM_SYSTEM_PROMPT);
+    if (const auto custom_system_prompt = std::getenv("AIBOT_CUSTOM_SYSTEM_PROMPT")) {
+        CUSTOM_SYSTEM_PROMPT = std::string(custom_system_prompt);
+        spdlog::info("CUSTOM_SYSTEM_PROMPT: {} (from env)", CUSTOM_SYSTEM_PROMPT);
+    }
 
     const auto custom_deep_think_system_prompt_option = std::getenv("AIBOT_CUSTOM_DEEP_THINK_SYSTEM_PROMPT");
     if (custom_deep_think_system_prompt_option != nullptr) {
@@ -163,20 +172,23 @@ void init_config() {
     }
 
     const auto db_url = std::getenv("AIBOT_MSG_DB_URL");
-    MSG_DB_URL = std::string(db_url != nullptr ? db_url : "");
-    spdlog::info("MSG_DB_URL: {} (from env)", MSG_DB_URL);
+    if (db_url != nullptr) {
+        MSG_DB_URL = std::string(db_url);
+        spdlog::info("MSG_DB_URL: {} (from env)", MSG_DB_URL);
+    }
 
     const auto bot_id_str = std::getenv("AIBOT_BOT_ID");
-    if (bot_id_str == nullptr) {
-        throw std::runtime_error("AIBOT_BOT_ID environment variable not set");
+    if (bot_id_str != nullptr) {
+        // throw std::runtime_error("AIBOT_BOT_ID environment variable not set");
+        try {
+            BOT_ID = std::stoull(bot_id_str);
+            spdlog::info("BOT_ID: {} (from env)", BOT_ID);
+        } catch (const std::exception& e) {
+            throw std::runtime_error(fmt::format("Invalid BOT_ID format: {}", e.what()));
+        }
     }
     
-    try {
-        BOT_ID = std::stoull(bot_id_str);
-        spdlog::info("BOT_ID: {} (from env)", BOT_ID);
-    } catch (const std::exception& e) {
-        throw std::runtime_error(fmt::format("Invalid BOT_ID format: {}", e.what()));
-    }
+
 
     const auto admin_id_list = std::getenv("AIBOT_ADMIN_ID_LIST");
     if (admin_id_list != nullptr) {

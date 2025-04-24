@@ -19,7 +19,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # 查找所需的第三方包
 find_package(cpr REQUIRED)
 find_package(fmt REQUIRED)
-find_package(Boost REQUIRED)
+find_package(Boost REQUIRED COMPONENTS filesystem)
 find_package(spdlog REQUIRED)
 find_package(GTest REQUIRED)
 find_package(yaml-cpp REQUIRED)
@@ -68,6 +68,8 @@ endforeach()
 add_executable(${AIBOT_TARGET_NAME} ${BIN_SOURCES})
 target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE cpr::cpr)
 target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE fmt::fmt)
+target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE yaml-cpp::yaml-cpp)
+target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE Boost::filesystem)
 
 # 单元测试
 include(CTest)
@@ -76,7 +78,7 @@ add_executable(unit_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/bot_adapter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/external/easywsclient/easywsclient.cpp
 )
-target_link_libraries(unit_test GTest::GTest GTest::Main fmt::fmt)
+target_link_libraries(unit_test GTest::GTest GTest::Main fmt::fmt yaml-cpp::yaml-cpp Boost::filesystem)
 add_test(NAME unit_test COMMAND unit_test)
 
 # 添加预编译宏定义
