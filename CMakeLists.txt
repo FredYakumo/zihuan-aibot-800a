@@ -22,6 +22,7 @@ find_package(fmt REQUIRED)
 find_package(Boost REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(GTest REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
 # 设置头文件搜索路径
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/)
