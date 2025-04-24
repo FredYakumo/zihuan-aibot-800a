@@ -47,7 +47,7 @@ namespace bot_adapter {
          */
         Sender(const nlohmann::json &sender)
             : id(get_optional<uint64_t>(sender, "id").value_or(0)),
-              name(get_optional<std::string>(sender, "name").value_or("")),
+              name(get_optional<std::string>(sender, "name").value_or(get_optional<std::string>(sender, "nickname").value_or(""))),
               remark(get_optional<std::string>(sender, "remark")) {}
 
         virtual nlohmann::json to_json() const {
