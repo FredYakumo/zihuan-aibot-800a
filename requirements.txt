@@ -1,3 +1,8 @@
 weaviate-client
 transformers
 pyyaml
+pandas
+torch
+jieba
+uvicorn
+fastapi

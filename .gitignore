@@ -1,3 +1,9 @@
 **/build/
 .vscode/*
 .venv/*
+logs/vec_db.log
+**/pycache/**
+**/logs/**
+export_knowledge.csv
+config.yaml
+**/__pycache__/**
