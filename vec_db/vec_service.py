@@ -57,7 +57,7 @@ def query_knowledge(query: str) -> List[Knowledge]:
     res = g_vec_db_collection.query.near_vector(
         near_vector=vector,
         # limit=5,
-        certainty=0.7,
+        certainty=0.72,
         return_metadata=["certainty"],
         return_properties=["keyword", "content", "create_time", "creator_name"],
     )
