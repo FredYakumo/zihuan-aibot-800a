@@ -215,7 +215,7 @@ if __name__ == "__main__":
         model=model,
         train_loader=train_loader,
         val_loader=val_loader,
-        epochs=10,
+        epochs=50,
         lr=0.001
     )
     model_file_name = 'model.pth'
