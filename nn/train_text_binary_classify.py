@@ -74,7 +74,14 @@ class ClassificationModel(nn.Module):
 # Training module
 def train_model(model, train_loader, val_loader, epochs=10, lr=0.001):
     """Train and validate the model."""
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cpu')
+    if torch.cuda.is_available():
+        print(f"Using GPU: {torch.cuda.get_device_name(0)}")
+        device = torch.device('cuda')
+    elif torch.backends.mps.is_available():
+        print("Using Apple Silicon GPU")
+        device = torch.device('mps')
+    
     model = model.to(device)
     criterion = nn.BCELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
