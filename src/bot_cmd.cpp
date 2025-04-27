@@ -2,6 +2,7 @@
 #include "adapter_message.h"
 #include "adapter_model.h"
 #include "bot_adapter.h"
+#include "global_data.h"
 #include "llm.h"
 #include "msg_prop.h"
 #include "rag.h"
@@ -54,6 +55,11 @@ namespace bot_cmd {
         auto chat_session_map = g_chat_session_map.write();
         if (auto it = chat_session_map->find(context.e->sender_ptr->id); it != chat_session_map->cend()) {
             chat_session_map->erase(it);
+        }
+        auto knowledge_map = g_chat_session_knowledge_list_map.write();
+        if (auto it = knowledge_map->find(context.e->sender_ptr->id);
+            it != knowledge_map->cend()) {
+            knowledge_map->erase(it);
         }
         if ((context.msg_prop.plain_content == nullptr ||
              ltrim(rtrim(replace_str(*context.msg_prop.plain_content, "#新对话", ""))).empty()) &&
