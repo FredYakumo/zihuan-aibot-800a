@@ -94,14 +94,14 @@ namespace rag {
         return result;
     }
 
-    std::vector<DBKnowledge> query_knowledge(const std::string_view query) {
+    std::vector<DBKnowledge> query_knowledge(const std::string_view query, bool exactly_match) {
         std::vector<DBKnowledge> result;
 
         nlohmann::json request_body {
             {"query", query}
         };
 
-        cpr::Response r = cpr::Post(cpr::Url{fmt::format("{}query_knowledge", VEC_DB_URL)},
+        cpr::Response r = cpr::Post(cpr::Url{fmt::format("{}{}", VEC_DB_URL, exactly_match ? "find_keyword_match" : "query_knowledge")},
                                     cpr::Header{{"Content-Type", "application/json"}}, cpr::Body{request_body.dump()});
 
         if (r.status_code != 200) {

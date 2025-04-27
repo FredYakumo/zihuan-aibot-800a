@@ -14,6 +14,7 @@ print(f"加载embedding模型完成, 加载耗时: {end_time - start_time:.2f}�
 from fastapi import FastAPI, Header
 from pydantic import BaseModel
 import weaviate
+from weaviate.classes.query import Filter
 from config_loader import config
 from logging_config import logger
 from model import Knowledge
@@ -80,6 +81,27 @@ def query_knowledge(query: str) -> List[Knowledge]:
 def query_data(request: QueryKnowledgeRequest):
     return query_knowledge(request.query)
 
+@app.post("/find_keyword_match")
+def find_keyword_match(request: QueryKnowledgeRequest):
+    logger.info(f"从向量数据库中精确查找关键字: {request.query}")
+    start_time = time.time()
+    res = g_vec_db_collection.query.fetch_objects(
+        filters=Filter.by_property("keyword").contains_any([request.query]),
+        return_properties=["keyword", "content", "create_time", "creator_name"]
+    )
+    end_time = time.time()
+    knowledge_result = []
+    for e in res.objects:
+        logger.info(f"{e.properties.get('content')} - 创建者: {e.properties.get('creator_name')} - 时间: {e.properties.get("create_time")}, 置信度: {e.metadata.certainty}, keyword: {e.properties.get('keyword')}")
+        knowledge_result.append(Knowledge(
+            keyword=e.properties.get("keyword"),
+            content=e.properties.get("content"),
+            create_time=e.properties.get("create_time"),
+            creator_name=e.properties.get("creator_name"),
+            certainty=1.0
+        ))
+    logger.info(f"查询耗时: {end_time - start_time:.2f}秒")
+    return knowledge_result
 
 def run():
     # Run the FastAPI application using Uvicorn server

@@ -81,7 +81,7 @@ std::string query_chat_session_knowledge(const bot_cmd::CommandContext &context,
 
     // Search knowledge for username
     spdlog::info("Search knowledge for username");
-    auto sender_name_knowledge_list = rag::query_knowledge(context.e->sender_ptr->name);
+    auto sender_name_knowledge_list = rag::query_knowledge(context.e->sender_ptr->name, true);
     std::string sender_name_knowledge_str;
     if (sender_name_knowledge_list.empty()) {
         spdlog::info("未查询到用户关联的知识");
