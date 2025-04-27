@@ -1,9 +1,12 @@
 #include "rag.h"
+#include "db_knowledge.hpp"
+#include "get_optional.hpp"
 #include "nlohmann/json_fwd.hpp"
 #include "utils.h"
 #include <config.h>
 #include <cpr/cpr.h>
 #include <fmt/format.h>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -65,7 +68,7 @@ namespace rag {
         nlohmann::json request_body;
         request_body["query"] = graphql_query;
 
-        cpr::Response r = cpr::Post(cpr::Url{fmt::format("{}/graphql", MSG_DB_URL)},
+        cpr::Response r = cpr::Post(cpr::Url{fmt::format("{}query_knowledge", VEC_DB_URL)},
                                     cpr::Header{{"Content-Type", "application/json"}}, cpr::Body{request_body.dump()});
 
         if (r.status_code != 200) {
@@ -91,51 +94,34 @@ namespace rag {
         return result;
     }
 
-    std::vector<std::pair<DBKnowledge, double>> query_knowledge(const std::string_view query) {
-        std::vector<std::pair<DBKnowledge, double>> result;
+    std::vector<DBKnowledge> query_knowledge(const std::string_view query) {
+        std::vector<DBKnowledge> result;
 
-        std::string escaped_query = replace_str(query, "\"", "\\\"");
+        nlohmann::json request_body {
+            {"query", query}
+        };
 
-        std::string graphql_query;
-
-        graphql_query = "query {"
-                        "  Get {"
-                        "    AIBot_knowledge("
-                        "      nearText: { concepts: [\"" +
-                        escaped_query +
-                        "\"], certainty: 0.8 }"
-                        "      limit: 5"
-                        "    ) {"
-                        "      creator_name"
-                        "      create_time"
-                        "      content"
-                        "      _additional { certainty }"
-                        "    }"
-                        "  }"
-                        "}";
-
-        nlohmann::json request_body;
-        request_body["query"] = graphql_query;
-
-        cpr::Response r = cpr::Post(cpr::Url{fmt::format("{}/graphql", MSG_DB_URL)},
+        cpr::Response r = cpr::Post(cpr::Url{fmt::format("{}query_knowledge", VEC_DB_URL)},
                                     cpr::Header{{"Content-Type", "application/json"}}, cpr::Body{request_body.dump()});
 
         if (r.status_code != 200) {
-
+            spdlog::error("查询知识失败: {}", r.text);
             return result;
         }
         try {
-            auto response_json = nlohmann::json::parse(r.text);
+            auto knowledge_json = nlohmann::json::parse(r.text);
 
-            auto &messages = response_json["data"]["Get"]["AIBot_knowledge"];
-            for (auto &msg : messages) {
-                DBKnowledge db_msg;
-                db_msg.creator_name = msg["creator_name"].get<std::string>();
-                db_msg.create_dt = msg["create_time"].get<std::string>();
-                db_msg.content = msg["content"].get<std::string>();
-                // double score = std::stod(msg["_additional"]["certainty"].get<std::string>());
-                double score = msg["_additional"]["certainty"].get<float>();
-                result.push_back(std::make_pair(std::move(db_msg), score));
+            for (auto &json : knowledge_json) {
+                DBKnowledge knowledge {
+                    get_optional<std::string_view>(json, "content").value_or(""),
+                    get_optional<std::string_view>(json, "creator_name").value_or(""),
+                    get_optional<std::string_view>(json, "create_time").value_or(""),
+                    get_optional<std::vector<std::string>>(json, "keyword").value_or(std::vector<std::string>()),
+                    get_optional<float>(json, "certainty").value_or(0.0f)
+                };
+                spdlog::info("{}, 创建者: {}, 日期: {}, 置信度: {}, 关键字列表: {}", knowledge.content, knowledge.creator_name,
+                             knowledge.create_dt, knowledge.certainty, join_str(std::cbegin(knowledge.keywords), std::cend(knowledge.keywords), ","));
+                result.push_back(knowledge);
             }
         } catch (const nlohmann::json::exception &e) {
             spdlog::error("查询知识出错: {}", e.what());
@@ -166,7 +152,7 @@ namespace rag {
         spdlog::info("{}", request.dump());
 
         cpr::Response response =
-            cpr::Post(cpr::Url{fmt::format("{}/batch/objects", MSG_DB_URL)}, cpr::Body{request.dump()},
+            cpr::Post(cpr::Url{fmt::format("{}/batch/objects", VEC_DB_URL)}, cpr::Body{request.dump()},
                       cpr::Header{{"Content-Type", "application/json"}});
 
         if (response.status_code == 200) {
@@ -188,7 +174,7 @@ namespace rag {
         spdlog::info("{}", request.dump());
 
         cpr::Response response =
-            cpr::Post(cpr::Url{fmt::format("{}/batch/objects", MSG_DB_URL)}, cpr::Body{request.dump()},
+            cpr::Post(cpr::Url{fmt::format("{}/batch/objects", VEC_DB_URL)}, cpr::Body{request.dump()},
                       cpr::Header{{"Content-Type", "application/json"}});
 
         if (response.status_code == 200) {

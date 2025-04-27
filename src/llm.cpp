@@ -3,7 +3,9 @@
 #include "bot_cmd.h"
 #include "config.h"
 #include "constants.hpp"
+#include "global_data.h"
 #include "rag.h"
+#include "utils.h"
 #include <cpr/cpr.h>
 #include <nlohmann/json.hpp>
 #include <string>
@@ -42,6 +44,58 @@ ChatMessage get_llm_response(const nlohmann::json &msg_json, bool is_deep_think 
     return ChatMessage();
 }
 
+std::string query_chat_session_knowledge(const bot_cmd::CommandContext &context,
+                                         const std::string_view &msg_content_str) {
+    // Search knowledge for this chat message
+    spdlog::info("Search knowledge for this chat message");
+    auto msg_knowledge_list = rag::query_knowledge(msg_content_str);
+    std::string chat_use_knowledge_str;
+    {
+        auto map = g_chat_session_knowledge_list_map.write();
+        auto user_set_iter = map->find(context.e->sender_ptr->id);
+        if (user_set_iter == map->cend()) {
+            user_set_iter = map->insert(std::make_pair(context.e->sender_ptr->id, std::set<std::string>())).first;
+        }
+        for (const auto &knowledge : msg_knowledge_list) {
+            if (knowledge.content.empty()) {
+                continue;
+            }
+            if (user_set_iter->second.size() >= MAX_KNOWLEDGE_COUNT) {
+                spdlog::info("{}({})的对话session知识数量超过限制, 删除最旧的知识", context.e->sender_ptr->name,
+                             context.e->sender_ptr->id);
+                user_set_iter->second.erase(user_set_iter->second.cbegin());
+            }
+            user_set_iter->second.insert(knowledge.content);
+        }
+
+        const auto user_chat_knowledge_list = map->find(context.e->sender_ptr->id);
+        if (user_chat_knowledge_list == map->cend() || user_chat_knowledge_list->second.empty()) {
+            spdlog::info("未查询到对话关联的知识");
+        } else {
+            chat_use_knowledge_str.append("当前对话相关的知识:\"");
+            chat_use_knowledge_str.append(join_str(std::cbegin(user_chat_knowledge_list->second),
+                                                   std::cend(user_chat_knowledge_list->second), "\n"));
+            chat_use_knowledge_str.append("\"");
+        }
+    }
+
+    // Search knowledge for username
+    spdlog::info("Search knowledge for username");
+    auto sender_name_knowledge_list = rag::query_knowledge(context.e->sender_ptr->name);
+    std::string sender_name_knowledge_str;
+    if (sender_name_knowledge_list.empty()) {
+        spdlog::info("未查询到用户关联的知识");
+    } else {
+        sender_name_knowledge_str = "与你聊天用户相关的信息:\"";
+        sender_name_knowledge_str.append(join_str(std::cbegin(sender_name_knowledge_list),
+                                                  std::cend(sender_name_knowledge_list), "\n",
+                                                  [](const auto &knowledge) { return knowledge.content; }));
+        sender_name_knowledge_str.append("\"");
+    }
+
+    return chat_use_knowledge_str + sender_name_knowledge_str;
+}
+
 void process_llm(const bot_cmd::CommandContext &context,
                  const std::optional<std::string> &additional_system_prompt_option) {
     spdlog::info("开始处理LLM信息");
@@ -65,6 +119,7 @@ void process_llm(const bot_cmd::CommandContext &context,
         msg_content_str.append(*context.msg_prop.plain_content);
     }
     spdlog::info(msg_content_str);
+
     auto llm_thread = std::thread([context, msg_content_str, additional_system_prompt_option] {
         spdlog::debug("Event type: {}, Sender json: {}", context.e->get_typename(),
                       context.e->sender_ptr->to_json().dump());
@@ -77,31 +132,12 @@ void process_llm(const bot_cmd::CommandContext &context,
         const auto bot_profile = context.adapter.get_bot_profile();
         auto system_prompt = gen_common_prompt(bot_profile, *context.e->sender_ptr, context.is_deep_think);
 
-        spdlog::info("Try query knowledge");
-        std::string query_result_str{""};
-        auto msg_knowledge_list = rag::query_knowledge(msg_content_str);
-        auto sender_name_knowledge_list = rag::query_knowledge(context.e->sender_ptr->name);
-        if (!msg_knowledge_list.empty()) {
-            query_result_str += "\n以下是相关知识:";
-            for (const auto &knowledge : msg_knowledge_list) {
-                query_result_str.append(fmt::format("\n{}", knowledge.first.content));
-            }
-        }
-        if (!sender_name_knowledge_list.empty()) {
-            query_result_str += "\n以下是跟你聊天的用户的相关知识:";
-            for (const auto &knowledge : sender_name_knowledge_list) {
-                query_result_str.append(fmt::format("\n{}", knowledge.first.content));
-            }
-        }
-        if (!query_result_str.empty()) {
-            spdlog::info(query_result_str);
-            system_prompt += query_result_str;
-        } else {
-            spdlog::info("未查询到关联的知识");
-        }
+        system_prompt += "\n" + query_chat_session_knowledge(context, msg_content_str);
+
         if (additional_system_prompt_option.has_value()) {
             system_prompt += additional_system_prompt_option.value();
         }
+
         auto msg_json = get_msg_json(system_prompt, context.e->sender_ptr->id, context.e->sender_ptr->name);
 
         auto user_chat_msg = ChatMessage(ROLE_USER, msg_content_str);

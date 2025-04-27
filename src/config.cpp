@@ -26,7 +26,7 @@ std::string NET_SEARCH_TOKEN;
 std::string URL_SEARCH_API_URL;
 std::string URL_SEARCH_TOKEN;
 
-std::string MSG_DB_URL = "http://localhost:8080/v1";
+std::string VEC_DB_URL = "http://localhost:8080/v1";
 
 std::unordered_set<std::string> ADMIN_ID_SET;
 std::unordered_set<std::string> BANNED_ID_SET;
@@ -91,9 +91,9 @@ void init_config() {
             spdlog::info("URL_SEARCH_TOKEN: {}", URL_SEARCH_TOKEN);
         }
 
-        if (node["msg_db_url"]) {
-            MSG_DB_URL = node["msg_db_url"].as<std::string>();
-            spdlog::info("MSG_DB_URL: {}", MSG_DB_URL);
+        if (node["vec_db_url"]) {
+            VEC_DB_URL = node["vec_db_url"].as<std::string>();
+            spdlog::info("VEC_DB_URL: {}", VEC_DB_URL);
         }
 
         if (node["bot_id"]) {
@@ -173,8 +173,8 @@ void init_config() {
 
     const auto db_url = std::getenv("AIBOT_MSG_DB_URL");
     if (db_url != nullptr) {
-        MSG_DB_URL = std::string(db_url);
-        spdlog::info("MSG_DB_URL: {} (from env)", MSG_DB_URL);
+        VEC_DB_URL = std::string(db_url);
+        spdlog::info("MSG_DB_URL: {} (from env)", VEC_DB_URL);
     }
 
     const auto bot_id_str = std::getenv("AIBOT_BOT_ID");

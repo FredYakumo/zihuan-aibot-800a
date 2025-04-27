@@ -303,4 +303,37 @@ inline void remove_text_between_markers(std::string &str, const std::string &sta
     }
 }
 
+template <typename STR_ITER>
+inline std::string join_str(const STR_ITER &cbegin, const STR_ITER &cend, const std::string_view delimiter) {
+    std::string result;
+    for (auto it = cbegin; it != cend; ++it) {
+        if (it->empty()) {
+            continue;
+        }
+        if (!result.empty()) {
+            result += delimiter;
+        }
+        result += *it;
+    }
+    return result;
+}
+
+template <typename STR_ITER>
+inline std::string
+join_str(const STR_ITER &cbegin, const STR_ITER &cend, const std::string_view delimiter,
+         std::function<std::string(const typename std::iterator_traits<STR_ITER>::value_type &)> transform) {
+    std::string result;
+    for (auto it = cbegin; it != cend; ++it) {
+        auto mapped = transform(*it);
+        if (mapped.empty()) {
+            continue;
+        }
+        if (!result.empty()) {
+            result += delimiter;
+        }
+        result += mapped;
+    }
+    return result;
+}
+
 #endif

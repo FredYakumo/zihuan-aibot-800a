@@ -18,7 +18,7 @@ extern std::optional<std::string> CUSTOM_DEEP_THINK_SYSTEM_PROMPT_OPTION;
 // extern std::string BOT_NAME;
 // extern MiraiCP::QQID BOT_QQID;
 
-extern std::string MSG_DB_URL;
+extern std::string VEC_DB_URL;
 
 extern std::unordered_set<std::string> ADMIN_ID_SET;
 extern std::unordered_set<std::string> BANNED_ID_SET;

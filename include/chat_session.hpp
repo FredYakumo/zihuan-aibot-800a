@@ -4,6 +4,7 @@
 #include <string>
 #include <chrono>
 #include <nlohmann/json.hpp>
+#include <deque>
 
 struct ChatMessage {
     std::string role{};

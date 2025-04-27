@@ -90,23 +90,23 @@ namespace bot_cmd {
             return CommandRes{true};
         }
         for (const auto &e : query_msg) {
-            res.append(fmt::format("\n{}。创建者: {}, 时间: {}, 关联度: {:.4f}", e.first.content, e.first.creator_name,
-                                   e.first.create_dt, e.second));
+            res.append(fmt::format("\n{}。创建者: {}, 时间: {},  置信度: {:.4f}", e.content, e.creator_name,
+                                   e.create_dt, e.certainty));
         }
         context.adapter.send_long_plain_text_replay(*context.e->sender_ptr, res);
         return CommandRes{true};
     }
 
     CommandRes add_knowledge_command(CommandContext context) {
-        spdlog::info("{} 添加了知识到待添加列表中: {}", context.e->sender_ptr->name, context.param);
-        std::thread([context] {
-            std::string content{context.param};
-            auto wait_add_list = g_wait_add_knowledge_list.write();
-            wait_add_list->emplace_back(DBKnowledge{content, context.e->sender_ptr->name});
-            context.adapter.send_replay_msg(*context.e->sender_ptr,
-                                            bot_adapter::make_message_chain_list(
-                                                bot_adapter::PlainTextMessage("成功, 添加1条知识到待添加列表中。")));
-        }).detach();
+        // spdlog::info("{} 添加了知识到待添加列表中: {}", context.e->sender_ptr->name, context.param);
+        // std::thread([context] {
+        //     std::string content{context.param};
+        //     auto wait_add_list = g_wait_add_knowledge_list.write();
+        //     wait_add_list->emplace_back(DBKnowledge{content, context.e->sender_ptr->name});
+        //     context.adapter.send_replay_msg(*context.e->sender_ptr,
+        //                                     bot_adapter::make_message_chain_list(
+        //                                         bot_adapter::PlainTextMessage("成功, 添加1条知识到待添加列表中。")));
+        // }).detach();
 
         return CommandRes{true};
     }
