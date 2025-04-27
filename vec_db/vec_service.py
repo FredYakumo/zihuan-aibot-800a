@@ -114,6 +114,26 @@ def find_keyword_match(request: QueryKnowledgeRequest):
     logger.info(f"查询耗时: {end_time - start_time:.2f}秒")
     return knowledge_result
 
+class CalculateSimilarityRequest(BaseModel):
+    target: str
+    value_list: List[str]
+
+@app.post("/calculate_similarity")
+def calculate_similarity(request: CalculateSimilarityRequest):
+    logger.info(f"计算相似度, 目标文本: {request.target_text}, 候选文本: {request.value_list}")
+    start_time = time.time()
+    target_vector = get_embedding(request.target_text)
+    value_vectors = [get_embedding(value) for value in request.value_list]
+    
+    similarities = []
+    for i, value_vector in enumerate(value_vectors):
+        similarity = torch.nn.functional.cosine_similarity(torch.tensor(target_vector), torch.tensor(value_vector), dim=0).item()
+        similarities.append((request.value_list[i], similarity))
+    
+    end_time = time.time()
+    logger.info(f"计算相似度耗时: {end_time - start_time:.2f}秒")
+    return {"similarities": similarities}
+
 def run():
     # Run the FastAPI application using Uvicorn server
     import uvicorn
