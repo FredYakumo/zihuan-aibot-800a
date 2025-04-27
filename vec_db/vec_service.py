@@ -43,6 +43,9 @@ def get_embedding(text):
     # Encode the input text
     encoded_input = tokenizer(text, padding=True, truncation=True, return_tensors='pt')
     
+    # Move input tensors to the same device as model
+    encoded_input = {k: v.to(device) for k, v in encoded_input.items()}
+    
     # Calculate token embeddings
     with torch.no_grad():
         model_output = model(**encoded_input)
