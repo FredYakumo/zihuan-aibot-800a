@@ -1,22 +1,30 @@
 import time
 from typing import List
+from logging_config import logger
 
-print("正在加载embedding模型...")
+logger.info("正在加载embedding模型...")
 start_time = time.time()
 from transformers import AutoTokenizer, AutoModel
 import torch
 
+device = torch.device("cpu")
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+elif torch.backends.mps.is_available():
+    device = torch.device("mps")
+
+logger.info(f"使用设备: {device}")
+
 tokenizer = AutoTokenizer.from_pretrained("GanymedeNil/text2vec-large-chinese")
-model = AutoModel.from_pretrained("GanymedeNil/text2vec-large-chinese")
+model = AutoModel.from_pretrained("GanymedeNil/text2vec-large-chinese").to(device)
 end_time = time.time()
-print(f"加载embedding模型完成, 加载耗时: {end_time - start_time:.2f}秒")
+logger.info(f"加载embedding模型完成, 加载耗时: {end_time - start_time:.2f}秒")
 
 from fastapi import FastAPI, Header
 from pydantic import BaseModel
 import weaviate
 from weaviate.classes.query import Filter
 from config_loader import config
-from logging_config import logger
 from model import Knowledge
 
 
