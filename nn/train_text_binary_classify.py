@@ -222,13 +222,13 @@ if __name__ == "__main__":
         model=model,
         train_loader=train_loader,
         val_loader=val_loader,
-        epochs=50,
+        epochs=6,
         lr=0.001
     )
     model_file_name = 'model.pth'
     print(f"Save model to {model_file_name}")
     # Visualize results
-    # visualize_training(history)
+    visualize_training(history)
 
 # Prediction function
 def predict(text):
