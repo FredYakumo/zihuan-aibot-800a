@@ -6,3 +6,4 @@ torch
 jieba
 uvicorn
 fastapi
+scikit-learn
