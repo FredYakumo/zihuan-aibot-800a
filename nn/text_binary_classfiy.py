@@ -92,7 +92,7 @@ if __name__ == "__main__":
             print("\n批量预测结果：")
             print("=" * 60)
             for text, prob in results:
-                print(f"文本：{text[:55] + '...' if len(text) > 50 else text}".ljust(55) + 
+                print(f"文本：{text[:20] + '...' if len(text) > 20 else text}".ljust(55) + 
                      f"概率：{prob:.4f}".ljust(15) + 
                      f"分类：{'1' if prob >= 0.5 else '0'}")
             print(f"\n总计预测 {len(results)} 条文本")
