@@ -1,5 +1,5 @@
 import yaml
-from logging_config import logger
+from utils.logging_config import logger
 
 class ConfigLoader:
     def __init__(self, config_path: str):

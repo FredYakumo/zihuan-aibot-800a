@@ -2,49 +2,8 @@ import argparse
 import torch
 import os
 from transformers import AutoTokenizer, AutoModel
+from nn.models import ReplyIntentClassifierModel, TextEmbedder, load_reply_intent_classifier_model, get_device
 
-class TextEmbedder:
-    """Text embedding generator"""
-    def __init__(self, model_name='GanymedeNil/text2vec-large-chinese'):
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModel.from_pretrained(model_name)
-        
-    def embed(self, texts):
-        """Generate text embeddings in batch"""
-        inputs = self.tokenizer(
-            texts, 
-            padding=True, 
-            truncation=True, 
-            max_length=512, 
-            return_tensors="pt"
-        )
-        with torch.no_grad():
-            outputs = self.model(**inputs)
-        return outputs.last_hidden_state.mean(dim=1)
-
-class ClassificationModel(torch.nn.Module):
-    """Classification model structure"""
-    def __init__(self, input_dim):
-        super().__init__()
-        self.net = torch.nn.Sequential(
-            torch.nn.Linear(input_dim, 256),
-            torch.nn.ReLU(),
-            torch.nn.Dropout(0.2),
-            torch.nn.Linear(256, 1),
-            torch.nn.Sigmoid()
-        )
-        
-    def forward(self, x):
-        return self.net(x).squeeze()
-
-def load_model(model_path):
-    """Load the trained model"""
-    embedder = TextEmbedder()
-    model = ClassificationModel(embedder.model.config.hidden_size)
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model.load_state_dict(torch.load(model_path, map_location=device))
-    model.eval()
-    return model, embedder
 
 def batch_predict(texts, model, embedder):
     """Batch prediction"""
@@ -70,7 +29,7 @@ if __name__ == "__main__":
 
     try:
         # Load model
-        model, embedder = load_model(args.model_path)
+        model, embedder = load_reply_intent_classifier_model(args.model_path)
         
         # Determine input type
         if args.input.endswith('.txt') and os.path.exists(args.input):
@@ -92,9 +51,10 @@ if __name__ == "__main__":
             print("\n批量预测结果：")
             print("=" * 60)
             for text, prob in results:
-                print(f"文本：{text[:20] + '...' if len(text) > 20 else text}".ljust(55) + 
-                     f"概率：{prob:.4f}".ljust(15) + 
-                     f"分类：{'1' if prob >= 0.5 else '0'}")
+                truncated_text = text[:20] + '...' if len(text) > 20 else text
+                print(f"文本: {truncated_text}".ljust(30-len(truncated_text)) + 
+                      f"概率: {prob:>6.4f}  "
+                      f"分类: {'1' if prob >= 0.5 else '0'}")
             print(f"\n总计预测 {len(results)} 条文本")
             
         else:

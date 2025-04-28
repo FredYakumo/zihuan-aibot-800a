@@ -1,3 +1,4 @@
+import time
 import torch
 import pandas as pd
 import numpy as np
@@ -5,82 +6,19 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset, DataLoader
 import torch.nn as nn
-from transformers import AutoTokenizer, AutoModel
-import csv
 
-# Data loading module
-def load_data(file_path):
-    """Load training data, return a list of texts and labels."""
-    texts = []
-    labels = []
-    with open(file_path, 'r', encoding='utf-8') as f:
-        reader = csv.reader(f, delimiter=',', quotechar='"')
-        for row in reader:
-            text = row[0].strip().strip('"')
-            label = int(row[1].strip())
-            texts.append(text)
-            labels.append(label)
-    return texts, labels
+from dataset_loader import ReplyIntentClassifierDataset, load_reply_intent_classifier_data
+from models import ReplyIntentClassifierModel, TextEmbedder, get_device
 
-# Text embedding module
-class TextEmbedder:
-    """Generate text embeddings using a pre-trained model."""
-    def __init__(self, model_name='GanymedeNil/text2vec-large-chinese'):
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModel.from_pretrained(model_name)
-        
-    def embed(self, texts):
-        """Generate text embedding vectors."""
-        inputs = self.tokenizer(
-            texts, 
-            padding=True, 
-            truncation=True, 
-            max_length=512, 
-            return_tensors="pt"
-        )
-        with torch.no_grad():
-            outputs = self.model(**inputs)
-        return outputs.last_hidden_state.mean(dim=1)
 
-# Dataset module
-class TextClassificationDataset(Dataset):
-    """Custom dataset class."""
-    def __init__(self, embeddings, labels):
-        self.embeddings = embeddings
-        self.labels = torch.FloatTensor(labels)
-        
-    def __len__(self):
-        return len(self.labels)
-    
-    def __getitem__(self, idx):
-        return self.embeddings[idx], self.labels[idx]
+from utils.config_loader import ConfigLoader
+from utils.logging_config import logger
 
-# Model definition module
-class ClassificationModel(nn.Module):
-    """Neural network model for classification."""
-    def __init__(self, input_dim):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, 256),
-            nn.ReLU(),
-            nn.Dropout(0.2),
-            nn.Linear(256, 1),
-            nn.Sigmoid()
-        )
-        
-    def forward(self, x):
-        return self.net(x).squeeze()
 
-# Training module
+device = get_device()
+
 def train_model(model, train_loader, val_loader, epochs=10, lr=0.001):
     """Train and validate the model."""
-    device = torch.device('cpu')
-    if torch.cuda.is_available():
-        print(f"Using GPU: {torch.cuda.get_device_name(0)}")
-        device = torch.device('cuda')
-    elif torch.backends.mps.is_available():
-        print("Using Apple Silicon GPU")
-        device = torch.device('mps')
     
     model = model.to(device)
     criterion = nn.BCELoss()
@@ -140,11 +78,11 @@ def train_model(model, train_loader, val_loader, epochs=10, lr=0.001):
         history['train_acc'].append(train_acc)
         history['val_loss'].append(val_loss)
         history['val_acc'].append(val_acc)
-        
-        # Print progress
-        print(f'Epoch {epoch+1}/{epochs}')
-        print(f'Train Loss: {train_loss:.4f} | Acc: {train_acc:.4f}')
-        print(f'Val Loss: {val_loss:.4f} | Acc: {val_acc:.4f}\n')
+
+
+        logger.info(f'Epoch {epoch+1}/{epochs}')
+        logger.info(f'Train Loss: {train_loss:.4f} | Acc: {train_acc:.4f}')
+        logger.info(f'Val Loss: {val_loss:.4f} | Acc: {val_acc:.4f}\n')
         
         # Save model
         if val_acc > best_val_acc:
@@ -158,6 +96,7 @@ def train_model(model, train_loader, val_loader, epochs=10, lr=0.001):
 # Visualization module
 def visualize_training(history):
     """Plot training curves and show data table."""
+    logger.info("Visualize training...")
     plt.figure(figsize=(12, 5))
     
     # Loss curves
@@ -177,47 +116,52 @@ def visualize_training(history):
     plt.xlabel('Epochs')
     plt.ylabel('Accuracy')
     plt.legend()
-    
+
     plt.tight_layout()
     plt.savefig('training_curves.png')
     plt.show()
-    
-    # Print data table
-    df = pd.DataFrame(history)
-    print("\nTraining metrics summary:")
-    print(df.round(4))
 
-# Main program
+    # logger.info data table
+    df = pd.DataFrame(history)
+    logger.info("\nTraining metrics summary:")
+    logger.info(df.round(4))
+
 if __name__ == "__main__":
-    # Load data
-    texts, labels = load_data('train_data.txt')
-    
-    # Generate embeddings
-    embedder = TextEmbedder()
-    print("Generating text embeddings...")
+    logger.info("正在加载ReplyIntentClassifierDataset训练数据...")
+    start_time = time.time()
+    texts, labels = load_reply_intent_classifier_data('train_data.txt')
+    end_time = time.time()
+    logger.info(f"训练数据加载完成,耗时{end_time - start_time:.2f}秒")
+
+
+    logger.info("正在加载Tokenlizer模型...")
+    start_time = time.time()
+    embedder = TextEmbedder(device=device)
     embeddings = embedder.embed(texts)
-    
+    end_time = time.time()
+    logger.info(f"Tokenlizer模型加载完成,耗时{end_time - start_time:.2f}秒")
+
     # Split dataset
     X_train, X_val, y_train, y_val = train_test_split(
-        embeddings.numpy(),
+        embeddings.cpu().numpy(),
         labels,
         test_size=0.2,
         random_state=42
     )
-    
+
     # Create data loaders
     batch_size = 32
-    train_dataset = TextClassificationDataset(X_train, y_train)
-    val_dataset = TextClassificationDataset(X_val, y_val)
+    train_dataset = ReplyIntentClassifierDataset(X_train, y_train)
+    val_dataset = ReplyIntentClassifierDataset(X_val, y_val)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size)
-    
-    # Initialize model
+
+
     input_dim = embeddings.shape[1]
-    model = ClassificationModel(input_dim)
-    
-    # Train model
-    print("Starting training...")
+    logger.info(f"模型输入维度: {input_dim}")
+    model = ReplyIntentClassifierModel(input_dim).to(device)
+
+    logger.info("Starting training...")
     history = train_model(
         model=model,
         train_loader=train_loader,
@@ -226,23 +170,6 @@ if __name__ == "__main__":
         lr=0.001
     )
     model_file_name = 'model.pth'
-    print(f"Save model to {model_file_name}")
-    # Visualize results
-    visualize_training(history)
+    logger.info(f"Save model to {model_file_name}")
 
-# Prediction function
-def predict(text):
-    """Make predictions using the trained model."""
-    # Initialize components
-    embedder = TextEmbedder()
-    model = ClassificationModel(embedder.model.config.hidden_size)
-    model.load_state_dict(torch.load('model.pth'))
-    model.eval()
-    
-    # Generate embeddings
-    embedding = embedder.embed([text])
-    
-    # Make prediction
-    with torch.no_grad():
-        output = model(embedding)
-    return output.item()
+    visualize_training(history)
