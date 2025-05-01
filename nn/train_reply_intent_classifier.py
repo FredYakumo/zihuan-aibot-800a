@@ -21,10 +21,11 @@ def train_model(model, train_loader, val_loader, epochs=10, lr=0.001):
     """Train and validate the model."""
     
     model = model.to(device)
-    criterion = nn.BCELoss()
+    criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     
-    history = {
+    # Create separate histories for epoch and step metrics
+    epoch_history = {
         'epoch': [],
         'train_loss': [],
         'train_acc': [],
@@ -32,13 +33,20 @@ def train_model(model, train_loader, val_loader, epochs=10, lr=0.001):
         'val_acc': []
     }
     
-    best_val_acc = 0
+    step_history = {
+        'step': [],
+        'step_loss': [],
+        'step_acc': []
+    }
+    
+    global_step = 0
+    
     for epoch in range(epochs):
         # Training phase
         model.train()
         train_loss, correct, total = 0, 0, 0
         
-        for inputs, labels in train_loader:
+        for i, (inputs, labels) in enumerate(train_loader):
             inputs, labels = inputs.to(device), labels.to(device)
             
             optimizer.zero_grad()
@@ -47,10 +55,27 @@ def train_model(model, train_loader, val_loader, epochs=10, lr=0.001):
             loss.backward()
             optimizer.step()
             
-            train_loss += loss.item() * inputs.size(0)
+
+            step_loss = loss.item()
             predicted = (outputs >= 0.5).float()
+            step_acc = (predicted == labels).sum().item() / labels.size(0)
+            
+
+            # Record step-level metrics
+            step_history['step'].append(global_step)
+            step_history['step_loss'].append(step_loss)
+            step_history['step_acc'].append(step_acc)
+            
+            global_step += 1
+            
+            train_loss += loss.item() * inputs.size(0)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
+            
+
+            if (i + 1) % 100 == 0:
+                logger.info(f'Epoch [{epoch+1}/{epochs}], Step [{i+1}/{len(train_loader)}], '
+                          f'Step Loss: {step_loss:.4f}, Step Acc: {step_acc:.4f}')
         
         # Validation phase
         val_loss, val_correct, val_total = 0, 0, 0
@@ -72,12 +97,12 @@ def train_model(model, train_loader, val_loader, epochs=10, lr=0.001):
         val_loss = val_loss / len(val_loader.dataset)
         val_acc = val_correct / val_total
         
-        # Record history
-        history['epoch'].append(epoch+1)
-        history['train_loss'].append(train_loss)
-        history['train_acc'].append(train_acc)
-        history['val_loss'].append(val_loss)
-        history['val_acc'].append(val_acc)
+        # Record epoch-level metrics
+        epoch_history['epoch'].append(epoch+1)
+        epoch_history['train_loss'].append(train_loss)
+        epoch_history['train_acc'].append(train_acc)
+        epoch_history['val_loss'].append(val_loss)
+        epoch_history['val_acc'].append(val_acc)
 
 
         logger.info(f'Epoch {epoch+1}/{epochs}')
@@ -85,46 +110,62 @@ def train_model(model, train_loader, val_loader, epochs=10, lr=0.001):
         logger.info(f'Val Loss: {val_loss:.4f} | Acc: {val_acc:.4f}\n')
         
         # Save model
-        if val_acc > best_val_acc:
-            best_val_acc = val_acc
-            torch.save(model.state_dict(), 'model.pth')
+        # if val_acc > best_val_acc:
+            # best_val_acc = val_acc
+        torch.save(model.state_dict(), 'model.pth')
     
-    # Save training history
-    pd.DataFrame(history).to_csv("training_metrics.csv", index=False)
-    return history
+    # Save training histories separately
+    pd.DataFrame(epoch_history).to_csv("epoch_metrics.csv", index=False)
+    pd.DataFrame(step_history).to_csv("step_metrics.csv", index=False)
+    
+    # Return both histories as a tuple
+    return epoch_history, step_history
 
 # Visualization module
-def visualize_training(history):
+def visualize_training(epoch_history, step_history):
     """Plot training curves and show data table."""
     logger.info("Visualize training...")
-    plt.figure(figsize=(12, 5))
     
-    # Loss curves
-    plt.subplot(1, 2, 1)
-    plt.plot(history['epoch'], history['train_loss'], label='Train Loss')
-    plt.plot(history['epoch'], history['val_loss'], label='Validation Loss')
-    plt.title('Training and Validation Loss')
+    plt.figure(figsize=(15, 10))
+    
+    plt.subplot(2, 2, 1)
+    plt.plot(epoch_history['epoch'], epoch_history['train_loss'], label='Train Loss')
+    plt.plot(epoch_history['epoch'], epoch_history['val_loss'], label='Validation Loss')
+    plt.title('Training and Validation Loss (by epoch)')
     plt.xlabel('Epochs')
     plt.ylabel('Loss')
     plt.legend()
     
-    # Accuracy curves
-    plt.subplot(1, 2, 2)
-    plt.plot(history['epoch'], history['train_acc'], label='Train Accuracy')
-    plt.plot(history['epoch'], history['val_acc'], label='Validation Accuracy')
-    plt.title('Training and Validation Accuracy')
+    plt.subplot(2, 2, 2)
+    plt.plot(epoch_history['epoch'], epoch_history['train_acc'], label='Train Accuracy')
+    plt.plot(epoch_history['epoch'], epoch_history['val_acc'], label='Validation Accuracy')
+    plt.title('Training and Validation Accuracy (by epoch)')
     plt.xlabel('Epochs')
+    plt.ylabel('Accuracy')
+    plt.legend()
+    
+    plt.subplot(2, 2, 3)
+    plt.plot(step_history['step'], step_history['step_loss'], label='Step Loss', alpha=0.6)
+    plt.title('Training Loss (by step)')
+    plt.xlabel('Steps')
+    plt.ylabel('Loss')
+    plt.legend()
+    
+    plt.subplot(2, 2, 4)
+    plt.plot(step_history['step'], step_history['step_acc'], label='Step Accuracy', alpha=0.6)
+    plt.title('Training Accuracy (by step)')
+    plt.xlabel('Steps')
     plt.ylabel('Accuracy')
     plt.legend()
 
     plt.tight_layout()
     plt.savefig('training_curves.png')
     plt.show()
-
-    # logger.info data table
-    df = pd.DataFrame(history)
-    logger.info("\nTraining metrics summary:")
-    logger.info(df.round(4))
+    
+    # Display epoch metrics summary
+    epoch_df = pd.DataFrame(epoch_history)
+    logger.info("\nTraining metrics summary (by epoch):")
+    logger.info(epoch_df.round(4))
 
 if __name__ == "__main__":
     logger.info("正在加载ReplyIntentClassifierDataset训练数据...")
@@ -162,7 +203,7 @@ if __name__ == "__main__":
     model = ReplyIntentClassifierModel(input_dim).to(device)
 
     logger.info("Starting training...")
-    history = train_model(
+    epoch_history, step_history = train_model(
         model=model,
         train_loader=train_loader,
         val_loader=val_loader,
@@ -172,4 +213,4 @@ if __name__ == "__main__":
     model_file_name = 'model.pth'
     logger.info(f"Save model to {model_file_name}")
 
-    visualize_training(history)
+    visualize_training(epoch_history, step_history)

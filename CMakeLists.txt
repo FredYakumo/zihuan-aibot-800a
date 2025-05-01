@@ -9,27 +9,34 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 Message(Build_type: ${CMAKE_BUILD_TYPE})
 
-# 定义目标名称
+
 set(MIRAICP_TARGET_NAME AIBot800a)
 set(AIBOT_TARGET_NAME AIBot800b)
 set(MIRAICP_MSG_DB_TARGET_NAME AIBot800a_msg_db)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# 查找所需的第三方包
+
 find_package(cpr REQUIRED)
 find_package(fmt REQUIRED)
 find_package(Boost REQUIRED COMPONENTS filesystem)
 find_package(spdlog REQUIRED)
 find_package(GTest REQUIRED)
 find_package(yaml-cpp REQUIRED)
+find_package(OpenMP REQUIRED)
+find_package(ncnn REQUIRED)
+find_package(onnxruntime REQUIRED)
 
-# 设置头文件搜索路径
+set(TOKENZIER_CPP_PATH ${CMAKE_CURRENT_SOURCE_DIR}/external/tokenizers-cpp)
+add_subdirectory(${TOKENZIER_CPP_PATH} tokenizers EXCLUDE_FROM_ALL)
+
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/)
 # include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/MiraiCP-template/single_include/MiraiCP/)
 # include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/MiraiCP-template/single_include/3rd_include/json/)
 # include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/MiraiCP-template/single_include/3rd_include/)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/easywsclient/)
+include_directories(${AIBOT_TARGET_NAME} PRIVATE ${TOKENZIER_CPP_PATH}/include)
+include_directories(/opt/homebrew/include/ncnn)
 
 enable_testing()
 
@@ -64,12 +71,20 @@ endforeach()
 # target_link_libraries(${MIRAICP_TARGET_NAME} PRIVATE cpr::cpr)
 # target_link_libraries(${MIRAICP_TARGET_NAME} PRIVATE fmt::fmt)
 
+
+# You can link tokenizers_cpp, it will automatically link tokenizers_c
+# and sentencepiece libary
+
+
 # 创建可执行文件
 add_executable(${AIBOT_TARGET_NAME} ${BIN_SOURCES})
 target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE cpr::cpr)
 target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE fmt::fmt)
 target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE yaml-cpp::yaml-cpp)
 target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE Boost::filesystem)
+target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE ncnn)
+target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE tokenizers_cpp)
+target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE onnxruntime::onnxruntime)
 
 # 单元测试
 include(CTest)
@@ -78,7 +93,7 @@ add_executable(unit_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/bot_adapter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/external/easywsclient/easywsclient.cpp
 )
-target_link_libraries(unit_test GTest::GTest GTest::Main fmt::fmt yaml-cpp::yaml-cpp Boost::filesystem)
+target_link_libraries(unit_test GTest::GTest GTest::Main fmt::fmt yaml-cpp::yaml-cpp Boost::filesystem tokenizers_cpp ncnn onnxruntime::onnxruntime)
 add_test(NAME unit_test COMMAND unit_test)
 
 # 添加预编译宏定义

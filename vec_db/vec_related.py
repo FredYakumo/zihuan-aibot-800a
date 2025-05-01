@@ -1,5 +1,6 @@
 from transformers import AutoTokenizer, AutoModel
 import torch
+from nn.models import CosineSimilarityModel
 
 tokenizer = AutoTokenizer.from_pretrained("GanymedeNil/text2vec-large-chinese")
 model = AutoModel.from_pretrained("GanymedeNil/text2vec-large-chinese")
@@ -10,12 +11,21 @@ def mean_pooling(model_output, attention_mask):
     return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
 
 
-sentences = ["abc", "def"]
-encoded_input = tokenizer(sentences, padding=True, truncation=True, return_tensors='pt')
+sentences = ["如何进行杀猪盘", "如何学习Rust", "如何杀猪"]
+t = "杀猪盘"
+encoded_sentences = tokenizer(sentences, padding=True, truncation=True, return_tensors='pt')
+encoded_target = tokenizer(t, padding=True, truncation=True, return_tensors='pt')
 # Compute token embeddings
 with torch.no_grad():
-    model_output = model(**encoded_input)
+    model_output_sentences = model(**encoded_sentences)
+    model_output_target = model(**encoded_target)
 # Perform pooling. In this case, mean pooling.
-sentence_embeddings = mean_pooling(model_output, encoded_input['attention_mask'])
-similarity = torch.cosine_similarity(sentence_embeddings[0].unsqueeze(0), sentence_embeddings[1].unsqueeze(0))
-print(f"Similarity between sentences: {similarity.item():.4f}")
+
+
+cosine_similarity_model = CosineSimilarityModel()
+
+sentence_embeddings = mean_pooling(model_output_sentences, encoded_sentences['attention_mask'])
+target_embeddings = mean_pooling(model_output_target, encoded_target['attention_mask'])
+
+result = cosine_similarity_model(target_embeddings, sentence_embeddings)
+print(f"Similarity between sentences: {result}")

@@ -10,3 +10,6 @@
 [submodule "external/cpr"]
 	path = external/cpr
 	url = git@github.com:libcpr/cpr.git
+[submodule "external/tokenizers-cpp"]
+	path = external/tokenizers-cpp
+	url = https://github.com/mlc-ai/tokenizers-cpp

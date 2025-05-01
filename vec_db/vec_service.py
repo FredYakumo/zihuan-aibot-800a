@@ -1,19 +1,14 @@
 import time
 from typing import List
-from logging_config import logger
+from utils.logging_config import logger
+from nn.models import get_device
 
 logger.info("正在加载embedding模型...")
 start_time = time.time()
 from transformers import AutoTokenizer, AutoModel
 import torch
 
-device = torch.device("cpu")
-if torch.cuda.is_available():
-    device = torch.device("cuda")
-elif torch.backends.mps.is_available():
-    device = torch.device("mps")
-
-logger.info(f"使用设备: {device}")
+device = get_device()
 
 tokenizer = AutoTokenizer.from_pretrained("GanymedeNil/text2vec-large-chinese")
 model = AutoModel.from_pretrained("GanymedeNil/text2vec-large-chinese").to(device)
@@ -24,7 +19,7 @@ from fastapi import FastAPI, Header
 from pydantic import BaseModel
 import weaviate
 from weaviate.classes.query import Filter
-from config_loader import config
+from utils.config_loader import config
 from model import Knowledge
 
 

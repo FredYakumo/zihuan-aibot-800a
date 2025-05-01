@@ -8,7 +8,7 @@ import time
 import pytz
 import datetime
 
-from config_loader import config
+from utils.config_loader import config
 
 
 print("正在加载embedding模型...")

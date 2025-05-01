@@ -52,7 +52,7 @@ if __name__ == "__main__":
             print("=" * 60)
             for text, prob in results:
                 truncated_text = text[:20] + '...' if len(text) > 20 else text
-                print(f"文本: {truncated_text}".ljust(30-len(truncated_text)) + 
+                print(f"文本: {truncated_text}".ljust(55-len(truncated_text)) + 
                       f"概率: {prob:>6.4f}  "
                       f"分类: {'1' if prob >= 0.5 else '0'}")
             print(f"\n总计预测 {len(results)} 条文本")

@@ -1,6 +1,6 @@
 import weaviate
 
-from config_loader import config
+from utils.config_loader import config
 
 schema_name = "AIBot_knowledge"
 

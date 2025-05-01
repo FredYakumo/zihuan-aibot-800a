@@ -9,3 +9,7 @@ fastapi
 scikit-learn
 matplotlib
 path
+onnx
+onnxsim
+pnnx
+ncnn
