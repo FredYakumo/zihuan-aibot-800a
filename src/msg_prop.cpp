@@ -71,6 +71,7 @@ void msg_storage(const MessageProperties &msg_prop, uint64_t group_id, uint64_t 
         msg_prop.ref_msg_content == nullptr
             ? *msg_prop.plain_content
             : fmt::format("引用了消息: {}\n{}", *msg_prop.ref_msg_content, *msg_prop.plain_content);
-
+    
     rag::insert_group_msg(group_id, group_name, sender_id, sender_name, msg_content);
+    
 }

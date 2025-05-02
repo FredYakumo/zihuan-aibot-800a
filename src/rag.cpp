@@ -15,6 +15,8 @@
 #include <spdlog/spdlog.h>
 
 namespace rag {
+    const Config &config = Config::instance();
+
     std::vector<std::pair<DBGroupMessage, double>> query_group_msg(const std::string_view query,
                                                                    std::optional<uint64_t> group_id_option) {
         std::vector<std::pair<DBGroupMessage, double>> result;
@@ -68,7 +70,7 @@ namespace rag {
         nlohmann::json request_body;
         request_body["query"] = graphql_query;
 
-        cpr::Response r = cpr::Post(cpr::Url{fmt::format("{}query_knowledge", VEC_DB_URL)},
+        cpr::Response r = cpr::Post(cpr::Url{fmt::format("{}query_knowledge", config.vec_db_url)},
                                     cpr::Header{{"Content-Type", "application/json"}}, cpr::Body{request_body.dump()});
 
         if (r.status_code != 200) {
@@ -101,7 +103,7 @@ namespace rag {
             {"query", query}
         };
 
-        cpr::Response r = cpr::Post(cpr::Url{fmt::format("{}{}", VEC_DB_URL, exactly_match ? "find_keyword_match" : "query_knowledge")},
+        cpr::Response r = cpr::Post(cpr::Url{fmt::format("{}{}", config.vec_db_url, exactly_match ? "find_keyword_match" : "query_knowledge")},
                                     cpr::Header{{"Content-Type", "application/json"}}, cpr::Body{request_body.dump()});
 
         if (r.status_code != 200) {
@@ -152,7 +154,7 @@ namespace rag {
         spdlog::info("{}", request.dump());
 
         cpr::Response response =
-            cpr::Post(cpr::Url{fmt::format("{}/batch/objects", VEC_DB_URL)}, cpr::Body{request.dump()},
+            cpr::Post(cpr::Url{fmt::format("{}/batch/objects", config.vec_db_url)}, cpr::Body{request.dump()},
                       cpr::Header{{"Content-Type", "application/json"}});
 
         if (response.status_code == 200) {
@@ -174,7 +176,7 @@ namespace rag {
         spdlog::info("{}", request.dump());
 
         cpr::Response response =
-            cpr::Post(cpr::Url{fmt::format("{}/batch/objects", VEC_DB_URL)}, cpr::Body{request.dump()},
+            cpr::Post(cpr::Url{fmt::format("{}/batch/objects", config.vec_db_url)}, cpr::Body{request.dump()},
                       cpr::Header{{"Content-Type", "application/json"}});
 
         if (response.status_code == 200) {
@@ -190,9 +192,9 @@ namespace rag {
         std::vector<NetSearchResult> results;
         nlohmann::json request_body{{"query", query}, {"include_images", false}, {"include_image_descriptions", false}};
 
-        cpr::Response r = cpr::Post(cpr::Url{NET_SEARCH_API_URL},
+        cpr::Response r = cpr::Post(cpr::Url{config.net_search_api_url},
                                     cpr::Header{{"Content-Type", "application/json"},
-                                                {"Authorization", NET_SEARCH_TOKEN}},
+                                                {"Authorization", config.net_search_token}},
 
                                     cpr::Body{request_body.dump()});
 
@@ -226,9 +228,9 @@ namespace rag {
         std::string results {"(以下引用了一些网页链接和它的内容，由于这个输入用户看不到，所以请在回答中列出概要或者详细的结果[根据用户的指示]):\n"};
         nlohmann::json request_body{{"urls", url_list}, {"extract_depth", "advanced"}};
 
-        cpr::Response r = cpr::Post(cpr::Url{URL_SEARCH_API_URL},
+        cpr::Response r = cpr::Post(cpr::Url{config.url_search_api_url},
                                     cpr::Header{{"Content-Type", "application/json"},
-                                                {"Authorization", URL_SEARCH_TOKEN}},
+                                                {"Authorization", config.url_search_token}},
 
                                     cpr::Body{request_body.dump()});
 

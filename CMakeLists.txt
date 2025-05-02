@@ -86,6 +86,10 @@ target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE ncnn)
 target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE tokenizers_cpp)
 target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE onnxruntime::onnxruntime)
 
+if(APPLE)
+    target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE /opt/homebrew/lib/libmysqlcppconnx.dylib)
+endif()
+
 # 单元测试
 include(CTest)
 add_executable(unit_test

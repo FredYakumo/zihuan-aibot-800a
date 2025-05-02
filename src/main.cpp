@@ -2,6 +2,7 @@
 #include "bot_adapter.h"
 #include "bot_cmd.h"
 #include "config.h"
+#include "database.h"
 #include "event.h"
 #include <cstdlib>
 
@@ -37,10 +38,11 @@ int main() {
         }
     }
 
-    init_config();
+    Config::init();
     bot_cmd::init_command_map();
+    database::init_db_connection();
 
-    bot_adapter::BotAdapter adapter("ws://localhost:13378/all", BOT_ID);
+    bot_adapter::BotAdapter adapter("ws://localhost:13378/all", Config::instance().bot_id);
     adapter.update_bot_profile();
 
     register_event(adapter);

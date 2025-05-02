@@ -34,22 +34,27 @@ inline std::string get_current_time_formatted() {
     return formatted_time;
 }
 
-inline std::string get_current_time_db() {
-    auto now = std::chrono::system_clock::now();
+inline std::string time_point_to_db_str(const std::chrono::system_clock::time_point &time_point) {
 
-    auto now_time_t = std::chrono::system_clock::to_time_t(now);
+    auto time_point_time_t = std::chrono::system_clock::to_time_t(time_point);
 
-    std::tm now_tm = *std::localtime(&now_time_t);
+    std::tm time_tm = *std::localtime(&time_point_time_t);
 
     char tz_offset[6];
-    std::strftime(tz_offset, sizeof(tz_offset), "%z", &now_tm);
+    std::strftime(tz_offset, sizeof(tz_offset), "%z", &time_tm);
 
     std::string tz_offset_str(tz_offset);
     if (tz_offset_str.size() == 5) {
         tz_offset_str.insert(3, ":");
     }
 
-    return fmt::format("{:%Y-%m-%dT%H:%M:%S}{}", now_tm, tz_offset_str);
+    return fmt::format("{:%Y-%m-%dT%H:%M:%S}{}", time_tm, tz_offset_str);
+}
+
+inline std::string get_current_time_db() {
+    auto now = std::chrono::system_clock::now();
+
+    return time_point_to_db_str(now);
 }
 
 /**

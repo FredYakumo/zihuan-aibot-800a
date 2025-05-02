@@ -10,25 +10,28 @@
 #include <nlohmann/json.hpp>
 #include <string>
 
+const Config &config = Config::instance();
+
 std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot_adapter::Sender &sender,
                               bool is_deep_think) {
     return fmt::format(
         "你的名字叫{}(qq号{}),性别是: {}，{}。当前时间是: {}，当前跟你聊天的群友的名字叫\"{}\"(qq号{})，",
         bot_profile.name, bot_profile.id, bot_adapter::to_chs_string(bot_profile.sex),
-        (is_deep_think && CUSTOM_DEEP_THINK_SYSTEM_PROMPT_OPTION) ? *CUSTOM_DEEP_THINK_SYSTEM_PROMPT_OPTION
-                                                                  : CUSTOM_SYSTEM_PROMPT,
+        (is_deep_think && config.custom_deep_think_system_prompt_option)
+            ? *config.custom_deep_think_system_prompt_option
+            : config.custom_system_prompt,
         get_current_time_formatted(), sender.name, sender.id);
 }
 
 ChatMessage get_llm_response(const nlohmann::json &msg_json, bool is_deep_think = false) {
-    nlohmann::json body = {{"model", is_deep_think ? LLM_DEEP_THINK_MODEL_NAME : LLM_MODEL_NAME},
+    nlohmann::json body = {{"model", is_deep_think ? config.llm_deep_think_model_name : config.llm_model_name},
                            {"messages", msg_json},
                            {"stream", false}};
     const auto json_str = body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
     spdlog::info("llm body: {}", json_str);
     cpr::Response response =
-        cpr::Post(cpr::Url{LLM_API_URL}, cpr::Body{json_str},
-                  cpr::Header{{"Content-Type", "application/json"}, {"Authorization", LLM_API_TOKEN}});
+        cpr::Post(cpr::Url{config.llm_api_url}, cpr::Body{json_str},
+                  cpr::Header{{"Content-Type", "application/json"}, {"Authorization", config.llm_api_token}});
     spdlog::info("Error msg: {}, status code: {}", response.error.message, response.status_code);
 
     try {
