@@ -6,6 +6,7 @@
 #include "llm.h"
 #include "msg_prop.h"
 #include "utils.h"
+#include <chrono>
 #include <cpr/cpr.h>
 #include <fmt/format.h>
 #include <functional>
@@ -36,6 +37,7 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
     const auto group_id = sender.group.id;
     const auto group_name = sender.group.name;
     const auto sender_name = event->sender_ptr->name;
+    const auto send_time = std::chrono::system_clock::now();
 
     const auto admin = is_admin(sender_id);
 
@@ -84,10 +86,10 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
         }
     }
 
-    auto msg_storage_thread = std::thread([msg_prop, group_id, sender_id, sender_name, group_name] {
+    auto msg_storage_thread = std::thread([msg_prop, event, send_time] {
         set_thread_name("AIBot msg storage");
         spdlog::info("Start message storage thread.");
-        msg_storage(msg_prop, group_id, sender_id, sender_name, group_name);
+        msg_storage(msg_prop, *event->sender_ptr, send_time);
     });
     msg_storage_thread.detach();
 
@@ -119,6 +121,8 @@ void on_friend_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_a
     const auto sender_name = event->sender_ptr->name;
 
     const auto admin = is_admin(sender_id);
+
+    const auto send_time = std::chrono::system_clock::now();
 
     bool is_deep_think = false;
 
@@ -162,13 +166,14 @@ void on_friend_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_a
             res.is_modify_msg.value()(msg_prop);
         }
     }
+    
 
-    // auto msg_storage_thread = std::thread([msg_prop, group_id, sender_id, sender_name, group_name] {
-    //     set_thread_name("AIBot msg storage");
-    //     spdlog::info("Start message storage thread.");
-    //     msg_storage(msg_prop, group_id, sender_id, sender_name, group_name);
-    // });
-    // msg_storage_thread.detach();
+    auto msg_storage_thread = std::thread([msg_prop, event, send_time] {
+        set_thread_name("AIBot msg storage");
+        spdlog::info("Start message storage thread.");
+        msg_storage(msg_prop, *event->sender_ptr, send_time);
+    });
+    msg_storage_thread.detach();
 
     // if (!msg_prop.is_at_me) {
     //     return;

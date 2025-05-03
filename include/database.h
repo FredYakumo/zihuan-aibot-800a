@@ -18,7 +18,7 @@ namespace database {
 
     class DBConnection {
     public:
-        DBConnection(const std::string &host, uint16_t port, const std::string &user,
+        DBConnection(const std::string &host, unsigned port, const std::string &user,
                      const std::string &password, const std::string &schema = DEFAULT_MYSQL_SCHEMA_NAME)
             : session(SessionOption::HOST, host, SessionOption::PORT, port, SessionOption::USER, user,
                       SessionOption::PWD, password, SessionOption::DB, schema),
@@ -48,11 +48,13 @@ namespace database {
                     get_message_record_table()
                         .insert("sender_name", "sender_id", "content", "send_time", "group_name", "group_id",
                                 "group_permission")
-                        .values(g.name, g.id, content, time_point_to_db_str(send_time), g.group.name, g.group.id, g.group.permission);
+                        .values(g.name, g.id, content, time_point_to_db_str(send_time), g.group.name, g.group.id, g.group.permission)
+                        .execute();
                 } else {
                     get_message_record_table()
                         .insert("sender_name", "sender_id", "content", "send_time")
-                        .values(sender.name, sender.id, content, time_point_to_db_str(send_time));
+                        .values(sender.name, sender.id, content, time_point_to_db_str(send_time))
+                        .execute();
                 }
                 spdlog::info("Insert message successed.");
             } catch (const mysqlx::Error &e) {
@@ -74,7 +76,7 @@ namespace database {
     };
 
     void init_db_connection();
-    inline DBConnection &get_global_db_connection();
+    DBConnection &get_global_db_connection();
 } // namespace MySql
 
 #endif

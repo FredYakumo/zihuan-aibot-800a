@@ -2,6 +2,8 @@
 #define MSG_PROP_H
 
 #include "adapter_event.h"
+#include "adapter_model.h"
+#include <chrono>
 #include <memory>
 #include <string>
 #include <fmt/format.h>
@@ -20,7 +22,6 @@ struct MessageProperties {
 
 MessageProperties get_msg_prop_from_event(const bot_adapter::MessageEvent &e, const std::string_view bot_name, uint64_t bot_id);
 
-void msg_storage(const MessageProperties &msg_prop, uint64_t group_id, uint64_t sender_id,
-                 const std::string_view sender_name, const std::string_view group_name);
+void msg_storage(const MessageProperties &msg_prop, const bot_adapter::Sender &sender, const std::chrono::system_clock::time_point &send_time);
 
 #endif

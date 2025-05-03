@@ -1,33 +1,13 @@
 #include "config.h"
 #include "utils.h"
+#include <boost/filesystem.hpp>
 #include <cstdlib>
-#include <string>
 #include <fmt/format.h>
+#include <spdlog/spdlog.h>
+#include <string>
 #include <string_view>
 #include <unordered_set>
-#include <spdlog/spdlog.h>
 #include <yaml-cpp/yaml.h>
-#include <boost/filesystem.hpp>
-
-std::string LLM_API_URL;
-std::string LLM_API_TOKEN;
-std::string LLM_MODEL_NAME;
-std::string LLM_DEEP_THINK_MODEL_NAME;
-std::string CUSTOM_SYSTEM_PROMPT;
-std::optional<std::string> CUSTOM_DEEP_THINK_SYSTEM_PROMPT_OPTION;
-
-uint64_t BOT_ID;
-
-std::string NET_SEARCH_API_URL;
-std::string NET_SEARCH_TOKEN;
-
-std::string URL_SEARCH_API_URL;
-std::string URL_SEARCH_TOKEN;
-
-std::string VEC_DB_URL = "http://localhost:8080/v1";
-
-std::unordered_set<std::string> ADMIN_ID_SET;
-std::unordered_set<std::string> BANNED_ID_SET;
 
 namespace fs = boost::filesystem;
 
@@ -98,17 +78,33 @@ void Config::init() {
         }
 
         if (node["admin_id_list"] && node["admin_id_list"].IsSequence()) {
-            for (const auto& id : node["admin_id_list"]) {
+            for (const auto &id : node["admin_id_list"]) {
                 config.admin_id_set.emplace(id.as<std::string>());
                 spdlog::info("admin id: {}", id.as<std::string>());
             }
         }
 
         if (node["banned_id_list"] && node["banned_id_list"].IsSequence()) {
-            for (const auto& id : node["banned_id_list"]) {
+            for (const auto &id : node["banned_id_list"]) {
                 config.banned_id_set.emplace(id.as<std::string>());
                 spdlog::info("banned id: {}", id.as<std::string>());
             }
+        }
+
+        if (node["database_host"]) {
+            config.database_host = node["database_host"].as<std::string>();
+            spdlog::info("database host: {}", config.database_host);
+        }
+        if (node["database_port"]) {
+            config.database_port = node["database_port"].as<uint16_t>();
+            spdlog::info("database port: {}", config.database_port);
+        }
+        if (node["database_user"]) {
+            config.database_user = node["database_user"].as<std::string>();
+            spdlog::info("database user: {}", config.database_user);
+        }
+        if (node["database_password"]) {
+            config.database_password = node["database_password"].as<std::string>();
         }
     }
 
@@ -159,7 +155,8 @@ void Config::init() {
     const auto custom_deep_think_system_prompt_option = std::getenv("AIBOT_CUSTOM_DEEP_THINK_SYSTEM_PROMPT");
     if (custom_deep_think_system_prompt_option != nullptr) {
         config.custom_deep_think_system_prompt_option = std::string(custom_deep_think_system_prompt_option);
-        spdlog::info("CUSTOM_DEEP_THINK_SYSTEM_PROMPT: {} (from env)", config.custom_deep_think_system_prompt_option.value());
+        spdlog::info("CUSTOM_DEEP_THINK_SYSTEM_PROMPT: {} (from env)",
+                     config.custom_deep_think_system_prompt_option.value());
     } else {
         config.custom_deep_think_system_prompt_option = std::nullopt;
     }
@@ -170,12 +167,44 @@ void Config::init() {
         spdlog::info("MSG_DB_URL: {} (from env)", config.vec_db_url);
     }
 
+    const auto database_host = std::getenv("DATABASE_HOST");
+    if (database_host != nullptr) {
+        config.database_host = std::string(database_host);
+        spdlog::info("DATABASE_HOST: {} (from env)", config.database_host);
+    }
+    
+    // 读取 DATABASE_PORT，并转换为无符号长整型
+    const auto database_port = std::getenv("DATABASE_PORT");
+    if (database_port != nullptr) {
+        try {
+            config.database_port = std::stoull(database_port);
+            spdlog::info("DATABASE_PORT: {} (from env)", config.database_port);
+        } catch (const std::exception &e) {
+            throw std::runtime_error(fmt::format("Invalid DATABASE_PORT format: {}", e.what()));
+        }
+    }
+
+    // 读取 DATABASE_USER
+    const auto database_user = std::getenv("DATABASE_USER");
+    if (database_user != nullptr) {
+        config.database_user = std::string(database_user);
+        spdlog::info("DATABASE_USER: {} (from env)", config.database_user);
+    }
+
+    // 读取 DATABASE_PASSWORD
+    const auto database_password = std::getenv("DATABASE_PASSWORD");
+    if (database_password != nullptr) {
+        config.database_password = std::string(database_password);
+        // 为了安全起见，不直接在日志中打印密码
+        spdlog::info("DATABASE_PASSWORD is set (from env)");
+    }
+
     const auto bot_id_str = std::getenv("AIBOT_BOT_ID");
     if (bot_id_str != nullptr) {
         try {
             config.bot_id = std::stoull(bot_id_str);
             spdlog::info("BOT_ID: {} (from env)", config.bot_id);
-        } catch (const std::exception& e) {
+        } catch (const std::exception &e) {
             throw std::runtime_error(fmt::format("Invalid BOT_ID format: {}", e.what()));
         }
     }

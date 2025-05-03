@@ -5,8 +5,10 @@
 #include "database.h"
 #include "event.h"
 #include <cstdlib>
+#include <cstring>
+#include <exception>
 
-int main() {
+int main(int argc, char *argv[]) {
     const auto log_level = std::getenv("LOG_LEVEL");
     if (log_level != nullptr) {
         try {
@@ -40,7 +42,21 @@ int main() {
 
     Config::init();
     bot_cmd::init_command_map();
-    database::init_db_connection();
+    try {
+
+        database::init_db_connection();
+        spdlog::info("Init database connection successed.");
+    } catch (std::exception &e) {
+        spdlog::error("Init database connection error: {}", e.what());
+    }
+
+    if (argc > 1) {
+        if (strcmp(argv[1], "init_message_table") == 0) {
+            database::get_global_db_connection().create_message_record_table();
+            spdlog::info("Init message record table successed.");
+            return 0;
+        }
+    }
 
     bot_adapter::BotAdapter adapter("ws://localhost:13378/all", Config::instance().bot_id);
     adapter.update_bot_profile();

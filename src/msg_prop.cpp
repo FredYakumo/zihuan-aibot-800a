@@ -1,9 +1,12 @@
 #include "msg_prop.h"
 #include "adapter_event.h"
 #include "adapter_message.h"
+#include "adapter_model.h"
 #include "constants.hpp"
+#include "database.h"
 #include "rag.h"
 #include "utils.h"
+#include <chrono>
 #include <cstdint>
 #include <spdlog/spdlog.h>
 
@@ -60,8 +63,7 @@ MessageProperties get_msg_prop_from_event(const bot_adapter::MessageEvent &e, co
     return ret;
 }
 
-void msg_storage(const MessageProperties &msg_prop, uint64_t group_id, uint64_t sender_id,
-                 const std::string_view sender_name, const std::string_view group_name) {
+void msg_storage(const MessageProperties &msg_prop, const bot_adapter::Sender &sender, const std::chrono::system_clock::time_point &send_time) {
     if ((msg_prop.plain_content == nullptr || *msg_prop.plain_content == EMPTY_MSG_TAG) &&
         (msg_prop.ref_msg_content == nullptr || *msg_prop.ref_msg_content == EMPTY_MSG_TAG)) {
         return;
@@ -72,6 +74,6 @@ void msg_storage(const MessageProperties &msg_prop, uint64_t group_id, uint64_t 
             ? *msg_prop.plain_content
             : fmt::format("引用了消息: {}\n{}", *msg_prop.ref_msg_content, *msg_prop.plain_content);
     
-    rag::insert_group_msg(group_id, group_name, sender_id, sender_name, msg_content);
     
+    database::get_global_db_connection().insert_message(msg_content, sender, send_time);
 }

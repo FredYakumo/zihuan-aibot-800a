@@ -1,13 +1,17 @@
 #include "llm.h"
 #include "adapter_message.h"
+#include "adapter_model.h"
 #include "bot_cmd.h"
 #include "config.h"
 #include "constants.hpp"
+#include "database.h"
 #include "global_data.h"
 #include "rag.h"
 #include "utils.h"
+#include <chrono>
 #include <cpr/cpr.h>
 #include <nlohmann/json.hpp>
+#include <optional>
 #include <string>
 
 const Config &config = Config::instance();
@@ -164,6 +168,11 @@ void process_llm(const bot_cmd::CommandContext &context,
         spdlog::info("Prepare to send msg response");
 
         context.adapter.send_long_plain_text_replay(*context.e->sender_ptr, llm_chat_msg.content);
+        if (const auto &group_sender = bot_adapter::try_group_sender(*context.e->sender_ptr)) {
+            database::get_global_db_connection().insert_message(llm_chat_msg.content, bot_adapter::GroupSender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt, "", std::nullopt, std::chrono::system_clock::now(), group_sender->get().group), std::chrono::system_clock::now());
+        } else {
+            database::get_global_db_connection().insert_message(llm_chat_msg.content, bot_adapter::Sender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt), std::chrono::system_clock::now());
+        }
 
         release_processing_llm(context.e->sender_ptr->id);
     });

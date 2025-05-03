@@ -10,10 +10,11 @@ std::shared_ptr<DBConnection> g_db_connection;
 void database::init_db_connection() {
     const auto &config = Config::instance();
     g_db_connection = std::make_shared<DBConnection>(std::string(config.database_host), config.database_port, std::string(config.database_user),
-                                                     std::string(config.database_password), std::string(config.database_schema));
+                                                     std::string(config.database_password));
+    spdlog::info("Init db connection successed. host: {}:{}", config.database_host, config.database_port);
 }
 
-inline DBConnection &database::get_global_db_connection() {
+DBConnection &database::get_global_db_connection() {
     if (g_db_connection == nullptr) {
         throw std::runtime_error("get_global_db_connection() Error: Database connection is not initialized.");
     }
