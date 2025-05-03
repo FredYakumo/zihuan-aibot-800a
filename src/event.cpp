@@ -28,6 +28,7 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
     std::string_view bot_name = bot_profile.name;
     auto bot_id = bot_profile.id;
     const auto msg_prop = get_msg_prop_from_event(*event, bot_name, bot_id);
+    spdlog::debug("At list: {}", join_str(std::cbegin(msg_prop.at_id_set), std::cend(msg_prop.at_id_set), ",", [](const auto i) { return std::to_string(i);}));
 
     spdlog::debug("Event: {}", event->to_json().dump());
 
@@ -89,6 +90,7 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
     auto msg_storage_thread = std::thread([msg_prop, event, send_time] {
         set_thread_name("AIBot msg storage");
         spdlog::info("Start message storage thread.");
+        
         msg_storage(msg_prop, *event->sender_ptr, send_time);
     });
     msg_storage_thread.detach();
@@ -166,12 +168,11 @@ void on_friend_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_a
             res.is_modify_msg.value()(msg_prop);
         }
     }
-    
 
-    auto msg_storage_thread = std::thread([msg_prop, event, send_time] {
+    auto msg_storage_thread = std::thread([msg_prop, event, send_time, bot_id] {
         set_thread_name("AIBot msg storage");
         spdlog::info("Start message storage thread.");
-        msg_storage(msg_prop, *event->sender_ptr, send_time);
+        msg_storage(msg_prop, *event->sender_ptr, send_time, std::set<uint64_t>{bot_id});
     });
     msg_storage_thread.detach();
 

@@ -169,9 +169,9 @@ void process_llm(const bot_cmd::CommandContext &context,
 
         context.adapter.send_long_plain_text_replay(*context.e->sender_ptr, llm_chat_msg.content);
         if (const auto &group_sender = bot_adapter::try_group_sender(*context.e->sender_ptr)) {
-            database::get_global_db_connection().insert_message(llm_chat_msg.content, bot_adapter::GroupSender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt, "", std::nullopt, std::chrono::system_clock::now(), group_sender->get().group), std::chrono::system_clock::now());
+            database::get_global_db_connection().insert_message(llm_chat_msg.content, bot_adapter::GroupSender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt, "", std::nullopt, std::chrono::system_clock::now(), group_sender->get().group), std::chrono::system_clock::now(), std::set<uint64_t>{context.e->sender_ptr->id});
         } else {
-            database::get_global_db_connection().insert_message(llm_chat_msg.content, bot_adapter::Sender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt), std::chrono::system_clock::now());
+            database::get_global_db_connection().insert_message(llm_chat_msg.content, bot_adapter::Sender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt), std::chrono::system_clock::now(), std::set<uint64_t>{context.e->sender_ptr->id});
         }
 
         release_processing_llm(context.e->sender_ptr->id);

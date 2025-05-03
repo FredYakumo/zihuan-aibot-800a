@@ -7,6 +7,7 @@
 #include <fmt/chrono.h>
 #include <fmt/core.h>
 #include <fmt/format.h>
+#include <iterator>
 #include <string>
 #include <string_view>
 
@@ -309,7 +310,7 @@ inline void remove_text_between_markers(std::string &str, const std::string &sta
 }
 
 template <typename STR_ITER>
-inline std::string join_str(const STR_ITER &cbegin, const STR_ITER &cend, const std::string_view delimiter) {
+inline std::string join_str(STR_ITER cbegin, STR_ITER cend, const std::string_view delimiter = ",") {
     std::string result;
     for (auto it = cbegin; it != cend; ++it) {
         if (it->empty()) {
@@ -325,7 +326,7 @@ inline std::string join_str(const STR_ITER &cbegin, const STR_ITER &cend, const 
 
 template <typename STR_ITER>
 inline std::string
-join_str(const STR_ITER &cbegin, const STR_ITER &cend, const std::string_view delimiter,
+join_str(STR_ITER cbegin, STR_ITER cend, const std::string_view delimiter,
          std::function<std::string(const typename std::iterator_traits<STR_ITER>::value_type &)> transform) {
     std::string result;
     for (auto it = cbegin; it != cend; ++it) {

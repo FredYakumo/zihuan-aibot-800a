@@ -166,7 +166,7 @@ namespace bot_adapter {
         return {std::make_shared<std::decay_t<Args>>(std::forward<Args>(args))...};
     }
 
-    inline std::optional<std::reference_wrapper<const AtTargetMessage>> try_at_me_message(const MessageBase &msg) {
+    inline std::optional<std::reference_wrapper<const AtTargetMessage>> try_at_target_message(const MessageBase &msg) {
         if (msg.get_type() == "At") {
             auto *ptr = dynamic_cast<const AtTargetMessage *>(&msg);
             if (ptr) {

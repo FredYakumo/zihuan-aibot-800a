@@ -4,11 +4,13 @@
 #include "adapter_model.h"
 #include "constants.hpp"
 #include "database.h"
-#include "rag.h"
 #include "utils.h"
 #include <chrono>
 #include <cstdint>
+#include <regex>
 #include <spdlog/spdlog.h>
+
+std::regex at_target_pattern("@(\\d+)");
 
 MessageProperties get_msg_prop_from_event(const bot_adapter::MessageEvent &e, const std::string_view bot_name,
                                           uint64_t bot_id) {
@@ -19,8 +21,9 @@ MessageProperties get_msg_prop_from_event(const bot_adapter::MessageEvent &e, co
         }
         spdlog::info("Message type: {}, json: {}", msg->get_type(), msg->to_json().dump());
 
-        if (const auto at_me_msg = bot_adapter::try_at_me_message(*msg)) {
-            if (at_me_msg->get().target == bot_id) {
+        if (const auto at_msg = bot_adapter::try_at_target_message(*msg)) {
+            ret.at_id_set.insert(at_msg->get().target);
+            if (at_msg->get().target == bot_id) {
                 ret.is_at_me = true;
             }
         } else if (auto quote_msg = bot_adapter::try_quote_message(*msg)) {
@@ -43,9 +46,12 @@ MessageProperties get_msg_prop_from_event(const bot_adapter::MessageEvent &e, co
         //     MiraiCP::Logger::logger.logger.info(msg->toJson());
         // }
     }
+
     if (ret.plain_content != nullptr) {
         *ret.plain_content = std::string{rtrim(ltrim(*ret.plain_content))};
-        if (ret.plain_content->empty()) {
+        if (rtrim(ltrim(*ret.plain_content)).empty()) {
+            // Empty msg process
+
             *ret.plain_content = EMPTY_MSG_TAG;
         } else if (const auto at_me_str = fmt::format("@{}", bot_name);
                    !bot_name.empty() && ret.plain_content->find(at_me_str) != std::string::npos) {
@@ -55,15 +61,35 @@ MessageProperties get_msg_prop_from_event(const bot_adapter::MessageEvent &e, co
                 ret.plain_content->replace(pos, at_me_str.size(), "");
                 pos += at_me_str.size();
             }
+
+            // Regex match @[qqid(uint64_t)]
+            auto begin = std::sregex_iterator(std::cbegin(*ret.plain_content), std::cend(*ret.plain_content), at_target_pattern);
+            auto end = std::sregex_iterator();
+
+            // 遍历所有匹配结果，提取数字并转换为 uint64_t 后存入 at_list
+            for (std::sregex_iterator i = begin; i != end; ++i) {
+                std::smatch match = *i;
+                uint64_t value = std::stoull(match[1].str());
+                ret.at_id_set.insert(value);
+                if (value == bot_id) {
+                    ret.is_at_me = true;
+                }
+            }
+
+            // 将所有匹配部分替换为空字符串
+            *ret.plain_content = std::regex_replace(*ret.plain_content, at_target_pattern, "");
         }
     } else {
-        ret.ref_msg_content = std::make_unique<std::string>(EMPTY_MSG_TAG);
+        // Empty msg process
+        ret.plain_content = std::make_unique<std::string>(EMPTY_MSG_TAG);
     }
 
     return ret;
 }
 
-void msg_storage(const MessageProperties &msg_prop, const bot_adapter::Sender &sender, const std::chrono::system_clock::time_point &send_time) {
+void msg_storage(const MessageProperties &msg_prop, const bot_adapter::Sender &sender,
+                 const std::chrono::system_clock::time_point &send_time,
+                 const std::optional<std::set<uint64_t>> specify_at_target_set) {
     if ((msg_prop.plain_content == nullptr || *msg_prop.plain_content == EMPTY_MSG_TAG) &&
         (msg_prop.ref_msg_content == nullptr || *msg_prop.ref_msg_content == EMPTY_MSG_TAG)) {
         return;
@@ -73,7 +99,7 @@ void msg_storage(const MessageProperties &msg_prop, const bot_adapter::Sender &s
         msg_prop.ref_msg_content == nullptr
             ? *msg_prop.plain_content
             : fmt::format("引用了消息: {}\n{}", *msg_prop.ref_msg_content, *msg_prop.plain_content);
-    
-    
-    database::get_global_db_connection().insert_message(msg_content, sender, send_time);
+
+    database::get_global_db_connection().insert_message(
+        msg_content, sender, send_time, specify_at_target_set ? specify_at_target_set : msg_prop.at_id_set);
 }
