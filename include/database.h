@@ -92,8 +92,9 @@ namespace database {
                                                .execute();
             std::vector<GroupMessageRecord> result;
             for (auto row : sql_result) {
-                result.emplace_back(row.get(0), )
+                // result.emplace_back(row.get(0), )
             }
+            return result;
         }
 
       private:

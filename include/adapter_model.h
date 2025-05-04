@@ -194,22 +194,22 @@ namespace bot_adapter {
         }
     }
 
-    enum ProfileSex { UNKNOWN = 0, MALE, FEMALE };
+    enum class ProfileSex { UNKNOWN = 0, MALE, FEMALE };
 
     // String to enum conversion
     inline ProfileSex from_string(const std::string_view str) {
         if (str == "MALE" || str == "male")
-            return MALE;
+            return ProfileSex::MALE;
         if (str == "FEMALE" || str == "female")
-            return FEMALE;
-        return UNKNOWN; // default case
+            return ProfileSex::FEMALE;
+        return ProfileSex::UNKNOWN; // default case
     }
 
     inline std::string to_chs_string(const ProfileSex profile_sex) {
         switch (profile_sex) {
-        case FEMALE:
+        case ProfileSex::FEMALE:
             return "女";
-        case MALE:
+        case ProfileSex::MALE:
             return "男";
         default:
             return "未知";

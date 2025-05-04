@@ -10,6 +10,7 @@
 #include "utils.h"
 #include <chrono>
 #include <cstdint>
+#include <future>
 #include <memory>
 #include <optional>
 #include <string>
@@ -126,7 +127,8 @@ namespace bot_adapter {
         }
     }
 
-    void handle_message_event(const std::string &type, const nlohmann::json &data, const std::vector<std::function<void(std::shared_ptr<Event> e)>> &msg_handle_func_list) {
+    void handle_message_event(const std::string &type, const nlohmann::json &data,
+                              const std::vector<std::function<void(std::shared_ptr<Event> e)>> &msg_handle_func_list) {
         auto sender_json = get_optional(data, "sender");
         if (!sender_json) {
             spdlog::warn("{} event中, 收到的数据没有sender", type);
@@ -160,14 +162,11 @@ namespace bot_adapter {
                 return;
             }
             auto group_sender_ptr = std::make_shared<GroupSender>(*sender_json, *group_json);
-            process_event(group_sender_ptr, [](auto sender, const auto &chain) {
-                return GroupMessageEvent(sender, chain);
-            });
+            process_event(group_sender_ptr,
+                          [](auto sender, const auto &chain) { return GroupMessageEvent(sender, chain); });
         } else if (type == "FriendMessage") {
             auto sender_ptr = std::make_shared<Sender>(*sender_json);
-            process_event(sender_ptr, [](auto sender, const auto &chain) {
-                return FriendMessageEvent(sender, chain);
-            });
+            process_event(sender_ptr, [](auto sender, const auto &chain) { return FriendMessageEvent(sender, chain); });
         }
     }
 
@@ -244,6 +243,22 @@ namespace bot_adapter {
         }
     }
 
+    std::optional<nlohmann::json> BotAdapter::send_command_sync(const AdapterCommand &command,
+                                                                std::chrono::milliseconds timeout) {
+        std::promise<nlohmann::json> promise;
+        auto future = promise.get_future();
+
+        send_command(command, [&promise](const nlohmann::json &res) { promise.set_value(res); });
+
+        if (future.wait_for(timeout) == std::future_status::timeout) {
+            throw std::runtime_error("Command execution timeout");
+            spdlog::error("Send command(sync) '{}'(sync id: {}) timeout. payload: {}", command.command, command.sync_id,
+                          command.to_json().dump());
+        }
+
+        return future.get();
+    }
+
     void BotAdapter::send_message(const Sender &sender, const MessageChainPtrList &message_chain,
                                   std::optional<std::string_view> sync_id_option,
                                   std::optional<std::function<void(uint64_t &out_message_id)>> out_message_id_option) {
@@ -255,9 +270,10 @@ namespace bot_adapter {
                                     std::make_shared<bot_adapter::SendMsgContent>(sender.id, message_chain)));
     }
 
-    void BotAdapter::send_group_message(const Group &group, const MessageChainPtrList &message_chain,
-                                  std::optional<std::string_view> sync_id_option,
-                                  std::optional<std::function<void(uint64_t &out_message_id)>> out_message_id_option) {
+    void
+    BotAdapter::send_group_message(const Group &group, const MessageChainPtrList &message_chain,
+                                   std::optional<std::string_view> sync_id_option,
+                                   std::optional<std::function<void(uint64_t &out_message_id)>> out_message_id_option) {
         const auto sync_id = std::string(sync_id_option.value_or(generate_send_group_message_sync_id(group)));
         spdlog::info("Send message to group: {}, sync id: {}", to_string(group), sync_id);
         // const auto message_json = to_json(message_chain);
@@ -265,7 +281,6 @@ namespace bot_adapter {
         send_command(AdapterCommand(sync_id, "sendGroupMessage",
                                     std::make_shared<bot_adapter::SendMsgContent>(group.id, message_chain)));
     }
-    
 
     void
     BotAdapter::send_replay_msg(const Sender &sender, const MessageChainPtrList &message_chain,
@@ -297,9 +312,7 @@ namespace bot_adapter {
         std::function<void(const std::string_view sync_id, const MessageChainPtrList &msg_chain)> send_func;
         if (const auto group_sender = try_group_sender(sender)) {
             send_func = [this, group_sender](const std::string_view sync_id, const MessageChainPtrList &msg_chain) {
-                send_group_message(group_sender->get().group,
-                             msg_chain,
-                             sync_id);
+                send_group_message(group_sender->get().group, msg_chain, sync_id);
             };
             spdlog::info("输出长文信息: @target");
             send_func(fmt::format("{}_at", sync_id_base), make_message_chain_list(AtTargetMessage(sender.id)));
@@ -313,20 +326,19 @@ namespace bot_adapter {
         std::vector<ForwardMessageNode> forward_nodes;
         for (auto chunk : split_output) {
             spdlog::info("长文块: {}, {}", index, chunk);
-            forward_nodes.push_back(ForwardMessageNode(
-                bot_profile.id, std::chrono::system_clock::now(), bot_profile.name,
-                make_message_chain_list(PlainTextMessage(chunk)), std::nullopt, std::nullopt));
+            forward_nodes.push_back(
+                ForwardMessageNode(bot_profile.id, std::chrono::system_clock::now(), bot_profile.name,
+                                   make_message_chain_list(PlainTextMessage(chunk)), std::nullopt, std::nullopt));
             ++index;
         }
-        
+
         for (size_t i = 0; i < forward_nodes.size(); ++i) {
             forward_nodes[forward_nodes.size() - i].time -= std::chrono::seconds(i);
         }
         spdlog::info("输出长文信息: long text");
         const auto forward_msg = ForwardMessage(forward_nodes, std::nullopt);
         spdlog::debug("forward message: {}", forward_msg.to_json().dump());
-        send_func(fmt::format("{}_forward", sync_id_base),
-                  make_message_chain_list(forward_msg));
+        send_func(fmt::format("{}_forward", sync_id_base), make_message_chain_list(forward_msg));
     }
 
     void BotAdapter::update_bot_profile() {
@@ -354,8 +366,21 @@ namespace bot_adapter {
                      });
     }
 
-    void BotAdapter::update_group_member_info() {
-        
+    void BotAdapter::fetch_bot_group_info(std::function<void(const std::vector<GroupInfo> &)> result_handle_func) {
+        send_command(
+            AdapterCommand(fmt::format("fetch_bot_group_info_{}", get_current_time_formatted()), "groupList"),
+            [result_handle_func](const auto &json) {
+                std::vector<GroupInfo> group_info_list;
+                for (const auto &group : json) {
+                    group_info_list.emplace_back(
+                        get_optional<qq_id_t>(group, "id").value_or(-1),
+                        get_optional<std::string_view>(group, "name").value_or(UNKNOWN_VALUE),
+                        get_group_permission(get_optional<std::string_view>(group, "permission").value_or("UNKNOWN")));
+                }
+                result_handle_func(std::move(group_info_list));
+            });
     }
+
+    void BotAdapter::update_group_member_info() {}
 
 } // namespace bot_adapter
