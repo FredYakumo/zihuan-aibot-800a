@@ -19,6 +19,13 @@
 #include <vector>
 
 namespace bot_adapter {
+    struct GroupInfo {
+        uint64_t group_id;
+        std::string name;
+        std::string group_permission;
+    };
+
+
     using CommandResHandleFunc = std::function<void(const nlohmann::json &command_res_json)>;
     class BotAdapter {
       public:
@@ -76,6 +83,10 @@ namespace bot_adapter {
                                             CommandJsonContent({{"messageId", message_id}, {"target", target_id}}))),
                          out_func);
         }
+
+        
+
+        void update_group_member_info();
 
         const Profile &get_bot_profile() const { return bot_profile; }
 

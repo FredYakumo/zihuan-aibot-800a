@@ -354,4 +354,8 @@ namespace bot_adapter {
                      });
     }
 
+    void BotAdapter::update_group_member_info() {
+        
+    }
+
 } // namespace bot_adapter

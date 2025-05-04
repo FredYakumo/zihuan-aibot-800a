@@ -9,12 +9,23 @@
 #include <mysqlx/xdevapi.h>
 #include <optional>
 #include <spdlog/spdlog.h>
+#include <vector>
 
 namespace database {
     using mysqlx::SessionOption;
 
     constexpr std::string DEFAULT_MYSQL_SCHEMA_NAME = "aibot_800a";
     constexpr std::string DEFAULT_MESSAGE_RECORD_TABLE_NAME = "message_record";
+
+    struct GroupMessageRecord {
+        std::string content;
+        std::chrono::system_clock::time_point send_time;
+        bot_adapter::GroupSender sender;
+
+        GroupMessageRecord(const std::string_view content, const std::chrono::system_clock::time_point &send_time,
+                           const bot_adapter::GroupSender &sender)
+            : content(content), send_time(send_time), sender(sender) {}
+    };
 
     class DBConnection {
       public:
@@ -46,8 +57,8 @@ namespace database {
                             const std::optional<std::set<uint64_t>> at_target_set = std::nullopt) {
             try {
                 const auto at_target_value = (at_target_set && !at_target_set->empty())
-                                                 ? join_str(std::cbegin(*at_target_set), std::cend(*at_target_set),
-                                                            ",", [](const auto i) { return std::to_string(i); })
+                                                 ? join_str(std::cbegin(*at_target_set), std::cend(*at_target_set), ",",
+                                                            [](const auto i) { return std::to_string(i); })
                                                  : mysqlx::nullvalue;
                 if (const auto &group_sender = bot_adapter::try_group_sender(sender)) {
                     const auto &g = group_sender->get();
@@ -55,7 +66,7 @@ namespace database {
                         .insert("sender_name", "sender_id", "content", "send_time", "group_name", "group_id",
                                 "group_permission", "at_target_list")
                         .values(g.name, g.id, content, time_point_to_db_str(send_time), g.group.name, g.group.id,
-                                g.group.permission, at_target_value)
+                                g.permission, at_target_value)
                         .execute();
                 } else {
                     get_message_record_table()
@@ -66,6 +77,22 @@ namespace database {
                 spdlog::info("Insert message successed.");
             } catch (const mysqlx::Error &e) {
                 spdlog::error("Insert message error at MySQL X DevAPI Error: {}", e.what());
+            }
+        }
+
+        std::vector<GroupMessageRecord> query_group_user_message(uint64_t sender_id, uint64_t group_id,
+                                                                 size_t count_limit = 10) {
+            mysqlx::RowResult sql_result = get_message_record_table()
+                                               .select("content", "send_time")
+                                               .where("sender_id = :sender_id and group_id = :group_id")
+                                               .orderBy("send_time DESC")
+                                               .limit(count_limit)
+                                               .bind("sender_id", sender_id)
+                                               .bind("group_id", group_id)
+                                               .execute();
+            std::vector<GroupMessageRecord> result;
+            for (auto row : sql_result) {
+                result.emplace_back(row.get(0), )
             }
         }
 
