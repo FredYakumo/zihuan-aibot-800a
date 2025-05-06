@@ -6,7 +6,9 @@
 #include "constants.hpp"
 #include "easywsclient.hpp"
 #include "get_optional.hpp"
+#include "mutex_data.hpp"
 #include "nlohmann/json_fwd.hpp"
+#include "time_utils.h"
 #include "utils.h"
 #include <chrono>
 #include <cstdint>
@@ -15,6 +17,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -366,7 +369,7 @@ namespace bot_adapter {
                      });
     }
 
-    void BotAdapter::fetch_bot_group_info(std::function<void(const std::vector<GroupInfo> &)> result_handle_func) {
+    void BotAdapter::fetch_bot_group_list_info(std::function<void(std::vector<GroupInfo>)> result_handle_func) {
         send_command(
             AdapterCommand(fmt::format("fetch_bot_group_info_{}", get_current_time_formatted()), "groupList"),
             [result_handle_func](const auto &json) {
@@ -381,6 +384,71 @@ namespace bot_adapter {
             });
     }
 
-    void BotAdapter::update_group_member_info() {}
+    void BotAdapter::update_group_info() {
+        spdlog::info("Start update group info list");
+        fetch_bot_group_list_info([this](std::vector<GroupInfo> group_info_list) {
+            std::unordered_map<qq_id_t, GroupWrapper> group_wrapper_map;
+            for (auto &group_info : group_info_list) {
+                spdlog::info("Group info: {}({}), bot perm: {}", group_info.name, group_info.bot_in_group_permission,
+                             to_string(group_info.bot_in_group_permission));
+                GroupWrapper group_wrapper = GroupWrapper{group_info};
+
+                // Fetch member info
+                spdlog::info("Fetch members info for group: {}({})", group_info.name, group_info.group_id);
+                auto member_list = group_wrapper.member_info_list->write();
+                *member_list = group_by(fetch_group_member_list_sync(group_info),
+                                        [](const GroupMemberInfo &member) { return member.id; });
+                group_wrapper_map.insert(std::make_pair(group_info.group_id, std::move(group_wrapper)));
+            }
+            spdlog::info("Fetch group info list successed, total groups count: {}", group_wrapper_map.size());
+            auto map = group_info_map.write();
+            *map = std::move(group_wrapper_map);
+        });
+    }
+
+    Profile BotAdapter::fetch_group_member_profile_sync(qq_id_t group_id, qq_id_t id) {
+        if (auto result_json = send_command_sync(
+                AdapterCommand(fmt::format("get memberProfile_{}", get_current_time_formatted()), "memberProfile",
+                               std::make_shared<GetGroupMemberProfileContent>(group_id, id)));
+            result_json.has_value()) {
+            const auto &res = *result_json;
+            const auto name = get_optional<std::string>(res, "nickname").value_or(EMPTY_JSON_STR_VALUE);
+            const auto email = get_optional<std::string>(res, "email").value_or(EMPTY_JSON_STR_VALUE);
+            const auto age = get_optional<uint32_t>(res, "age").value_or(0);
+            const auto level = get_optional<uint32_t>(res, "level").value_or(0);
+            const ProfileSex sex =
+                from_string(get_optional<std::string_view>(res, "sex").value_or(EMPTY_JSON_STR_VALUE));
+            return Profile{id, std::move(name), std::move(email), age, level, sex};
+        }
+    }
+
+    std::vector<GroupMemberInfo> BotAdapter::fetch_group_member_list_sync(const GroupInfo &group_info) {
+        auto json_res = send_command_sync(
+            AdapterCommand{fmt::format("fetch_group_member_info_{}", get_current_time_formatted()), "memberList",
+                           std::make_shared<CommandJsonContent>(nlohmann::json{{"target", group_info.group_id}})});
+        std::vector<GroupMemberInfo> ret;
+        if (!json_res.has_value()) {
+            return ret;
+        }
+        for (auto &member : *json_res) {
+            const qq_id_t id = get_optional(member, "id").value_or(UNKNOWN_ID);
+            const std::string member_name = get_optional(member, "memberName").value_or(EMPTY_JSON_STR_VALUE);
+            spdlog::info("Group {}({}) Fetch member info: {}({})", group_info.name, group_info.group_id, member_name,
+                         id);
+            GroupMemberInfo member_info{
+                id,
+                group_info.group_id,
+                std::move(member_name),
+                get_optional(member, "specialTitle"),
+                get_group_permission(get_optional<std::string>("member", "permission").value_or(UNKNOWN_VALUE)),
+                map_optional(get_optional<uint64_t>(member, "joinTimestamp"),
+                             [](auto val) { return timestamp_to_timepoint(val); }),
+                map_optional(get_optional<uint64_t>(member, "lastSpeakTimestamp"),
+                             [](auto val) { return timestamp_to_timepoint(val); }),
+                get_optional<float>(member, "muteTimeRemaining").value_or(0.f)};
+            ret.push_back(std::move(member_info));
+        }
+        return std::move(ret);
+    }
 
 } // namespace bot_adapter

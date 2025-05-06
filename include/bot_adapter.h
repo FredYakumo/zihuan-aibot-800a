@@ -6,7 +6,9 @@
 #include "adapter_message.h"
 #include "adapter_model.h"
 #include "constants.hpp"
+#include "get_optional.hpp"
 #include "mutex_data.hpp"
+#include "utils.h"
 #include <cstdint>
 #include <easywsclient.hpp>
 #include <functional>
@@ -17,43 +19,10 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace bot_adapter {
-    enum class GroupPermission { UNKNOWN = 0, MEMBER, ADMINISTRATOR, OWNER };
-
-    inline constexpr std::string_view to_string(const GroupPermission &permission) {
-        switch (permission) {
-        case GroupPermission::MEMBER:
-            return "MEMBER";
-        case GroupPermission::ADMINISTRATOR:
-            return "ADMINISTRATOR";
-        case GroupPermission::OWNER:
-            return "OWNER";
-        default:
-            return UNKNOWN_VALUE;
-        }
-    }
-
-    inline constexpr GroupPermission get_group_permission(const std::string_view permission) {
-        if (permission == "MEMBER")
-            return GroupPermission::MEMBER;
-        if (permission == "ADMINISTRATOR")
-            return GroupPermission::ADMINISTRATOR;
-        if (permission == "OWNER")
-            return GroupPermission::OWNER;
-        return GroupPermission::UNKNOWN;
-    }
-
-    struct GroupInfo {
-        qq_id_t group_id;
-        std::string name;
-        GroupPermission group_permission;
-
-        GroupInfo(uint64_t group_id, const std::string_view name, GroupPermission group_permission)
-            : group_id(group_id), name(name), group_permission(group_permission) {}
-    };
-
     using CommandResHandleFunc = std::function<void(const nlohmann::json &command_res_json)>;
     class BotAdapter {
       public:
@@ -113,9 +82,8 @@ namespace bot_adapter {
                          out_func);
         }
 
-        void fetch_bot_group_info(std::function<void(const std::vector<GroupInfo> &)> result_handle_func);
 
-        void update_group_member_info();
+        void update_group_info();
 
         const Profile &get_bot_profile() const { return bot_profile; }
 
@@ -125,18 +93,26 @@ namespace bot_adapter {
 
         MutexData<std::unordered_map<std::string, CommandResHandleFunc>> command_result_handle_map;
 
-        MutexData<std::unordered_map<qq_id_t, std::unordered_map<>>
+        Profile fetch_group_member_profile_sync(qq_id_t group_id, qq_id_t id);
+
+        MutexData<std::unordered_map<qq_id_t, GroupWrapper>> group_info_map;
 
         void handle_command_result(const std::string &sync_id, const nlohmann::json &data_json);
 
         void send_command(const bot_adapter::AdapterCommand &cmd,
                           const std::optional<CommandResHandleFunc> command_res_handle_func_option = std::nullopt);
 
-        std::optional<nlohmann::json> send_command_sync(const bot_adapter::AdapterCommand &cmd, std::chrono::milliseconds timeout = std::chrono::milliseconds(5000));
+        std::optional<nlohmann::json>
+        send_command_sync(const bot_adapter::AdapterCommand &cmd,
+                          std::chrono::milliseconds timeout = std::chrono::milliseconds(5000));
 
         std::queue<std::string> send_cmd_queue;
 
         Profile bot_profile;
+
+        void fetch_bot_group_list_info(std::function<void(std::vector<GroupInfo>)> result_handle_func);
+
+        std::vector<GroupMemberInfo> fetch_group_member_list_sync(const GroupInfo &group_info);
 
         easywsclient::WebSocket::pointer ws;
     };

@@ -2,6 +2,7 @@
 #define ADAPTER_CMD_H
 
 #include "adapter_message.h"
+#include "constants.hpp"
 #include "nlohmann/json.hpp"
 #include <cstdint>
 #include <memory>
@@ -22,6 +23,20 @@ namespace bot_adapter {
         CommandJsonContent(nlohmann::json json) : content(json) {}
 
         inline nlohmann::json to_json() const override { return content; }
+    };
+
+    struct GetGroupMemberProfileContent : public AdapterCommandContentBase {
+        qq_id_t group_id;
+        qq_id_t member_id;
+
+        GetGroupMemberProfileContent(qq_id_t group_id, qq_id_t member_id): group_id(group_id), member_id(member_id) {}
+
+        inline nlohmann::json to_json() const override {
+            return nlohmann::json {
+                {"target", group_id},
+                {"memberId", member_id}
+            };
+        }
     };
 
     struct SendMsgContent : public AdapterCommandContentBase {

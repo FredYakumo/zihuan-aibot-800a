@@ -10,6 +10,8 @@
 #include <iterator>
 #include <string>
 #include <string_view>
+#include <unordered_map>
+#include <utility>
 
 inline std::string_view ltrim(const std::string_view str) {
     const size_t start = str.find_first_not_of(" \n\r");
@@ -340,6 +342,17 @@ join_str(STR_ITER cbegin, STR_ITER cend, const std::string_view delimiter,
         result += mapped;
     }
     return result;
+}
+
+template <typename T, typename KEY_GENERATOR>
+inline auto group_by(const std::vector<T> &collection, KEY_GENERATOR key_generator)
+    -> std::unordered_map<decltype(key_generator(std::declval<T>())), T> {
+    using KEY_T = decltype(key_generator(std::declval<T>()));
+    std::unordered_map<KEY_T, T> ret;
+    for (const auto &item : collection) {
+        ret.insert(std::make_pair(key_generator(item), item));
+    }
+    return std::move(ret);
 }
 
 #endif

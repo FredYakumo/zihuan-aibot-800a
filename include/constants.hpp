@@ -3,19 +3,19 @@
 
 #include <string_view>
 
-constexpr std::string_view ROLE_SYSTEM = "system";
-constexpr std::string_view ROLE_USER = "user";
-constexpr std::string_view ROLE_ASSISTANT = "assistant";
+constexpr const char *ROLE_SYSTEM = "system";
+constexpr const char *ROLE_USER = "user";
+constexpr const char *ROLE_ASSISTANT = "assistant";
 
-constexpr std::string_view EMPTY_MSG_TAG = "<未输入任何信息>";
+constexpr const char *EMPTY_MSG_TAG = "<未输入任何信息>";
 
-constexpr std::string_view EMPTY_JSON_STR_VALUE = "<NULL>";
+constexpr const char *EMPTY_JSON_STR_VALUE = "<NULL>";
 
 using qq_id_t = uint64_t;
 
 constexpr qq_id_t UNKNOWN_ID = -1;
 
-constexpr std::string_view UNKNOWN_VALUE = "<未知>";
+constexpr const char *UNKNOWN_VALUE = "<未知>";
 
 constexpr size_t MAX_OUTPUT_LENGTH = 500;
 

@@ -1,13 +1,19 @@
 #ifndef ADAPTER_MODEL_H
 #define ADAPTER_MODEL_H
 
+#include "bot_adapter.h"
+#include "constants.hpp"
 #include "get_optional.hpp"
+#include "mutex_data.hpp"
 #include <chrono>
 #include <cstdint>
 #include <fmt/format.h>
+#include <memory>
 #include <nlohmann/json.hpp>
 #include <optional>
+#include <stdexcept>
 #include <string>
+#include <unordered_map>
 
 namespace bot_adapter {
     /**
@@ -18,7 +24,7 @@ namespace bot_adapter {
      */
     /**
      * @brief Represents a message sender in the chat system
-     * 
+     *
      * Contains information about a user who can send messages,
      * including their unique identifier, display name, and optional remark.
 
@@ -47,7 +53,8 @@ namespace bot_adapter {
          */
         Sender(const nlohmann::json &sender)
             : id(get_optional<uint64_t>(sender, "id").value_or(0)),
-              name(get_optional<std::string>(sender, "name").value_or(get_optional<std::string>(sender, "nickname").value_or(""))),
+              name(get_optional<std::string>(sender, "name")
+                       .value_or(get_optional<std::string>(sender, "nickname").value_or(""))),
               remark(get_optional<std::string>(sender, "remark")) {}
 
         virtual nlohmann::json to_json() const {
@@ -243,30 +250,103 @@ namespace bot_adapter {
                 ProfileSex sex_)
             : id(id_), name(name_), email(email_), age(age_), level(level_), sex(sex_) {}
     };
+
+    /**
+     * @brief Converts a bot_adapter::Sender object to its string representation
+     * @param sender The sender object to convert
+     * @return A formatted string containing the sender's name and ID in the format "[Sender]name(id)"
+     */
+    inline std::string to_string(const bot_adapter::Sender &sender) {
+        return fmt::format("[Sender]{}({})", sender.name, sender.id);
+    }
+
+    /**
+     * @brief Converts a Group object to a formatted std::string representation
+     *
+     * This function provides a string representation of a Group object in a specific format:
+     * "[Group]name(id)", where `name` is the group's display name and `id` is its unique identifier.
+     *
+     * @param group The Group object to convert to a string
+     * @return std::string A formatted string representing the Group object
+     */
+
+    inline std::string to_string(const bot_adapter::Group &group) {
+        return fmt::format("[Group]{}({})", group.name, group.id);
+    }
+
+    enum class GroupPermission { UNKNOWN = 0, MEMBER, ADMINISTRATOR, OWNER };
+
+    inline constexpr std::string_view to_string(const GroupPermission &permission) {
+        switch (permission) {
+        case GroupPermission::MEMBER:
+            return "MEMBER";
+        case GroupPermission::ADMINISTRATOR:
+            return "ADMINISTRATOR";
+        case GroupPermission::OWNER:
+            return "OWNER";
+        default:
+            return UNKNOWN_VALUE;
+        }
+    }
+
+    inline constexpr GroupPermission get_group_permission(const std::string_view permission) {
+        if (permission == "MEMBER")
+            return GroupPermission::MEMBER;
+        if (permission == "ADMINISTRATOR")
+            return GroupPermission::ADMINISTRATOR;
+        if (permission == "OWNER")
+            return GroupPermission::OWNER;
+        return GroupPermission::UNKNOWN;
+    }
+
+    struct GroupInfo {
+        qq_id_t group_id;
+        std::string name;
+        GroupPermission bot_in_group_permission;
+
+        GroupInfo(uint64_t group_id, const std::string_view name, GroupPermission bot_in_group_permission)
+            : group_id(group_id), name(name), bot_in_group_permission(bot_in_group_permission) {}
+    };
+
+    // @deprecated
+    struct GroupMemberProfile : public Profile {
+        GroupPermission permission;
+
+        GroupMemberProfile() = default;
+
+        GroupMemberProfile(uint64_t id_, const std::string &name_, const std::string &email_, uint32_t age_,
+                           uint32_t level_, ProfileSex sex_, GroupPermission permission_)
+            : Profile(id_, name_, email_, age_, level_, sex_), permission(permission_) {}
+    };
+
+    struct GroupMemberInfo {
+      public:
+        qq_id_t id;
+        qq_id_t group_id;
+        std::string member_name;
+        std::optional<std::string> special_title;
+        GroupPermission permission;
+        std::optional<std::chrono::system_clock::time_point> join_time;
+        std::optional<std::chrono::system_clock::time_point> last_speak_time;
+        float mute_time_remaining;
+
+        GroupMemberInfo(BotAdapter &adapter, qq_id_t id, qq_id_t group_id, std::string member_name,
+                        std::optional<std::string> special_title, GroupPermission permission,
+                        std::optional<std::chrono::system_clock::time_point> join_time,
+                        std::optional<std::chrono::system_clock::time_point> last_speak_time, float mute_time_remaining)
+            : id(id), group_id(group_id), member_name(std::move(member_name)), special_title(std::move(special_title)),
+              permission(permission), join_time(std::move(join_time)), last_speak_time(std::move(last_speak_time)),
+              mute_time_remaining(mute_time_remaining) {}
+    };
+
+    struct GroupWrapper {
+        GroupInfo group_info;
+        std::unique_ptr<MutexData<std::unordered_map<qq_id_t, GroupMemberInfo>>> member_info_list;
+
+        GroupWrapper(GroupInfo group_info) : group_info(std::move(group_info)) {
+            member_info_list = std::make_unique<MutexData<std::unordered_map<qq_id_t, GroupMemberInfo>>>();
+        }
+    };
 } // namespace bot_adapter
-
-
-/**
- * @brief Converts a bot_adapter::Sender object to its string representation
- * @param sender The sender object to convert
- * @return A formatted string containing the sender's name and ID in the format "[Sender]name(id)"
- */
-inline std::string to_string(const bot_adapter::Sender &sender) {
-    return fmt::format("[Sender]{}({})", sender.name, sender.id);
-}
-
-/**
- * @brief Converts a Group object to a formatted std::string representation
- *
- * This function provides a string representation of a Group object in a specific format:
- * "[Group]name(id)", where `name` is the group's display name and `id` is its unique identifier.
- *
- * @param group The Group object to convert to a string
- * @return std::string A formatted string representing the Group object
- */
-
-inline std::string to_string(const bot_adapter::Group &group) {
-    return fmt::format("[Group]{}({})", group.name, group.id);
-}
 
 #endif

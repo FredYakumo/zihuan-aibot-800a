@@ -19,4 +19,8 @@ inline std::string system_clock_to_string(const std::chrono::system_clock::time_
     return time_str;
 }
 
+inline std::chrono::system_clock::time_point timestamp_to_timepoint(uint64_t timestamp) {
+    return std::chrono::system_clock::from_time_t(timestamp);
+}
+
 #endif
