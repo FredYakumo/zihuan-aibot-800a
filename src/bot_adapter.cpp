@@ -17,6 +17,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -387,22 +388,27 @@ namespace bot_adapter {
     void BotAdapter::update_group_info() {
         spdlog::info("Start update group info list");
         fetch_bot_group_list_info([this](std::vector<GroupInfo> group_info_list) {
-            std::unordered_map<qq_id_t, GroupWrapper> group_wrapper_map;
-            for (auto &group_info : group_info_list) {
-                spdlog::info("Group info: {}({}), bot perm: {}", group_info.name, group_info.bot_in_group_permission,
-                             to_string(group_info.bot_in_group_permission));
-                GroupWrapper group_wrapper = GroupWrapper{group_info};
+            std::thread([this, &group_info_list]() {
+                spdlog::info("Start update group info list thread.");
+                set_thread_name("update_group_info_list");
+                
+                std::unordered_map<qq_id_t, GroupWrapper> group_wrapper_map;
+                for (auto &group_info : group_info_list) {
+                    spdlog::info("Group info: {}({}), bot perm: {}", group_info.name,
+                                 group_info.bot_in_group_permission, to_string(group_info.bot_in_group_permission));
+                    GroupWrapper group_wrapper = GroupWrapper{group_info};
 
-                // Fetch member info
-                spdlog::info("Fetch members info for group: {}({})", group_info.name, group_info.group_id);
-                auto member_list = group_wrapper.member_info_list->write();
-                *member_list = group_by(fetch_group_member_list_sync(group_info),
-                                        [](const GroupMemberInfo &member) { return member.id; });
-                group_wrapper_map.insert(std::make_pair(group_info.group_id, std::move(group_wrapper)));
-            }
-            spdlog::info("Fetch group info list successed, total groups count: {}", group_wrapper_map.size());
-            auto map = group_info_map.write();
-            *map = std::move(group_wrapper_map);
+                    // Fetch member info
+                    spdlog::info("Fetch members info for group: {}({})", group_info.name, group_info.group_id);
+                    auto member_list = group_wrapper.member_info_list->write();
+                    *member_list = group_by(fetch_group_member_list_sync(group_info),
+                                            [](const GroupMemberInfo &member) { return member.id; });
+                    group_wrapper_map.insert(std::make_pair(group_info.group_id, std::move(group_wrapper)));
+                }
+                spdlog::info("Fetch group info list successed, total groups count: {}", group_wrapper_map.size());
+                auto map = group_info_map.write();
+                *map = std::move(group_wrapper_map);
+            }).detach();
         });
     }
 
