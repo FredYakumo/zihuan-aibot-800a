@@ -131,7 +131,7 @@ namespace bot_adapter {
     void BotAdapter::handle_command_result(const std::string &sync_id, const nlohmann::json &data_json) {
 
         try {
-            spdlog::info("Send command success, data json: {}", data_json.dump());
+            spdlog::debug("Send command success, data json: {}", data_json.dump());
             auto handle_map = command_result_handle_map.write();
             auto iter = handle_map->find(sync_id);
             if (iter != handle_map->cend()) {
@@ -190,7 +190,7 @@ namespace bot_adapter {
     }
 
     void BotAdapter::handle_message(const std::string &message) {
-        spdlog::info("On recv message: {}", message);
+        spdlog::debug("On recv message: {}", message);
         try {
             spdlog::debug("Parse recv json");
             auto msg_json = nlohmann::json::parse(message);
@@ -270,9 +270,9 @@ namespace bot_adapter {
         send_command(command, [&promise](const nlohmann::json &res) { promise.set_value(res); });
 
         if (future.wait_for(timeout) == std::future_status::timeout) {
-            throw std::runtime_error("Command execution timeout");
             spdlog::error("Send command(sync) '{}'(sync id: {}) timeout. payload: {}", command.command, command.sync_id,
                           command.to_json().dump());
+            throw std::runtime_error("Command execution timeout");
         }
 
         return future.get();
@@ -451,10 +451,14 @@ namespace bot_adapter {
         if (!json_res.has_value()) {
             return ret;
         }
-        for (auto &member : *json_res) {
+        const auto &res = get_optional(json_res, "data");
+        if (!res.has_value()) {
+            return ret;
+        }
+        for (auto &member : *res) {
             const qq_id_t id = get_optional(member, "id").value_or(UNKNOWN_ID);
             const std::string member_name = get_optional(member, "memberName").value_or(EMPTY_JSON_STR_VALUE);
-            spdlog::info("Group {}({}) Fetch member info: {}({})", group_info.name, group_info.group_id, member_name,
+            spdlog::debug("Group {}({}) Fetch member info: {}({})", group_info.name, group_info.group_id, member_name,
                          id);
             GroupMemberInfo member_info{
                 id,
