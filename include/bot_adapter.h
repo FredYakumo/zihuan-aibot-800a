@@ -83,7 +83,7 @@ namespace bot_adapter {
         }
 
 
-        void update_group_info();
+        void update_group_info_sync();
 
         const Profile &get_bot_profile() const { return bot_profile; }
 
@@ -93,7 +93,7 @@ namespace bot_adapter {
 
         MutexData<std::unordered_map<std::string, CommandResHandleFunc>> command_result_handle_map;
 
-        Profile fetch_group_member_profile_sync(qq_id_t group_id, qq_id_t id);
+        std::optional<Profile> fetch_group_member_profile_sync(qq_id_t group_id, qq_id_t id);
 
         MutexData<std::unordered_map<qq_id_t, GroupWrapper>> group_info_map;
 
@@ -110,9 +110,11 @@ namespace bot_adapter {
 
         Profile bot_profile;
 
-        void fetch_bot_group_list_info(std::function<void(std::vector<GroupInfo>)> result_handle_func);
+        std::vector<GroupInfo> fetch_bot_group_list_info_sync();
 
         std::vector<GroupMemberInfo> fetch_group_member_list_sync(const GroupInfo &group_info);
+
+        bool is_running = false;
 
         easywsclient::WebSocket::pointer ws;
     };

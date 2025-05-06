@@ -1,7 +1,6 @@
 #ifndef ADAPTER_MODEL_H
 #define ADAPTER_MODEL_H
 
-#include "bot_adapter.h"
 #include "constants.hpp"
 #include "get_optional.hpp"
 #include "mutex_data.hpp"
@@ -330,7 +329,7 @@ namespace bot_adapter {
         std::optional<std::chrono::system_clock::time_point> last_speak_time;
         float mute_time_remaining;
 
-        GroupMemberInfo(BotAdapter &adapter, qq_id_t id, qq_id_t group_id, std::string member_name,
+        GroupMemberInfo(qq_id_t id, qq_id_t group_id, std::string member_name,
                         std::optional<std::string> special_title, GroupPermission permission,
                         std::optional<std::chrono::system_clock::time_point> join_time,
                         std::optional<std::chrono::system_clock::time_point> last_speak_time, float mute_time_remaining)

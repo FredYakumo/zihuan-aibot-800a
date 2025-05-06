@@ -3,7 +3,6 @@
 
 #include "nlohmann/json.hpp"
 #include <optional>
-#include <function_ref.
 
 /**
  * @brief Converts a JSON field to an `std::optional<T>`.

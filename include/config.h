@@ -40,6 +40,8 @@ struct Config {
     std::string url_search_api_url;
     std::string url_search_token;
 
+    uint64_t update_group_info_period_sec = 1800;
+
     inline static Config &instance() {
         static Config config;
         return config;
