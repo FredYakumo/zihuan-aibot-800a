@@ -310,7 +310,7 @@ namespace bot_adapter {
         if (const auto &group_sender = try_group_sender(sender)) {
             MessageChainPtrList msg_chain_list;
             if (at_target) {
-                MessageChainPtrList msg_chain_list =
+                msg_chain_list =
                     make_message_chain_list(AtTargetMessage(sender.id), PlainTextMessage(" "));
                 msg_chain_list.insert(msg_chain_list.cend(), message_chain.cbegin(), message_chain.cend());
             } else {
