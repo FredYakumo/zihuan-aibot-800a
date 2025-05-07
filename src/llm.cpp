@@ -138,6 +138,15 @@ void process_llm(const bot_cmd::CommandContext &context,
             spdlog::info("开始深度思考");
         }
         const auto bot_profile = context.adapter.get_bot_profile();
+
+        if (context.is_deep_think) {
+            context.adapter.send_replay_msg(*context.e->sender_ptr,
+                                            bot_adapter::make_message_chain_list(
+                                                bot_adapter::PlainTextMessage{"正在思思考中..."},
+                                                bot_adapter::ImageMessage{Config::instance().think_image_url}),
+                                            false);
+        }
+        
         auto system_prompt = gen_common_prompt(bot_profile, *context.e->sender_ptr, context.is_deep_think);
 
         system_prompt += "\n" + query_chat_session_knowledge(context, msg_content_str);

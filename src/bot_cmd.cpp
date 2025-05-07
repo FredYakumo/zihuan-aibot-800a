@@ -229,14 +229,6 @@ namespace bot_cmd {
             spdlog::info(net_search_str);
             if (!first_replay_str.empty()) {
                 context.adapter.send_long_plain_text_replay(*context.e->sender_ptr, first_replay_str, false);
-
-                if (context.is_deep_think) {
-                    context.adapter.send_replay_msg(*context.e->sender_ptr,
-                                                    bot_adapter::make_message_chain_list(
-                                                        bot_adapter::PlainTextMessage{"正在思思考中..."},
-                                                        bot_adapter::ImageMessage{Config::instance().think_image_url}),
-                                                    false);
-                }
             }
             *context.msg_prop.plain_content = replace_str(search, "#联网", net_search_str);
             process_llm(context, net_search_str);
