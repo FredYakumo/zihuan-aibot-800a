@@ -224,7 +224,7 @@ namespace bot_cmd {
                 first_replay_str += "参考资料:\n";
                 for (const auto res : net_search_res) {
                     net_search_str.append(fmt::format("{},{}:{}\n", res.url, res.title, res.content));
-                    first_replay_str.append(fmt::format("{}({}), 置信度: {}\n", res.title, res.content, res.score));
+                    first_replay_str.append(fmt::format("{}({}), 置信度: {}\n", res.title, res.url, res.score));
                 }
             }
             spdlog::info(net_search_str);
