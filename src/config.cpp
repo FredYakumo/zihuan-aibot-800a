@@ -157,8 +157,6 @@ void Config::init() {
         config.custom_deep_think_system_prompt_option = std::string(custom_deep_think_system_prompt_option);
         spdlog::info("CUSTOM_DEEP_THINK_SYSTEM_PROMPT: {} (from env)",
                      config.custom_deep_think_system_prompt_option.value());
-    } else {
-        config.custom_deep_think_system_prompt_option = std::nullopt;
     }
 
     const auto db_url = std::getenv("AIBOT_MSG_DB_URL");

@@ -82,6 +82,14 @@ namespace bot_adapter {
                          out_func);
         }
 
+        inline std::optional<std::reference_wrapper<const GroupWrapper>>
+        fetch_group_member_info(qq_id_t group_id) const {
+            const auto &map = group_info_map.read();
+            if (auto iter = map->find(group_id); iter != map->cend()) {
+                return std::cref(iter->second);
+            }
+            return std::nullopt;
+        }
 
         void update_group_info_sync();
 

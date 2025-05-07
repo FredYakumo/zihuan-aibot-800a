@@ -224,7 +224,7 @@ namespace rag {
 
     // }
 
-    std::string url_search_content(const std::vector<std::string> &url_list) {
+    std::optional<std::string> url_search_content(const std::vector<std::string> &url_list) {
         std::string results {"(以下引用了一些网页链接和它的内容，由于这个输入用户看不到，所以请在回答中列出概要或者详细的结果[根据用户的指示]):\n"};
         nlohmann::json request_body{{"urls", url_list}, {"extract_depth", "advanced"}};
 
@@ -236,12 +236,17 @@ namespace rag {
 
         if (r.status_code != 200) {
             spdlog::error("请求失败: {}", r.text);
+            return std::nullopt
         }
         try {
 
             auto j = nlohmann::json::parse(r.text);
+            auto res = j["results"];
+            if (res.empty()) {
+                return std::nullopt;
+            }
 
-            for (const auto &item : j["results"]) {
+            for (const auto &item : res) {
                 results.append(item.value("url", ""));
                 results += ',';
                 results.append(item.value("raw_content", ""));
@@ -249,6 +254,7 @@ namespace rag {
             }
         } catch (const nlohmann::json::exception &e) {
             spdlog::error("JSON解析失败: {}", e.what());
+            return std::nullopt;
         }
         return results;
     }

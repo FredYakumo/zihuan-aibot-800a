@@ -2,6 +2,7 @@
 #include "adapter_message.h"
 #include "adapter_model.h"
 #include "bot_adapter.h"
+#include "config.h"
 #include "global_data.h"
 #include "llm.h"
 #include "msg_prop.h"
@@ -258,9 +259,16 @@ namespace bot_cmd {
             }
 
             auto net_search_res = rag::url_search_content(url_list);
-            spdlog::info(net_search_res);
-            *context.msg_prop.plain_content = replace_keyword_and_parentheses_content(search, "#url", net_search_res);
-            process_llm(context, net_search_res);
+            if (net_search_res.has_value()) {
+                const auto &res = net_search_res.value();
+                spdlog::info(net_search_res);
+                *context.msg_prop.plain_content = replace_keyword_and_parentheses_content(search, "#url", res);
+                process_llm(context, net_search_res);
+            } else {
+                context.adapter.send_replay_msg(*context.e->sender_ptr, bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage{
+                    fmt::format("{}打开url: {}失败, 请重试.", context.adapter.get_bot_profile().name, search)
+                }));
+            }
         }).detach();
 
         return bot_cmd::CommandRes{true};

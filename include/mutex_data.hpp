@@ -32,7 +32,7 @@ template <typename T> class MutexData {
 
     template <typename... Args> explicit MutexData(Args &&...args) : m_data(std::forward<Args>(args)...) {}
 
-    ReadLock read() {
+    ReadLock read() const {
         std::shared_lock lock(m_mutex);
         return ReadLock(m_data, std::move(lock));
     }

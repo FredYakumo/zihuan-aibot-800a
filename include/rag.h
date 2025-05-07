@@ -46,7 +46,7 @@ namespace rag {
 
     std::vector<NetSearchImage> net_search_image(const std::string_view query);
 
-    std::string url_search_content(const std::vector<std::string> &url_list);
+    std::optional<std::string> url_search_content(const std::vector<std::string> &url_list);
 
     
 } // namespace rag

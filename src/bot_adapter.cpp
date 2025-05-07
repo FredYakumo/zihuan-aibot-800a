@@ -476,4 +476,6 @@ namespace bot_adapter {
         return std::move(ret);
     }
 
+    
+
 } // namespace bot_adapter

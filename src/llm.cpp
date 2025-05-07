@@ -21,7 +21,7 @@ std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot
     return fmt::format(
         "你的名字叫{}(qq号{}),性别是: {}，{}。当前时间是: {}，当前跟你聊天的群友的名字叫\"{}\"(qq号{})，",
         bot_profile.name, bot_profile.id, bot_adapter::to_chs_string(bot_profile.sex),
-        (is_deep_think && config.custom_deep_think_system_prompt_option)
+        (is_deep_think && config.custom_deep_think_system_prompt_option.has_value())
             ? *config.custom_deep_think_system_prompt_option
             : config.custom_system_prompt,
         get_current_time_formatted(), sender.name, sender.id);
@@ -30,7 +30,8 @@ std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot
 ChatMessage get_llm_response(const nlohmann::json &msg_json, bool is_deep_think = false) {
     nlohmann::json body = {{"model", is_deep_think ? config.llm_deep_think_model_name : config.llm_model_name},
                            {"messages", msg_json},
-                           {"stream", false}};
+                           {"stream", false},
+                        {"temperature", is_deep_think? 0.0 : 1.3}};
     const auto json_str = body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
     spdlog::info("llm body: {}", json_str);
     cpr::Response response =
