@@ -236,7 +236,7 @@ namespace rag {
 
         if (r.status_code != 200) {
             spdlog::error("请求失败: {}", r.text);
-            return std::nullopt
+            return std::nullopt;
         }
         try {
 

@@ -261,9 +261,9 @@ namespace bot_cmd {
             auto net_search_res = rag::url_search_content(url_list);
             if (net_search_res.has_value()) {
                 const auto &res = net_search_res.value();
-                spdlog::info(net_search_res);
+                spdlog::info(res);
                 *context.msg_prop.plain_content = replace_keyword_and_parentheses_content(search, "#url", res);
-                process_llm(context, net_search_res);
+                process_llm(context, res);
             } else {
                 context.adapter.send_replay_msg(*context.e->sender_ptr, bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage{
                     fmt::format("{}打开url: {}失败, 请重试.", context.adapter.get_bot_profile().name, search)
