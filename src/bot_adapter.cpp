@@ -302,15 +302,20 @@ namespace bot_adapter {
     }
 
     void
-    BotAdapter::send_replay_msg(const Sender &sender, const MessageChainPtrList &message_chain,
+    BotAdapter::send_replay_msg(const Sender &sender, const MessageChainPtrList &message_chain, bool at_target,
                                 std::optional<std::function<void(uint64_t &out_message_id)>> out_message_id_option) {
         const auto sync_id = generate_send_replay_sync_id(sender);
         spdlog::info("Send replay message to {}({}), sync id: {}", sender.name, sender.id, sync_id);
 
         if (const auto &group_sender = try_group_sender(sender)) {
-            MessageChainPtrList msg_chain_list =
-                make_message_chain_list(AtTargetMessage(sender.id), PlainTextMessage(" "));
-            msg_chain_list.insert(msg_chain_list.cend(), message_chain.cbegin(), message_chain.cend());
+            MessageChainPtrList msg_chain_list;
+            if (at_target) {
+                MessageChainPtrList msg_chain_list =
+                    make_message_chain_list(AtTargetMessage(sender.id), PlainTextMessage(" "));
+                msg_chain_list.insert(msg_chain_list.cend(), message_chain.cbegin(), message_chain.cend());
+            } else {
+                msg_chain_list = message_chain;
+            }
 
             send_group_message(group_sender->get().group, msg_chain_list);
         } else {
@@ -318,7 +323,7 @@ namespace bot_adapter {
         }
     }
 
-    void BotAdapter::send_long_plain_text_replay(const Sender &sender, const std::string_view text,
+    void BotAdapter::send_long_plain_text_replay(const Sender &sender, const std::string_view text, bool at_target,
                                                  uint64_t msg_length_limit) {
         const auto sync_id_base = generate_send_replay_sync_id(sender);
 
@@ -333,8 +338,10 @@ namespace bot_adapter {
             send_func = [this, group_sender](const std::string_view sync_id, const MessageChainPtrList &msg_chain) {
                 send_group_message(group_sender->get().group, msg_chain, sync_id);
             };
-            spdlog::info("输出长文信息: @target");
-            send_func(fmt::format("{}_at", sync_id_base), make_message_chain_list(AtTargetMessage(sender.id)));
+            if (at_target) {
+                spdlog::info("输出长文信息: @target");
+                send_func(fmt::format("{}_at", sync_id_base), make_message_chain_list(AtTargetMessage(sender.id)));
+            }
         } else {
             send_func = [this, sender](const std::string_view sync_id, const MessageChainPtrList &msg_chain) {
                 send_message(sender, msg_chain, sync_id);
@@ -459,7 +466,7 @@ namespace bot_adapter {
             const qq_id_t id = get_optional(member, "id").value_or(UNKNOWN_ID);
             const std::string member_name = get_optional(member, "memberName").value_or(EMPTY_JSON_STR_VALUE);
             spdlog::debug("Group {}({}) Fetch member info: {}({})", group_info.name, group_info.group_id, member_name,
-                         id);
+                          id);
             GroupMemberInfo member_info{
                 id,
                 group_info.group_id,
@@ -475,7 +482,5 @@ namespace bot_adapter {
         }
         return std::move(ret);
     }
-
-    
 
 } // namespace bot_adapter

@@ -7,3 +7,5 @@ logs/vec_db.log
 export_knowledge.csv
 config.yaml
 **/__pycache__/**
+.VSCodeCounter/**
+**/.DS_Store

@@ -42,6 +42,8 @@ struct Config {
 
     uint64_t update_group_info_period_sec = 1800;
 
+    std::string think_image_url;
+
     inline static Config &instance() {
         static Config config;
         return config;

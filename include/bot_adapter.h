@@ -66,10 +66,10 @@ namespace bot_adapter {
             std::optional<std::function<void(uint64_t &out_message_id)>> out_message_id_option = std::nullopt);
 
         void send_replay_msg(
-            const Sender &sender, const MessageChainPtrList &message_chain,
+            const Sender &sender, const MessageChainPtrList &message_chain, bool at_target = true,
             std::optional<std::function<void(uint64_t &out_message_id)>> out_message_id_option = std::nullopt);
 
-        void send_long_plain_text_replay(const Sender &sender, const std::string_view text,
+        void send_long_plain_text_replay(const Sender &sender, const std::string_view text, bool at_target = true,
                                          uint64_t msg_length_limit = MAX_OUTPUT_LENGTH);
 
         void update_bot_profile();
@@ -112,7 +112,7 @@ namespace bot_adapter {
 
         std::optional<nlohmann::json>
         send_command_sync(const bot_adapter::AdapterCommand &cmd,
-                          std::chrono::milliseconds timeout = std::chrono::milliseconds(5000));
+                          std::chrono::milliseconds timeout = std::chrono::milliseconds(20000));
 
         std::queue<std::string> send_cmd_queue;
 

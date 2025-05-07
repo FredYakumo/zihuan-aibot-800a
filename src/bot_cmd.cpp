@@ -58,8 +58,7 @@ namespace bot_cmd {
             chat_session_map->erase(it);
         }
         auto knowledge_map = g_chat_session_knowledge_list_map.write();
-        if (auto it = knowledge_map->find(context.e->sender_ptr->id);
-            it != knowledge_map->cend()) {
+        if (auto it = knowledge_map->find(context.e->sender_ptr->id); it != knowledge_map->cend()) {
             knowledge_map->erase(it);
         }
         if ((context.msg_prop.plain_content == nullptr ||
@@ -229,7 +228,15 @@ namespace bot_cmd {
             }
             spdlog::info(net_search_str);
             if (!first_replay_str.empty()) {
-                context.adapter.send_long_plain_text_replay(*context.e->sender_ptr, first_replay_str);
+                context.adapter.send_long_plain_text_replay(*context.e->sender_ptr, first_replay_str, false);
+
+                if (context.is_deep_think) {
+                    context.adapter.send_replay_msg(*context.e->sender_ptr,
+                                                    bot_adapter::make_message_chain_list(
+                                                        bot_adapter::PlainTextMessage{"正在思思考中..."},
+                                                        bot_adapter::ImageMessage{Config::instance().think_image_url}),
+                                                    false);
+                }
             }
             *context.msg_prop.plain_content = replace_str(search, "#联网", net_search_str);
             process_llm(context, net_search_str);
@@ -271,9 +278,10 @@ namespace bot_cmd {
                 *context.msg_prop.plain_content = replace_keyword_and_parentheses_content(search, "#url", res);
                 process_llm(context, res);
             } else {
-                context.adapter.send_replay_msg(*context.e->sender_ptr, bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage{
-                    fmt::format("{}打开url: {}失败, 请重试.", context.adapter.get_bot_profile().name, search)
-                }));
+                context.adapter.send_replay_msg(
+                    *context.e->sender_ptr,
+                    bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage{
+                        fmt::format("{}打开url: {}失败, 请重试.", context.adapter.get_bot_profile().name, search)}));
             }
         }).detach();
 
