@@ -10,7 +10,6 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <optional>
-#include <stdexcept>
 #include <string>
 #include <unordered_map>
 

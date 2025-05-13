@@ -6,9 +6,7 @@
 #include "adapter_message.h"
 #include "adapter_model.h"
 #include "constants.hpp"
-#include "get_optional.hpp"
 #include "mutex_data.hpp"
-#include "utils.h"
 #include <cstdint>
 #include <easywsclient.hpp>
 #include <functional>
