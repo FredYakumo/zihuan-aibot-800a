@@ -80,7 +80,7 @@ void load_list_config(const YAML::Node& node, const std::string& yaml_key,
     // 从环境变量加载
     if (auto val = get_var_from_env(env_var)) {
         for (auto&& e : SplitString(*val, ',')) {
-            std::string trimmed = ltrim(rtrim(e));
+            std::string trimmed {ltrim(rtrim(e))};
             target_set.insert(trimmed);
             spdlog::info("[ENV] Parsed {}: {}", env_var, trimmed);
         }
