@@ -12,6 +12,13 @@
 #include <vector>
 
 namespace neural_network {
+
+    Ort::Env &get_onnx_runtime();
+
+    void init_onnx_runtime();
+
+    Ort::SessionOptions get_onnx_session_opts();
+
     inline std::string load_bytes_from_file(const std::string &path) {
         std::ifstream fs(path, std::ios::in | std::ios::binary);
         if (fs.fail()) {
@@ -76,7 +83,7 @@ namespace neural_network {
         }
 
         inline std::vector<token_id_vec_with_mask_t> batch_encode(const std::vector<std::string> &batch_text,
-                                                             std::optional<token_id_data_t> padding = 0) {
+                                                                  std::optional<token_id_data_t> padding = 0) {
             size_t max_vec_dim = 0;
             std::vector<token_id_vec_with_mask_t> res;
             for (const auto &text : batch_text) {
@@ -109,8 +116,7 @@ namespace neural_network {
     class ONNXEmbedder {
       public:
         ONNXEmbedder(const std::string &model_path)
-            : m_env(ORT_LOGGING_LEVEL_WARNING, "Embedding"),
-              m_session(m_env, model_path.c_str(), Ort::SessionOptions{}) {
+            : m_session(get_onnx_runtime(), model_path.c_str(), Ort::SessionOptions{}) {
 
             // Get input/output info
 
@@ -139,19 +145,15 @@ namespace neural_network {
             const size_t seq_len = token_ids.size();
             const std::vector<int64_t> input_shape = {1, static_cast<token_id_data_t>(seq_len)};
 
-            // Prepare input tensor
-            Ort::MemoryInfo memory_info =
-                Ort::MemoryInfo::CreateCpu(OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault);
-
             std::vector<Ort::Value> input_tensors;
             std::vector<int64_t> input_ids(token_ids.cbegin(), token_ids.cend());
             std::vector<int64_t> masks(attention_mask.cbegin(), attention_mask.cend());
 
             // Create input_ids, attention_mask tensor
             input_tensors.emplace_back(Ort::Value::CreateTensor<int64_t>(
-                memory_info, input_ids.data(), input_ids.size(), input_shape.data(), input_shape.size()));
+                m_memory_info, input_ids.data(), input_ids.size(), input_shape.data(), input_shape.size()));
 
-            input_tensors.emplace_back(Ort::Value::CreateTensor<int64_t>(memory_info, masks.data(), masks.size(),
+            input_tensors.emplace_back(Ort::Value::CreateTensor<int64_t>(m_memory_info, masks.data(), masks.size(),
                                                                          input_shape.data(), input_shape.size()));
 
             // inference
@@ -193,8 +195,99 @@ namespace neural_network {
 
             return pooled;
         }
-        Ort::Env m_env;
+
+        Ort::MemoryInfo m_memory_info =
+            Ort::MemoryInfo::CreateCpu(OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault);
+
         Ort::Session m_session;
+        std::vector<const char *> m_input_names;
+        std::vector<Ort::AllocatedStringPtr> m_input_names_ptr;
+        std::vector<const char *> m_output_names;
+        std::vector<Ort::AllocatedStringPtr> m_output_names_ptr;
+    };
+
+    class CosineSimilarityONNXModel {
+      public:
+        CosineSimilarityONNXModel(const std::string &model_path)
+            : m_session(get_onnx_runtime(), model_path.c_str(), get_onnx_session_opts()), m_allocator() {
+            Ort::AllocatorWithDefaultOptions allocator;
+
+            for (size_t i = 0; i < m_session.GetInputCount(); ++i) {
+                Ort::AllocatedStringPtr name_ptr = m_session.GetInputNameAllocated(i, allocator);
+                const char *name = name_ptr.get();
+                spdlog::debug("CosineSimilarityModel: input name: {}", name);
+                m_input_names.push_back(name);
+                m_input_names_ptr.emplace_back(std::move(name_ptr));
+            }
+            m_output_names.reserve(1);
+            m_output_names_ptr.reserve(1);
+            for (size_t i = 0; i < m_session.GetOutputCount(); ++i) {
+                Ort::AllocatedStringPtr name_ptr = m_session.GetOutputNameAllocated(i, allocator);
+                const char *name = name_ptr.get();
+                spdlog::debug("CosineSimilarityModel: output name: {}", name);
+                m_output_names_ptr.emplace_back(std::move(name_ptr));
+            }
+        }
+
+        std::vector<float> inference(std::vector<float> target, std::vector<std::vector<float>> value_list) {
+            // 展平二维value_list到一维连续数组
+            std::vector<float> flattened_values;
+            for (const auto &vec : value_list) {
+                // 确保每个子vector都是512维
+                if (vec.size() != 512) {
+                    throw std::invalid_argument("All vectors in value_list must be size 512");
+                }
+                flattened_values.insert(flattened_values.end(), vec.begin(), vec.end());
+            }
+
+            // 创建target张量 (shape [512])
+            std::vector<int64_t> target_shape{512};
+            auto target_tensor = Ort::Value::CreateTensor<float>(m_memory_info, target.data(), target.size(),
+                                                                 target_shape.data(), target_shape.size());
+
+            // 创建value张量 (shape [num_samples, 512])
+            std::vector<int64_t> value_shape {static_cast<int64_t>(value_list.size()), 512};
+            auto value_tensor =
+                Ort::Value::CreateTensor<float>(m_memory_info, flattened_values.data(), flattened_values.size(),
+                                                value_shape.data(), value_shape.size());
+
+            // 准备输入张量列表
+            std::vector<Ort::Value> input_tensors;
+            input_tensors.push_back(std::move(target_tensor));
+            input_tensors.push_back(std::move(value_tensor));
+
+            const char *input_names[] = {"target", "value_list"};
+            const char *output_names[] = {"output"};
+
+            auto output_tensors = m_session.Run(Ort::RunOptions{nullptr}, input_names, input_tensors.data(),
+                                                 input_tensors.size(), output_names, 1);
+
+            // 检查输出有效性
+            if (output_tensors.empty() || !output_tensors[0].IsTensor()) {
+                throw std::runtime_error("Inference failed: invalid output tensors");
+            }
+
+            // 获取输出数据
+            float *output_data = output_tensors[0].GetTensorMutableData<float>();
+            auto output_shape = output_tensors[0].GetTensorTypeAndShapeInfo().GetShape();
+
+            // 计算输出元素总数
+            size_t output_size = 1;
+            for (auto dim : output_shape) {
+                if (dim < 0) {
+                    throw std::runtime_error("Dynamic dimensions in output are not supported");
+                }
+                output_size *= dim;
+            }
+
+            // 拷贝结果到vector
+            return std::vector<float>(output_data, output_data + output_size);
+        }
+
+      private:
+        Ort::Session m_session;
+        Ort::MemoryInfo m_memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+        Ort::AllocatorWithDefaultOptions m_allocator;
         std::vector<const char *> m_input_names;
         std::vector<Ort::AllocatedStringPtr> m_input_names_ptr;
         std::vector<const char *> m_output_names;

@@ -60,6 +60,16 @@ namespace bot_adapter {
                      std::optional<std::string_view> sync_id_option = std::nullopt,
                      std::optional<std::function<void(uint64_t &out_message_id)>> out_message_id_option = std::nullopt);
 
+        // /**
+        // Send message to friend (async version)
+        // with timeout retry
+        //  */
+        // void
+        // send_message_async(const Sender &sender, const MessageChainPtrList &message_chain,
+        //     size_t max_retry_count = 3,
+        //     std::chrono::milliseconds timeout = std::chrono::milliseconds(10000));
+        
+
         void send_group_message(
             const Group &group, const MessageChainPtrList &message_chain,
             std::optional<std::string_view> sync_id_option = std::nullopt,

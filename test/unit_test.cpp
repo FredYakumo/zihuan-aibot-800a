@@ -3,7 +3,7 @@
 #include "utils.h"
 #include <gtest/gtest.h>
 #include <iterator>
-#include <neural_network.h>
+#include <neural_network/nn.h>
 #include <string>
 // #include <onnxruntime/core/session/onnxruntime_cxx_api.
 
@@ -98,6 +98,8 @@ TEST(UnitTest, TestTokenizer) {
 }
 
 TEST(UnitTest, TestCosineSimilarity) {
+    neural_network::init_onnx_runtime();
+    
     const std::vector<std::string> batch_text{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust"};
     std::vector<neural_network::token_id_vec_with_mask_t> batch_token;
     std::vector<std::vector<float>> batch_embedding;

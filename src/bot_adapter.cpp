@@ -122,6 +122,13 @@ namespace bot_adapter {
                     }
                 }
                 ret.push_back(std::make_shared<ForwardMessage>(node_vec, display_option));
+            } else if (*type == "Image") {
+                const auto url = get_optional<std::string>(msg, "url");
+                if (url.has_value()) {
+                    ret.push_back(std::make_shared<ImageMessage>(*url));
+                } else {
+                    ret.push_back(std::make_shared<PlainTextMessage>("[图片加载失败]"));
+                }
             }
         }
 
@@ -310,8 +317,7 @@ namespace bot_adapter {
         if (const auto &group_sender = try_group_sender(sender)) {
             MessageChainPtrList msg_chain_list;
             if (at_target) {
-                msg_chain_list =
-                    make_message_chain_list(AtTargetMessage(sender.id), PlainTextMessage(" "));
+                msg_chain_list = make_message_chain_list(AtTargetMessage(sender.id), PlainTextMessage(" "));
                 msg_chain_list.insert(msg_chain_list.cend(), message_chain.cbegin(), message_chain.cend());
             } else {
                 msg_chain_list = message_chain;
@@ -482,5 +488,21 @@ namespace bot_adapter {
         }
         return std::move(ret);
     }
+
+    // void BotAdapter::send_message_async(const Sender &sender, const MessageChainPtrList &message_chain,
+    //                                     size_t max_retry_count, std::chrono::milliseconds timeout) {
+    //     std::promise<nlohmann::json> promise;
+    //     auto future = promise.get_future();
+    //     auto sync_id = fmt::format("send_message_async_to_{}_{}", sender.id, get_current_time_formatted());
+    //     send_message(sender, message_chain, sync_id, [&promise](const nlohmann::json &res) { promise.set_value(res); });
+
+    //     if (future.wait_for(timeout) == std::future_status::timeout) {
+    //         spdlog::error("Send command(sync) '{}'(sync id: {}) timeout. payload: {}", command.command, command.sync_id,
+    //                       command.to_json().dump());
+    //         throw std::runtime_error("Command execution timeout");
+    //     }
+
+    //     return future.get();
+    // }
 
 } // namespace bot_adapter

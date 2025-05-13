@@ -4,6 +4,7 @@
 #include "config.h"
 #include "database.h"
 #include "event.h"
+#include "neural_network/nn.h"
 #include <cstdlib>
 #include <cstring>
 #include <exception>
@@ -49,6 +50,7 @@ int main(int argc, char *argv[]) {
     } catch (std::exception &e) {
         spdlog::error("Init database connection error: {}", e.what());
     }
+    neural_network::init_onnx_runtime();
 
     if (argc > 1) {
         if (strcmp(argv[1], "init_message_table") == 0) {
