@@ -68,11 +68,12 @@ TEST(UnitTest, GetMessageIdTest) {
 //     adapter.start();
 // }
 
-neural_network::ONNXEmbedder embedder("embedding.onnx");
-const auto tokenizer = neural_network::load_tokenizers("tokenizer/tokenizer.json");
-const auto tokenizer_wrapper = neural_network::TokenizerWrapper(tokenizer, neural_network::TokenizerConfig());
-
 TEST(UnitTest, TestTokenizer) {
+    neural_network::init_onnx_runtime();
+
+    neural_network::ONNXEmbedder embedder("embedding.onnx");
+    const auto tokenizer = neural_network::load_tokenizers("tokenizer/tokenizer.json");
+    const auto tokenizer_wrapper = neural_network::TokenizerWrapper(tokenizer, neural_network::TokenizerConfig());
 
     const std::vector<std::string> batch_text{"如何进行杀猪盘", "杀猪盘"};
     std::vector<neural_network::token_id_vec_with_mask_t> batch_token;
@@ -99,7 +100,11 @@ TEST(UnitTest, TestTokenizer) {
 
 TEST(UnitTest, TestCosineSimilarity) {
     neural_network::init_onnx_runtime();
-    
+
+    neural_network::ONNXEmbedder embedder("embedding.onnx");
+    const auto tokenizer = neural_network::load_tokenizers("tokenizer/tokenizer.json");
+    const auto tokenizer_wrapper = neural_network::TokenizerWrapper(tokenizer, neural_network::TokenizerConfig());
+
     const std::vector<std::string> batch_text{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust"};
     std::vector<neural_network::token_id_vec_with_mask_t> batch_token;
     std::vector<std::vector<float>> batch_embedding;
@@ -125,7 +130,6 @@ TEST(UnitTest, TestCosineSimilarity) {
     cos_similarity_net.load_param("cosine_sim.ncnn.param");
     cos_similarity_net.load_model("cosine_sim.ncnn.bin");
 
-
     std::vector<float> &target_emb = target_embedding;
     ncnn::Mat in0(1, target_emb.size(), target_emb.data()); // 形状: 1×嵌入维度
 
@@ -146,11 +150,9 @@ TEST(UnitTest, TestCosineSimilarity) {
     }
     ncnn::Mat in1(batch_size, embedding_dim, in1_data.data());
 
-
     ncnn::Extractor ex = cos_similarity_net.create_extractor();
     ex.input("in0", in0);
     ex.input("in1", in1);
-
 
     ncnn::Mat out;
     ex.extract("out0", out);
@@ -162,5 +164,42 @@ TEST(UnitTest, TestCosineSimilarity) {
 
     for (int i = 0; i < batch_size; ++i) {
         spdlog::info("Similarity[{}]: {}", i, out[i]);
+    }
+}
+
+TEST(UnitTest, TestCosineSimilarityOnnx) {
+    neural_network::init_onnx_runtime();
+
+    neural_network::ONNXEmbedder embedder("embedding.onnx");
+    const auto tokenizer = neural_network::load_tokenizers("tokenizer/tokenizer.json");
+    const auto tokenizer_wrapper = neural_network::TokenizerWrapper(tokenizer, neural_network::TokenizerConfig());
+
+    const std::vector<std::string> batch_text{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的价值"};
+    std::vector<neural_network::token_id_vec_with_mask_t> batch_token;
+    std::vector<std::vector<float>> batch_embedding;
+    for (const auto &text : batch_text) {
+        auto token_mask = tokenizer_wrapper.encode_with_mask(text);
+        spdlog::info("\"{}\" tokens: [{}], mask: [{}]", text,
+                     join_str(std::cbegin(token_mask.first), std::cend(token_mask.first), ",",
+                              [](auto i) { return std::to_string(i); }),
+                     join_str(std::cbegin(token_mask.second), std::cend(token_mask.second), ",",
+                              [](auto i) { return std::to_string(i); }));
+        auto embedding = embedder.embed(token_mask.first, token_mask.second);
+        batch_token.emplace_back(std::move(token_mask));
+        spdlog::info("Embedding dim: {}", embedding.size());
+        spdlog::info("embedding:\n[{}]...", join_str(std::cbegin(embedding), std::cbegin(embedding) + 100, ",",
+                                                     [](auto f) { return std::to_string(f); }));
+        batch_embedding.emplace_back(std::move(embedding));
+    }
+
+    neural_network::token_id_vec_with_mask_t target_token = tokenizer_wrapper.encode_with_mask("杀猪盘");
+    auto target_embedding = embedder.embed(target_token.first, target_token.second);
+
+    neural_network::CosineSimilarityONNXModel model{"cosine_sim.onnx"};
+
+    auto res = model.inference(target_embedding, batch_embedding);
+    spdlog::info("Similarity:");
+    for (const auto r : res) {
+        spdlog::info(r);
     }
 }

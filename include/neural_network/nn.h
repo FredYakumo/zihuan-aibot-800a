@@ -206,6 +206,7 @@ namespace neural_network {
         std::vector<Ort::AllocatedStringPtr> m_output_names_ptr;
     };
 
+    constexpr size_t COSINE_SIMILARITY_INPUT_EMB_SIZE = 1024;
     class CosineSimilarityONNXModel {
       public:
         CosineSimilarityONNXModel(const std::string &model_path)
@@ -233,20 +234,20 @@ namespace neural_network {
             // 展平二维value_list到一维连续数组
             std::vector<float> flattened_values;
             for (const auto &vec : value_list) {
-                // 确保每个子vector都是512维
-                if (vec.size() != 512) {
-                    throw std::invalid_argument("All vectors in value_list must be size 512");
+                // 确保每个子vector都是COSINE_SIMILARITY_INPUT_EMB_SIZE维
+                if (vec.size() != COSINE_SIMILARITY_INPUT_EMB_SIZE) {
+                    throw std::invalid_argument(fmt::format("All vectors in value_list must be size {}", COSINE_SIMILARITY_INPUT_EMB_SIZE));
                 }
                 flattened_values.insert(flattened_values.end(), vec.begin(), vec.end());
             }
 
-            // 创建target张量 (shape [512])
-            std::vector<int64_t> target_shape{512};
+            // 创建target张量 (shape [1, COSINE_SIMILARITY_INPUT_EMB_SIZE])
+            std::vector<int64_t> target_shape{1, COSINE_SIMILARITY_INPUT_EMB_SIZE};
             auto target_tensor = Ort::Value::CreateTensor<float>(m_memory_info, target.data(), target.size(),
                                                                  target_shape.data(), target_shape.size());
 
-            // 创建value张量 (shape [num_samples, 512])
-            std::vector<int64_t> value_shape {static_cast<int64_t>(value_list.size()), 512};
+            // 创建value张量 (shape [num_samples, COSINE_SIMILARITY_INPUT_EMB_SIZE])
+            std::vector<int64_t> value_shape {static_cast<int64_t>(value_list.size()), COSINE_SIMILARITY_INPUT_EMB_SIZE};
             auto value_tensor =
                 Ort::Value::CreateTensor<float>(m_memory_info, flattened_values.data(), flattened_values.size(),
                                                 value_shape.data(), value_shape.size());

@@ -32,8 +32,8 @@ if __name__ == "__main__":
     embedder.tokenizer.save_pretrained("tokenizer")
     
 
-    input_target = torch.randn(1, 512)
-    input_value_list = torch.randn(3, 512)
+    input_target = torch.randn(1, 1024)
+    input_value_list = torch.randn(3, 1024)
 
 
     dynamic_axes = {
