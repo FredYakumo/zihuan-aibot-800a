@@ -51,7 +51,10 @@ if __name__ == "__main__":
     dict_path = sys.argv[2]
     stop_words_path = sys.argv[3]
     
-    df = pd.read_csv(file_path)
+    if file_path.endswith(".csv"):
+        df = pd.read_csv(file_path)
+    elif file_path.endswith(".json"):
+        df = pd.read_json(file_path)
     logger.info(df)
     jieba.load_userdict(dict_path)
     logger.info(jieba.user_word_tag_tab)
@@ -81,7 +84,10 @@ if __name__ == "__main__":
                     print(f"Use jieba cut keywords: {','.join(keyword_list)}")
 
                 creator_name = e["creator_name"] if not pd.isna(e["creator_name"]) else ""
-                create_time = convert_to_rfc3339(e["create_time"]) if not pd.isna(e["create_time"]) else ""
+                if "create_time" not in df.columns:
+                    create_time = datetime.datetime.now(pytz.UTC).isoformat()
+                else:
+                    create_time = convert_to_rfc3339(e["create_time"]) if not pd.isna(e["create_time"]) else datetime.datetime.now(pytz.UTC).isoformat()
                 
                 # Calculate embeddings for keywords
                 keyword_text = " ".join(keyword_list)

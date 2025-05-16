@@ -214,21 +214,31 @@ namespace bot_cmd {
             auto search_text = replace_str(search, "#联网", "");
             auto net_search_res = rag::net_search_content(search_text);
             std::string net_search_str;
-            std::string first_replay_str;
+            std::vector<bot_adapter::ForwardMessageNode> first_replay;
+
             if (net_search_res.empty()) {
                 net_search_str = fmt::format("联网搜索了{}, 但是没有搜到任何东西。", search_text);
             } else {
                 net_search_str += "\n以下是联网查询的结果, "
                                   "由于这个输入用户看不到，所以请在回答中列出概要或者详细的结果(根据用户的指示):\n";
-                first_replay_str += "参考资料:\n";
+                first_replay.emplace_back(
+                    context.adapter.get_bot_profile().id, std::chrono::system_clock::now(),
+                    context.adapter.get_bot_profile().name,
+                    bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("参考资料")));
                 for (const auto res : net_search_res) {
                     net_search_str.append(fmt::format("{},{}:{}\n", res.url, res.title, res.content));
-                    first_replay_str.append(fmt::format("{}({}), 置信度: {}\n", res.title, res.url, res.score));
+                    first_replay.emplace_back(
+                        context.adapter.get_bot_profile().id, std::chrono::system_clock::now(),
+                        context.adapter.get_bot_profile().name,
+                        bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
+                            fmt::format("关联度: {:.2f}%\n{}({})", res.score * 100.0f, res.title, res.url))));
                 }
             }
             spdlog::info(net_search_str);
-            if (!first_replay_str.empty()) {
-                context.adapter.send_long_plain_text_replay(*context.e->sender_ptr, first_replay_str, false);
+            if (!first_replay.empty()) {
+                context.adapter.send_replay_msg(*context.e->sender_ptr,
+                                                bot_adapter::make_message_chain_list(bot_adapter::ForwardMessage(
+                                                    first_replay, bot_adapter::DisplayNode(std::string("联网搜索结果")))));
             }
             *context.msg_prop.plain_content = replace_str(search, "#联网", net_search_str);
             process_llm(context, net_search_str);

@@ -101,7 +101,7 @@ namespace bot_adapter {
                 }
                 ret.push_back(std::make_shared<QuoteMessage>(quote_text, id.value_or(0)));
             } else if (*type == "Forward") {
-                const auto display_option = get_optional(msg, "display");
+                const nlohmann::json display_option = get_optional(msg, "display");
                 std::vector<ForwardMessageNode> node_vec;
                 if (const auto &node_list = get_optional<nlohmann::json>(msg, "nodeList")) {
                     for (const nlohmann::json &node : *node_list) {

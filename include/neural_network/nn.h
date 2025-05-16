@@ -19,6 +19,8 @@ namespace neural_network {
 
     Ort::SessionOptions get_onnx_session_opts();
 
+    Ort::SessionOptions get_onnx_session_opts_core_ml();
+
     inline std::string load_bytes_from_file(const std::string &path) {
         std::ifstream fs(path, std::ios::in | std::ios::binary);
         if (fs.fail()) {
@@ -209,8 +211,8 @@ namespace neural_network {
     constexpr size_t COSINE_SIMILARITY_INPUT_EMB_SIZE = 1024;
     class CosineSimilarityONNXModel {
       public:
-        CosineSimilarityONNXModel(const std::string &model_path)
-            : m_session(get_onnx_runtime(), model_path.c_str(), get_onnx_session_opts()), m_allocator() {
+        CosineSimilarityONNXModel(const std::string &model_path, const Ort::SessionOptions &options = get_onnx_session_opts())
+            : m_session(get_onnx_runtime(), model_path.c_str(), options), m_allocator() {
             Ort::AllocatorWithDefaultOptions allocator;
 
             for (size_t i = 0; i < m_session.GetInputCount(); ++i) {

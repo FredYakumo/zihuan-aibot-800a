@@ -120,8 +120,30 @@ namespace bot_adapter {
         std::optional<uint64_t> message_ref;
     };
 
+    struct DisplayNode {
+        std::string title;
+        std::optional<std::string> summary;
+
+        DisplayNode(std::string title, std::optional<std::string> summary = std::nullopt) : title(std::move(title)), summary(std::move(summary)) {}
+
+        DisplayNode(const nlohmann::json &json) {
+            title = json.at("title").get<std::string>();
+            if (json.contains("summary")) {
+                summary = json.at("summary").get<std::string>();
+            }
+        }
+
+        nlohmann::json to_json() const {
+            nlohmann::json ret_json {{"title", title}};
+            if (summary) {
+                ret_json["summary"] = *summary;
+            }
+            return ret_json;
+        }
+    };
+
     struct ForwardMessage : public MessageBase {
-        ForwardMessage(std::vector<ForwardMessageNode> nodes, std::optional<std::string> display = std::nullopt)
+        ForwardMessage(std::vector<ForwardMessageNode> nodes, std::optional<DisplayNode> display = std::nullopt)
             : node_list(std::move(nodes)), display(display) {}
 
         std::string_view get_type() const override { return "Forward"; }
@@ -129,7 +151,7 @@ namespace bot_adapter {
         nlohmann::json to_json() const override {
             nlohmann::json json_msg = {{"type", get_type()}, {"nodeList", nlohmann::json::array()}};
             if (const auto &d = display) {
-                json_msg["display"] = *d;
+                json_msg["display"] = d->to_json();
             }
             for (const auto &node : node_list) {
                 json_msg["nodeList"].push_back(node.to_json());
@@ -139,7 +161,7 @@ namespace bot_adapter {
         }
 
         std::vector<ForwardMessageNode> node_list;
-        std::optional<std::string> display;
+        std::optional<DisplayNode> display;
     };
 
     struct ImageMessage : public MessageBase {

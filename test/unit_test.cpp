@@ -14,6 +14,13 @@ TEST(UnitTest, MsgPropTest) {
 
 TEST(UnitTest, MainTest) { GTEST_LOG_(INFO) << "Main unit test"; }
 
+TEST(UnitTest, ONNX_RUNTIME) {
+    spdlog::info(Ort::GetVersionString());
+    for (const auto &provider : Ort::GetAvailableProviders()) {
+        spdlog::info("Available provider: {}", provider);
+    }
+}
+
 TEST(UnitTest, BotAdapterTest) {
     spdlog::set_level(spdlog::level::debug);
     // bot_adapter::BotAdapter adapter{"ws://localhost:13378/all"};
@@ -105,7 +112,7 @@ TEST(UnitTest, TestCosineSimilarity) {
     const auto tokenizer = neural_network::load_tokenizers("tokenizer/tokenizer.json");
     const auto tokenizer_wrapper = neural_network::TokenizerWrapper(tokenizer, neural_network::TokenizerConfig());
 
-    const std::vector<std::string> batch_text{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust"};
+    const std::vector<std::string> batch_text{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"};
     std::vector<neural_network::token_id_vec_with_mask_t> batch_token;
     std::vector<std::vector<float>> batch_embedding;
     for (const auto &text : batch_text) {
@@ -174,32 +181,59 @@ TEST(UnitTest, TestCosineSimilarityOnnx) {
     const auto tokenizer = neural_network::load_tokenizers("tokenizer/tokenizer.json");
     const auto tokenizer_wrapper = neural_network::TokenizerWrapper(tokenizer, neural_network::TokenizerConfig());
 
-    const std::vector<std::string> batch_text{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的价值"};
+    std::vector<std::string> batch_text{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的价值"};
     std::vector<neural_network::token_id_vec_with_mask_t> batch_token;
     std::vector<std::vector<float>> batch_embedding;
     for (const auto &text : batch_text) {
         auto token_mask = tokenizer_wrapper.encode_with_mask(text);
-        spdlog::info("\"{}\" tokens: [{}], mask: [{}]", text,
-                     join_str(std::cbegin(token_mask.first), std::cend(token_mask.first), ",",
-                              [](auto i) { return std::to_string(i); }),
-                     join_str(std::cbegin(token_mask.second), std::cend(token_mask.second), ",",
-                              [](auto i) { return std::to_string(i); }));
+        // spdlog::info("\"{}\" tokens: [{}], mask: [{}]", text,
+        //              join_str(std::cbegin(token_mask.first), std::cend(token_mask.first), ",",
+        //                       [](auto i) { return std::to_string(i); }),
+        //              join_str(std::cbegin(token_mask.second), std::cend(token_mask.second), ",",
+        //                       [](auto i) { return std::to_string(i); }));
         auto embedding = embedder.embed(token_mask.first, token_mask.second);
         batch_token.emplace_back(std::move(token_mask));
-        spdlog::info("Embedding dim: {}", embedding.size());
-        spdlog::info("embedding:\n[{}]...", join_str(std::cbegin(embedding), std::cbegin(embedding) + 100, ",",
-                                                     [](auto f) { return std::to_string(f); }));
+        // spdlog::info("Embedding dim: {}", embedding.size());
+        // spdlog::info("embedding:\n[{}]...", join_str(std::cbegin(embedding), std::cbegin(embedding) + 100, ",",
+        //                                              [](auto f) { return std::to_string(f); }));
         batch_embedding.emplace_back(std::move(embedding));
     }
+
+    spdlog::info("正在拷贝额外的向量");
+    const auto emb = batch_embedding[0];
+    for (size_t i = 0; i < 400000; ++i) {
+        batch_embedding.push_back(emb);
+    }
+
+    spdlog::info("开始进行推理");
 
     neural_network::token_id_vec_with_mask_t target_token = tokenizer_wrapper.encode_with_mask("杀猪盘");
     auto target_embedding = embedder.embed(target_token.first, target_token.second);
 
     neural_network::CosineSimilarityONNXModel model{"cosine_sim.onnx"};
 
+    auto start = std::chrono::high_resolution_clock::now();
     auto res = model.inference(target_embedding, batch_embedding);
-    spdlog::info("Similarity:");
-    for (const auto r : res) {
-        spdlog::info(r);
-    }
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+
+    // spdlog::info("Similarity (ONNX):");
+    // for (const auto r : res) {
+    //     spdlog::info(r);
+    // }
+
+    neural_network::CosineSimilarityONNXModel model_core_ml{"cosine_sim.onnx", neural_network::get_onnx_session_opts_core_ml()};
+
+    start = std::chrono::high_resolution_clock::now();
+    auto res_core_ml = model_core_ml.inference(target_embedding, batch_embedding);
+    end = std::chrono::high_resolution_clock::now();
+    auto core_ml_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+
+    // spdlog::info("Similarity (Core ML ONNX):");
+    // for (const auto r : res_core_ml) {
+    //     spdlog::info(r);
+    // }
+
+    spdlog::info("Inference time (ONNX): {} ms", duration);
+    spdlog::info("Inference time (Core ML ONNX): {} ms", core_ml_duration);
 }

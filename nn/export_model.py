@@ -32,9 +32,6 @@ if __name__ == "__main__":
     embedder.tokenizer.save_pretrained("tokenizer")
     
 
-    input_target = torch.randn(1, 1024)
-    input_value_list = torch.randn(3, 1024)
-
 
     dynamic_axes = {
         "target": {1: "feature_dim"},
@@ -42,6 +39,9 @@ if __name__ == "__main__":
         "output": {0: "batch_size"}
     }
     model = CosineSimilarityModel()
+    
+    input_target = torch.randn(1, 1024)
+    input_value_list = torch.randn(3, 1024)
     torch.onnx.export(
   model,
         (input_target, input_value_list),
