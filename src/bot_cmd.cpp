@@ -264,10 +264,9 @@ namespace bot_cmd {
         }
         std::thread([context, search]() {
             spdlog::info("Start url search thread");
-            auto search_text = extract_parentheses_content_after_keyword(search, "#url");
 
             std::vector<std::string> url_list;
-            for (const auto url : SplitString(search_text, ',')) {
+            for (const auto url : SplitString(search, ',')) {
                 auto u = std::string{ltrim(rtrim(url))};
                 spdlog::info("URL: {}", u);
                 url_list.emplace_back(u);

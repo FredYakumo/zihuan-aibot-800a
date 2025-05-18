@@ -1,4 +1,5 @@
 #include "rag.h"
+#include "constants.hpp"
 #include "db_knowledge.hpp"
 #include "get_optional.hpp"
 #include "nlohmann/json_fwd.hpp"
@@ -257,6 +258,12 @@ namespace rag {
             return std::nullopt;
         }
         return results;
+    }
+
+    OptimMessageResult optimize_message_query(qq_id_t id) {
+        return OptimMessageResult {
+            "", ""
+        };
     }
 
 } // namespace rag

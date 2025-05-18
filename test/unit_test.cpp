@@ -39,6 +39,17 @@ TEST(UnitTest, BotAdapterTest) {
     // adapter.start();
 }
 
+TEST(UnitTest, ReplaceString) {
+    std::string str0 = "#联网 abc";
+    std::string new_str0 = replace_str(str0, "#联网", "");
+    EXPECT_EQ(new_str0, " abc");
+
+    std::string str = "abc #联网(123)";
+    std::string keyword = "#联网";
+    std::string new_str = replace_keyword_and_parentheses_content(str, keyword, "");
+    EXPECT_EQ(new_str, "abc ");
+}
+
 constexpr std::string_view test_url = "ws://localhost:13378/all";
 
 TEST(UnitTest, GetMessageIdTest) {

@@ -1,6 +1,8 @@
 #ifndef MSG_DB_H
 #define MSG_DB_H
 
+#include "chat_session.hpp"
+#include "constants.hpp"
 #include "global_data.h"
 #include <cstdint>
 #include <optional>
@@ -32,6 +34,15 @@ namespace rag {
         double score;
     };
 
+    struct OptimMessageResult {
+        std::string function;
+        std::string query_string;
+
+        OptimMessageResult() = default;
+        OptimMessageResult(std::string func, std::string query)
+            : function(std::move(func)), query_string(std::move(query)) {}
+    };
+
     std::vector<std::pair<DBGroupMessage, double>>
     query_group_msg(const std::string_view query, std::optional<uint64_t> group_id_option = std::nullopt);
 
@@ -48,7 +59,7 @@ namespace rag {
 
     std::optional<std::string> url_search_content(const std::vector<std::string> &url_list);
 
-    
+    OptimMessageResult optimize_message_query(qq_id_t id);
 } // namespace rag
 
 #endif
