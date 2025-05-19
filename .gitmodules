@@ -13,3 +13,6 @@
 [submodule "external/tokenizers-cpp"]
 	path = external/tokenizers-cpp
 	url = https://github.com/mlc-ai/tokenizers-cpp
+[submodule "external/ncnn"]
+	path = external/ncnn
+	url = https://github.com/Tencent/ncnn
