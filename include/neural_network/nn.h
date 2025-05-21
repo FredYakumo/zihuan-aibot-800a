@@ -19,6 +19,8 @@ namespace neural_network {
 
     Ort::SessionOptions get_onnx_session_opts();
 
+    Ort::SessionOptions get_onnx_session_opts_tensorrt();
+
     Ort::SessionOptions get_onnx_session_opts_core_ml();
 
     inline std::string load_bytes_from_file(const std::string &path) {

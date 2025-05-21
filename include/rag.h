@@ -4,6 +4,7 @@
 #include "chat_session.hpp"
 #include "constants.hpp"
 #include "global_data.h"
+#include "msg_prop.h"
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -36,11 +37,12 @@ namespace rag {
 
     struct OptimMessageResult {
         std::string function;
+        float query_date;
         std::string query_string;
 
         OptimMessageResult() = default;
-        OptimMessageResult(std::string func, std::string query)
-            : function(std::move(func)), query_string(std::move(query)) {}
+        OptimMessageResult(std::string func, float query_date, std::string query)
+            : function(std::move(func)), query_date(query_date), query_string(std::move(query)) {}
     };
 
     std::vector<std::pair<DBGroupMessage, double>>
@@ -48,7 +50,7 @@ namespace rag {
 
     std::vector<DBKnowledge> query_knowledge(const std::string_view query, bool exactly_match = false);
 
-    void insert_group_msg(uint64_t group_id, const std::string_view group_name,uint64_t sender_id,
+    void insert_group_msg(uint64_t group_id, const std::string_view group_name, uint64_t sender_id,
                           const std::string_view sender_name, const std::string_view content);
 
     void insert_knowledge(const DBKnowledge &knowledge);
@@ -59,7 +61,9 @@ namespace rag {
 
     std::optional<std::string> url_search_content(const std::vector<std::string> &url_list);
 
-    OptimMessageResult optimize_message_query(qq_id_t id);
+    std::optional<OptimMessageResult> optimize_message_query(const bot_adapter::Profile &bot_profile,
+                                              const std::string_view sender_name, qq_id_t sender_id,
+                                              const MessageProperties &message_props);
 } // namespace rag
 
 #endif

@@ -1,9 +1,7 @@
 #include "global_data.h"
 #include "mutex_data.hpp"
-#include "database.h"
 #include <optional>
 #include <set>
-#include "config.h"
 
 /**
  * @brief A global data structure for managing user chat sessions.
@@ -56,3 +54,13 @@ MutexData<std::vector<DBKnowledge>> g_wait_add_knowledge_list;
  * The mutex ensures synchronized access to the map in a multithreaded environment.
  */
 MutexData<std::unordered_map<uint64_t, ChatSession>> g_group_chat_bot_send_msg;
+
+
+std::optional<ChatSession> get_user_chat_session(uint64_t chat_session) {
+    auto chat_session_map = g_chat_session_map.read();
+    auto it = chat_session_map->find(chat_session);
+    if (it != chat_session_map->cend()) {
+        return it->second;
+    }
+    return std::nullopt;
+}

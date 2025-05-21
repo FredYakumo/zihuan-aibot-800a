@@ -16,3 +16,9 @@
 [submodule "external/ncnn"]
 	path = external/ncnn
 	url = https://github.com/Tencent/ncnn
+[submodule "external/onnxruntime"]
+	path = external/onnxruntime
+	url = https://github.com/fredyakumo/onnxruntime.git
+[submodule "external/mysql-connector-cpp"]
+	path = external/mysql-connector-cpp
+	url = git@github.com:mysql/mysql-connector-cpp.git

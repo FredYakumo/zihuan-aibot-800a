@@ -22,4 +22,6 @@ extern MutexData<std::unordered_map<uint64_t, std::set<std::string>>> g_chat_ses
 extern std::pair<std::mutex, std::unordered_map<uint64_t, bool>> g_chat_processing_map;
 extern MutexData<std::vector<DBKnowledge>> g_wait_add_knowledge_list;
 
+std::optional<ChatSession> get_user_chat_session(uint64_t chat_session);
+
 #endif

@@ -65,6 +65,7 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
                     !param.empty()) {
                     // Remove the str which used to be command(param)
                     *msg_prop.plain_content = replace_keyword_and_parentheses_content(*msg_prop.plain_content, cmd.first, "");
+                    
                     run_cmd_list.push_back(std::make_pair(
                         cmd.second.runer, bot_cmd::CommandContext(adapter, event, param,
                                                                   is_strict_format(*msg_prop.plain_content, cmd.first),

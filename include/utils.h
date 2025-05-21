@@ -60,6 +60,13 @@ inline std::string get_current_time_db() {
     return time_point_to_db_str(now);
 }
 
+inline std::string get_today_date_str() {
+    auto now = std::chrono::system_clock::now();
+    auto time = std::chrono::system_clock::to_time_t(now);
+    std::tm tm = *std::localtime(&time);
+    return fmt::format("{:%Y年%m月%d日}", tm);
+}
+
 /**
  * Extracts the content inside the parentheses following the first occurrence of #keyword in the string.
  *
