@@ -64,8 +64,9 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
                 if (auto param = extract_parentheses_content_after_keyword(*msg_prop.plain_content, cmd.first);
                     !param.empty()) {
                     // Remove the str which used to be command(param)
-                    *msg_prop.plain_content = replace_keyword_and_parentheses_content(*msg_prop.plain_content, cmd.first, "");
-                    
+                    *msg_prop.plain_content =
+                        replace_keyword_and_parentheses_content(*msg_prop.plain_content, cmd.first, "");
+
                     run_cmd_list.push_back(std::make_pair(
                         cmd.second.runer, bot_cmd::CommandContext(adapter, event, param,
                                                                   is_strict_format(*msg_prop.plain_content, cmd.first),
@@ -89,7 +90,14 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
         }
     }
 
-    rag::optimize_message_query(event->get_group_sender().id);
+    auto optimize_message_query = rag::optimize_message_query(adapter.get_bot_profile(), event->get_group_sender().name,
+                                                              event->get_group_sender().id, msg_prop);
+    if (optimize_message_query.has_value()) {
+        spdlog::info("优化消息查询, function: {}, queryDate: {}, query: {}", optimize_message_query->function,
+                     optimize_message_query->query_date, optimize_message_query->query_string);
+    } else {
+        spdlog::info("优化消息查询失败");
+    }
 
     for (const auto &cmd : run_cmd_list) {
         const auto res = cmd.first(cmd.second);
