@@ -16,7 +16,7 @@ namespace database {
 
     constexpr std::string DEFAULT_MYSQL_SCHEMA_NAME = "aibot_800a";
     constexpr std::string DEFAULT_MESSAGE_RECORD_TABLE_NAME = "message_record";
-    constexpr std::string DEFAULT_OPTIM_MESSAGE_RESULT_TABLE = "optim_message_result";
+    constexpr std::string DEFAULT_TOOLS_CALL_RECORD_TABLE = "tools_call_record";
 
     struct GroupMessageRecord {
         std::string content;
@@ -47,20 +47,22 @@ namespace database {
                                  "  group_id VARCHAR(255) NULL, "
                                  "  group_permission VARCHAR(255) NULL"
                                  "  at_target_list TEXT NULL"
-                                 ")",
+                                 ");",
                                  table_name))
                 .execute();
             spdlog::info("Table '{}' created successfully.", table_name);
         }
 
-        void create_optim_message_result_table(const std::string &table_name = DEFAULT_OPTIM_MESSAGE_RESULT_TABLE) {
+        void create_tools_call_record_table(const std::string &table_name = DEFAULT_TOOLS_CALL_RECORD_TABLE) {
             session.sql(fmt::format(R"(
                 CREATE TABLE IF NOT EXISTS {} (
                     sender_name VARCHAR(255) NOT NULL,
                     sender_id VARCHAR(255) NOT NULL,
                     origin_chat_session_view TEXT NOT NULL,
-                    
-                )
+                    send_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    tool_calls TEXT NOT NULL,
+                    tool_calls_content TEXT NOT NULL
+                );
                 )", table_name));
         }
 

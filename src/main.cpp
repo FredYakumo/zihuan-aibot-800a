@@ -57,6 +57,9 @@ int main(int argc, char *argv[]) {
             database::get_global_db_connection().create_message_record_table();
             spdlog::info("Init message record table successed.");
             return 0;
+        } else if (strcmp(argv[1], "init_tools_call_recordtable") == 0) {
+            database::get_global_db_connection().create_tools_call_record_table();
+            spdlog::info("Init tools call record table successed.")
         }
     }
 
