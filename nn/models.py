@@ -26,6 +26,11 @@ class CosineSimilarityModel(nn.Module):
         B_norm = B.norm(dim=1, keepdim=True)  # [N,1]
         B_norm = torch.max(B_norm, torch.tensor(eps))
         
+        # a_norm = torch.sqrt(torch.sum(a ** 2, dim=1, keepdim=True))   # shape: [1, 1]
+        # B_norm = torch.sqrt(torch.sum(B ** 2, dim=1, keepdim=True))   # shape: [N, 1]
+        # 避免除以 0
+        B_norm = B_norm.clamp(min=eps)
+        
         dot_product = torch.matmul(a, B.t())  # [1,N]
         
         similarity = dot_product / (a_norm * B_norm.t())

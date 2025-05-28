@@ -3,13 +3,14 @@
 
 #include "adapter_event.h"
 #include "adapter_model.h"
+#include "constants.hpp"
 #include <chrono>
 #include <fmt/format.h>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
-#include <set>
 
 struct MessageProperties {
     bool is_at_me = false;
@@ -30,5 +31,18 @@ MessageProperties get_msg_prop_from_event(const bot_adapter::MessageEvent &e, co
 void msg_storage(const MessageProperties &msg_prop, const bot_adapter::Sender &sender,
                  const std::chrono::system_clock::time_point &send_time,
                  const std::optional<std::set<uint64_t>> specify_at_target_set = std::nullopt);
+
+/**
+ * @brief Retrieves the list of message records associated with a specific user from the global chat session.
+ *
+ * The function fetches all message records for the given user and formats them as strings
+ * in the pattern: "Username: \"Message content\"", with the quotation marks in the user information
+ * converted to escaped quotation marks (i.e., `\"`).
+ *
+ * @param sender_name The name of the sender (user).
+ * @param sender_id The unique identifier for the sender.
+ * @return std::vector<std::string> A vector containing formatted message records for the user.
+ */
+std::vector<std::string> get_message_list_from_chat_session(const std::string_view sender_name, qq_id_t sender_id);
 
 #endif

@@ -5,7 +5,6 @@
 #include "config.h"
 #include "llm.h"
 #include "msg_prop.h"
-#include "rag.h"
 #include "utils.h"
 #include <chrono>
 #include <cpr/cpr.h>
@@ -90,11 +89,11 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
         }
     }
 
-    auto optimize_message_query = rag::optimize_message_query(adapter.get_bot_profile(), event->get_group_sender().name,
+    auto omq_result = optimize_message_query(adapter.get_bot_profile(), event->get_group_sender().name,
                                                               event->get_group_sender().id, msg_prop);
-    if (optimize_message_query.has_value()) {
-        spdlog::info("优化消息查询, function: {}, queryDate: {}, query: {}", optimize_message_query->function,
-                     optimize_message_query->query_date, optimize_message_query->query_string);
+    if (omq_result.has_value()) {
+        spdlog::info("优化消息查询, summary: {}, query date prop: {}", omq_result->function,
+            omq_result->query_date, omq_result->query_string);
     } else {
         spdlog::info("优化消息查询失败");
     }

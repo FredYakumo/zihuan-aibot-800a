@@ -17,6 +17,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 namespace rag {
     const Config &config = Config::instance();
@@ -121,11 +122,11 @@ namespace rag {
                     get_optional<std::string_view>(json, "content").value_or(""),
                     get_optional<std::string_view>(json, "creator_name").value_or(""),
                     get_optional<std::string_view>(json, "create_time").value_or(""),
-                    get_optional<std::vector<std::string>>(json, "keyword").value_or(std::vector<std::string>()),
+                    get_optional<std::vector<std::string>>(json, "class_list").value_or(std::vector<std::string>()),
                     get_optional<float>(json, "certainty").value_or(0.0f)};
-                spdlog::info("{}, 创建者: {}, 日期: {}, 置信度: {}, 关键字列表: {}", knowledge.content,
-                             knowledge.creator_name, knowledge.create_dt, knowledge.certainty,
-                             join_str(std::cbegin(knowledge.keywords), std::cend(knowledge.keywords), ","));
+                spdlog::info("{}: {}, 创建者: {}, 日期: {}, 置信度: {}",
+                             join_str(std::cbegin(knowledge.class_list), std::cend(knowledge.class_list), "-"),
+                             knowledge.content, knowledge.creator_name, knowledge.create_dt, knowledge.certainty);
                 result.push_back(knowledge);
             }
         } catch (const nlohmann::json::exception &e) {
@@ -260,90 +261,6 @@ namespace rag {
             return std::nullopt;
         }
         return results;
-    }
-
-    std::vector<std::string> get_message_list_from_chat_session(const std::string_view sender_name, qq_id_t sender_id) {
-        std::vector<std::string> ret;
-
-        return ret;
-    }
-
-    std::optional<OptimMessageResult> optimize_message_query(const bot_adapter::Profile &bot_profile,
-                                              const std::string_view sender_name, qq_id_t sender_id,
-                                              const MessageProperties &message_props) {
-        auto msg_list = get_message_list_from_chat_session(sender_name, sender_id);
-        std::string current_message {join_str(std::cbegin(msg_list), std::cend(msg_list), "\n")};
-        current_message += sender_name;
-        current_message += ": \"";
-        if (message_props.ref_msg_content != nullptr && !message_props.ref_msg_content->empty()) {
-            current_message += "引用一条消息: " + (*message_props.ref_msg_content);
-        }
-        if (message_props.plain_content != nullptr && !message_props.plain_content->empty()) {
-            current_message += "\n" + (*message_props.plain_content);
-        }
-        current_message += "\"\n";
-
-        nlohmann::json msg_json;
-        msg_json.push_back(
-            {{"role", "system"},
-             {"content", fmt::format(
-                             R"(请执行下列任务
-                            1. 分析用户提供的聊天记录（格式为 \"用户1\": \"内容\", \"用户2\": \"内容\"），按顺序排列，并整合整个对话历史的相关信息，但须以最下方（最新消息）为核心。\n
-                            2. 用户信息如下：
-                                - “你”的对象：名字“{}”，QQ号“{}”；
-                                - “我”（用户）：名字“{}”，QQ号“{}”。
-                            3. 将最新一条聊天内容转换为搜索查询，其中：
-                                - 查询字符串需包含最新消息中需查询的信息，并整合整个对话历史中的相关细节；
-                                - 如查询信息涉及时效性，例如新闻，版本号，训练数据中未出现过的库或者技术，设置queryDate的值为接进1.0，时效性越强越接近1.0，否则0.0。
-                            4. 分析聊天记录中所涉及的功能，并记录于 JSON 结果中的 \"function\" 字段。支持的功能包括：
-                                - 聊天\n
-                                - 查询用户头像（查询字符串须为 QQ 号）
-                                - 查询用户聊天记录（查询字符串须为 QQ 号）
-                                - 查询用户资料（查询字符串须为 QQ 号）
-                                - 查询知识库（查询字符串由用户最新信息和整体对话上下文整合形成。例如：当用户输入 “一脚踢飞” 时，由于上下文已知对象“紫幻”，则应转换为查询 “紫幻被一脚踢飞”；输入“掀裙子时”，则应转换查询为“紫幻被掀裙子”）
-
-                            如聊天记录涉及其他功能，则将 \"function\" 字段设为 \"非法\"。
-                            5. 如果对话历史中涉及多个功能或查询方向，则只返回最新一条消息对应的功能和查询字符串（注意：查询字符串应整合整体对话历史中的相关信息）。
-                            6. 返回结果必须为一个 JSON 对象，格式如下：
-                            {{
-                            \"function\": \"功能\",
-                            \"queryDate\": 时效指数0.0-1.0,
-                            \"query\": \"查询字符串\"
-                            }}
-                            )",
-                             bot_profile.name, bot_profile.id, sender_name, sender_id, get_today_date_str())}});
-        
-        msg_json.push_back({{"role", "user"}, {"content", current_message}});
-
-        nlohmann::json body = {{"model", config.llm_model_name},
-                               {"messages", msg_json},
-                               {"stream", false},
-                               {"temperature", 0.0}};
-        const auto json_str = body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
-        spdlog::info("llm body: {}", json_str);
-        cpr::Response response =
-            cpr::Post(cpr::Url{config.llm_api_url}, cpr::Body{json_str},
-                      cpr::Header{{"Content-Type", "application/json"}, {"Authorization", config.llm_api_token}});
-
-        try {
-            spdlog::info(response.text);
-            auto json = nlohmann::json::parse(response.text);
-            std::string result = std::string(ltrim(json["choices"][0]["message"]["content"].get<std::string_view>()));
-            remove_text_between_markers(result, "<think>", "</think>");
-            nlohmann::json json_result = nlohmann::json::parse(result);
-            auto function = get_optional(json_result, "function");
-            auto query_date = get_optional(json_result, "queryDate");
-            auto query_string = get_optional(json_result, "query");
-
-            if (!function.has_value() || !query_date.has_value() || !query_string.has_value()) {
-                spdlog::error("OptimMessageResult 解析失败");
-            }
-            
-            return OptimMessageResult(*function, *query_date, *query_string);
-        } catch (const std::exception &e) {
-            spdlog::error("JSON 解析失败: {}", e.what());
-        }
-        return std::nullopt;
     }
 
 } // namespace rag

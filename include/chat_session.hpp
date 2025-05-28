@@ -1,6 +1,7 @@
 #ifndef CHAT_SESSION_HPP
 #define CHAT_SESSION_HPP
 
+#include <optional>
 #include <string>
 #include <chrono>
 #include <nlohmann/json.hpp>
@@ -9,6 +10,7 @@
 struct ChatMessage {
     std::string role{};
     std::string content{};
+    std::optional<std::string> tool_call_id = std::nullopt;
     std::chrono::system_clock::time_point timestamp{std::chrono::system_clock::now()};
 
     ChatMessage() = default;
@@ -16,6 +18,10 @@ struct ChatMessage {
         : role(role), content(content), timestamp(std::chrono::system_clock::now()) {}
     ChatMessage(const std::string_view role, const std::string_view content, const std::chrono::system_clock::time_point &timestamp)
         : role(role), content(content), timestamp(timestamp) {}
+    ChatMessage(const std::string_view role, const std::string_view content, const std::string_view tool_id)
+        : role(role), content(content), tool_call_id(std::string(tool_id)), timestamp(std::chrono::system_clock::now()) {}
+    ChatMessage(const std::string_view role, const std::string_view content, const std::string_view tool_id, const std::chrono::system_clock::time_point &timestamp)
+        : role(role), content(content), tool_call_id(std::string(tool_id)), timestamp(timestamp) {}
 
     std::string get_formatted_timestamp() const {
         auto in_time_t = std::chrono::system_clock::to_time_t(timestamp);
@@ -27,7 +33,13 @@ struct ChatMessage {
     }
     void to_json(nlohmann::json &j, const ChatMessage &message) {
         j = nlohmann::json{
-            {"role", message.role}, {"content", message.content}, {"timestamp", message.get_formatted_timestamp()}};
+            {"role", message.role}, 
+            {"content", message.content}, 
+            {"timestamp", message.get_formatted_timestamp()}
+        };
+        if (message.tool_call_id) {
+            j["tool_call_id"] = *message.tool_call_id;
+        }
     }
 };
 

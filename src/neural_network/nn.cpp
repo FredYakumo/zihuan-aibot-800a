@@ -20,21 +20,21 @@ Ort::Env &neural_network::get_onnx_runtime() {
 Ort::SessionOptions neural_network::get_onnx_session_opts() {
     Ort::SessionOptions opts;
     opts.SetIntraOpNumThreads(8);
+    opts.SetLogSeverityLevel(0);
+
     return opts;
 }
 
 Ort::SessionOptions neural_network::get_onnx_session_opts_core_ml() {
     Ort::SessionOptions opts;
-
     std::unordered_map<std::string, std::string> provider_options;
     provider_options["ModelFormat"] = "MLProgram";
-    // provider_options["MLComputeUnits"] = "ALL";
     provider_options["RequireStaticInputShapes"] = "0";
     provider_options["EnableOnSubgraphs"] = "0";
-    // provider_options["UseCoreMLFallback"] = "0";
     provider_options["MLComputeUnits"] = "ALL";
     opts.SetIntraOpNumThreads(8);
-
+    opts.SetLogSeverityLevel(0);
+    
     // 添加 CoreML 执行提供程序
     opts.AppendExecutionProvider("CoreML", provider_options);
     return opts;

@@ -9,3 +9,4 @@ config.yaml
 **/__pycache__/**
 .VSCodeCounter/**
 **/.DS_Store
+.cache/

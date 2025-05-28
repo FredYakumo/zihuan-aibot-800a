@@ -35,15 +35,6 @@ namespace rag {
         double score;
     };
 
-    struct OptimMessageResult {
-        std::string function;
-        float query_date;
-        std::string query_string;
-
-        OptimMessageResult() = default;
-        OptimMessageResult(std::string func, float query_date, std::string query)
-            : function(std::move(func)), query_date(query_date), query_string(std::move(query)) {}
-    };
 
     std::vector<std::pair<DBGroupMessage, double>>
     query_group_msg(const std::string_view query, std::optional<uint64_t> group_id_option = std::nullopt);
@@ -60,10 +51,6 @@ namespace rag {
     std::vector<NetSearchImage> net_search_image(const std::string_view query);
 
     std::optional<std::string> url_search_content(const std::vector<std::string> &url_list);
-
-    std::optional<OptimMessageResult> optimize_message_query(const bot_adapter::Profile &bot_profile,
-                                              const std::string_view sender_name, qq_id_t sender_id,
-                                              const MessageProperties &message_props);
 } // namespace rag
 
 #endif

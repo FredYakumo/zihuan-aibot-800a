@@ -100,7 +100,7 @@ include(CTest)
 add_executable(unit_test
     ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/bot_adapter.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/nn.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/utils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/external/easywsclient/easywsclient.cpp
 )

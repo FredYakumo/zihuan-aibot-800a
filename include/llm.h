@@ -3,7 +3,8 @@
 #include "bot_cmd.h"
 #include "global_data.h"
 
-std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot_adapter::Sender &sender, bool is_deep_think = false);
+std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot_adapter::Sender &sender,
+                              bool is_deep_think = false);
 
 void process_llm(const bot_cmd::CommandContext &context,
                  const std::optional<std::string> &additional_system_prompt_option);
@@ -46,7 +47,11 @@ inline nlohmann::json msg_list_to_json(const std::string_view system_prompt, con
 }
 
 inline nlohmann::json &add_to_msg_json(nlohmann::json &msg_json, const ChatMessage &msg) {
-    msg_json.push_back({{"role", msg.role}, {"content", msg.content}});
+    nlohmann::json append_json {{"role", msg.role}, {"content", msg.content}};
+    if (msg.tool_call_id) {
+        append_json["tool_call_id"] = *msg.tool_call_id;
+    }
+    msg_json.push_back(std::move(append_json));
     return msg_json;
 }
 
@@ -66,5 +71,57 @@ inline void release_processing_llm(uint64_t id) {
     std::lock_guard lock(g_chat_processing_map.first);
     g_chat_processing_map.second[id] = false;
 }
+
+/**
+ * @brief Stores information needed for data fetching operations.
+ */
+struct FetchData {
+    std::string function; ///< Name of the function to be executed.
+    std::string query;    ///< Query string containing the information to be fetched.
+
+    /**
+     * @brief Constructor to initialize FetchData with function and query values.
+     * @param function Name of the function to execute.
+     * @param query Information to be fetched.
+     */
+    FetchData(std::string function, std::string query) : function(std::move(function)), query(std::move(query)) {}
+};
+
+/**
+ * @brief Represents the result structure for optimized message processing.
+ */
+struct OptimMessageResult {
+    std::string summary;               ///< Summary of the optimization result.
+    float query_date;                  ///< Date associated with the query properbility (stored as floating-point).
+    std::vector<FetchData> fetch_data; ///< Collection of FetchData objects for fetch-related details.
+
+    /**
+     * @brief Default constructor initializes member variables to default values.
+     */
+    OptimMessageResult() : summary(), query_date(0.0f), fetch_data() {}
+
+    /**
+     * @brief Parameterized constructor initializes all member variables.
+     * @param s Summary of the result.
+     * @param date Query date properbility.
+     * @param data Fetch-related data collection.
+     */
+    OptimMessageResult(std::string s, float date, std::vector<FetchData> data)
+        : summary(std::move(s)), query_date(date), fetch_data(std::move(data)) {}
+};
+
+/**
+ * @brief Calls a model to optimize message records based on the provided parameters.
+ *
+ * @param bot_profile The bot's profile containing configuration and context information.
+ * @param sender_name The name of the sender of the message.
+ * @param sender_id The unique identifier for the sender (e.g., user ID).
+ * @param message_props The properties of the message, such as content and metadata.
+ * @return std::optional<OptimMessageResult> The optimized message result, if available.
+ *         Returns an empty optional if the optimization fails or no result is produced.
+ */
+std::optional<OptimMessageResult> optimize_message_query(const bot_adapter::Profile &bot_profile,
+                                                         const std::string_view sender_name, qq_id_t sender_id,
+                                                         const MessageProperties &message_props);
 
 #endif

@@ -20,7 +20,7 @@ from pydantic import BaseModel
 import weaviate
 from weaviate.classes.query import Filter
 from utils.config_loader import config
-from model import Knowledge
+from vec_db.model import Knowledge
 
 
 app = FastAPI()
@@ -71,7 +71,7 @@ def query_knowledge(query: str) -> List[Knowledge]:
     end_time = time.time()
     knowledge_result = []
     for e in res.objects:
-        logger.info(f"{e.properties.get('content')} - 创建者: {e.properties.get('creator_name')} - 时间: {e.properties.get("create_time")}, 置信度: {e.metadata.certainty}, keyword: {e.properties.get('keyword')}")
+        logger.info(f"{e.properties.get('content')} - 创建者: {e.properties.get('creator_name')} - 时间: {e.properties.get('create_time')}, 置信度: {e.metadata.certainty}, keyword: {e.properties.get('keyword')}")
         knowledge_result.append(Knowledge(
             keyword=e.properties.get("keyword"),
             content=e.properties.get("content"),
@@ -98,7 +98,7 @@ def find_keyword_match(request: QueryKnowledgeRequest):
     end_time = time.time()
     knowledge_result = []
     for e in res.objects:
-        logger.info(f"{e.properties.get('content')} - 创建者: {e.properties.get('creator_name')} - 时间: {e.properties.get("create_time")}, 置信度: {e.metadata.certainty}, keyword: {e.properties.get('keyword')}")
+        logger.info(f"{e.properties.get('content')} - 创建者: {e.properties.get('creator_name')} - 时间: {e.properties.get('create_time')}, 置信度: {e.metadata.certainty}, keyword: {e.properties.get('keyword')}")
         knowledge_result.append(Knowledge(
             keyword=e.properties.get("keyword"),
             content=e.properties.get("content"),

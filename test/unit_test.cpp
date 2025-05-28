@@ -221,30 +221,30 @@ TEST(UnitTest, TestCosineSimilarityOnnx) {
     neural_network::token_id_vec_with_mask_t target_token = tokenizer_wrapper.encode_with_mask("杀猪盘");
     auto target_embedding = embedder.embed(target_token.first, target_token.second);
 
-    neural_network::CosineSimilarityONNXModel model{"cosine_sim.onnx"};
+    neural_network::CosineSimilarityONNXModel coreml_model{"cosine_sim.onnx", neural_network::get_onnx_session_opts_core_ml()};
 
     auto start = std::chrono::high_resolution_clock::now();
-    auto res = model.inference(target_embedding, batch_embedding);
+    auto res = coreml_model.inference(target_embedding, batch_embedding);
     auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    auto coreml_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
     // spdlog::info("Similarity (ONNX):");
     // for (const auto r : res) {
     //     spdlog::info(r);
     // }
 
-    neural_network::CosineSimilarityONNXModel model_core_ml{"cosine_sim.onnx", neural_network::get_onnx_session_opts_core_ml()};
+    neural_network::CosineSimilarityONNXModel cpu_model{"cosine_sim.onnx"};
 
     start = std::chrono::high_resolution_clock::now();
-    auto res_core_ml = model_core_ml.inference(target_embedding, batch_embedding);
+    auto res_core_ml = cpu_model.inference(target_embedding, batch_embedding);
     end = std::chrono::high_resolution_clock::now();
-    auto core_ml_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    auto cpu_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
     // spdlog::info("Similarity (Core ML ONNX):");
     // for (const auto r : res_core_ml) {
     //     spdlog::info(r);
     // }
 
-    spdlog::info("Inference time (ONNX): {} ms", duration);
-    spdlog::info("Inference time (Core ML ONNX): {} ms", core_ml_duration);
+    spdlog::info("Inference time (Core ML): {} ms", coreml_duration);
+    spdlog::info("Inference time (CPU): {} ms", cpu_duration);
 }

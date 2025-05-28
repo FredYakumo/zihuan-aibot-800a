@@ -5,6 +5,7 @@
 
 constexpr const char *ROLE_SYSTEM = "system";
 constexpr const char *ROLE_USER = "user";
+constexpr const char *ROLE_TOOL = "tool";
 constexpr const char *ROLE_ASSISTANT = "assistant";
 
 constexpr const char *EMPTY_MSG_TAG = "<未输入任何信息>";

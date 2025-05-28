@@ -4,11 +4,13 @@
 #include "adapter_model.h"
 #include "constants.hpp"
 #include "database.h"
+#include "global_data.h"
 #include "utils.h"
 #include <chrono>
 #include <cstdint>
 #include <regex>
 #include <spdlog/spdlog.h>
+#include <string>
 
 std::regex at_target_pattern("@(\\d+)");
 
@@ -63,7 +65,8 @@ MessageProperties get_msg_prop_from_event(const bot_adapter::MessageEvent &e, co
             }
 
             // Regex match @[qqid(uint64_t)]
-            auto begin = std::sregex_iterator(std::cbegin(*ret.plain_content), std::cend(*ret.plain_content), at_target_pattern);
+            auto begin =
+                std::sregex_iterator(std::cbegin(*ret.plain_content), std::cend(*ret.plain_content), at_target_pattern);
             auto end = std::sregex_iterator();
 
             // 遍历所有匹配结果，提取数字并转换为 uint64_t 后存入 at_list
@@ -102,4 +105,16 @@ void msg_storage(const MessageProperties &msg_prop, const bot_adapter::Sender &s
 
     database::get_global_db_connection().insert_message(
         msg_content, sender, send_time, specify_at_target_set ? specify_at_target_set : msg_prop.at_id_set);
+}
+
+std::vector<std::string> get_message_list_from_chat_session(const std::string_view sender_name, qq_id_t sender_id) {
+    std::vector<std::string> ret;
+
+    const auto &chat_session_map = g_chat_session_map.read();
+    if (const auto &chat_session = chat_session_map->find(sender_id); chat_session != chat_session_map->cend()) {
+        for (const auto &msg : chat_session->second.message_list) {
+            ret.push_back(fmt::format("{}: {}", sender_name, msg.content));
+        }
+    }
+    return std::move(ret);
 }

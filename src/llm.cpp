@@ -14,6 +14,8 @@
 #include <optional>
 #include <string>
 
+#include "llm_function_tools.hpp"
+
 const Config &config = Config::instance();
 
 std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot_adapter::Sender &sender,
@@ -27,11 +29,25 @@ std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot
         get_current_time_formatted(), sender.name, sender.id);
 }
 
-ChatMessage get_llm_response(const nlohmann::json &msg_json, bool is_deep_think = false) {
-    nlohmann::json body = {{"model", is_deep_think ? config.llm_deep_think_model_name : config.llm_model_name},
+struct ChatCompletionMessageToolCall {
+    std::string id;
+    nlohmann::json arguments;
+    std::string name;
+};
+
+struct LLMResponse {
+    std::optional<ChatMessage> chat_message_opt;
+    std::optional<std::vector<ChatCompletionMessageToolCall>> function_calls_opt;
+};
+
+LLMResponse get_llm_response(const nlohmann::json &msg_json, bool is_deep_think = false,
+                             const nlohmann::json &tools = DEFAULT_TOOLS) {
+    nlohmann::json body = {{"model", config.llm_model_name},
                            {"messages", msg_json},
                            {"stream", false},
-                        {"temperature", is_deep_think? 0.0 : 1.3}};
+                           {"tools", tools},
+                           {"is_deep_think", is_deep_think},
+                           {"temperature", is_deep_think ? 0.0 : 1.3}};
     const auto json_str = body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
     spdlog::info("llm body: {}", json_str);
     cpr::Response response =
@@ -45,11 +61,36 @@ ChatMessage get_llm_response(const nlohmann::json &msg_json, bool is_deep_think 
         std::string result = std::string(ltrim(json["choices"][0]["message"]["content"].get<std::string_view>()));
         remove_text_between_markers(result, "<think>", "</think>");
 
-        return ChatMessage(ROLE_ASSISTANT, result);
+        if (const nlohmann::json &tool_calls = get_optional(json, "tool_calls"); tool_calls.is_array()) {
+            std::vector<ChatCompletionMessageToolCall> function_calls;
+            for (const nlohmann::json &tool_call : tool_calls) {
+                const nlohmann::json &func = get_optional(tool_call, "function");
+                const auto &id = get_optional<std::string>(tool_call, "id");
+                if (!id.has_value()) {
+                    spdlog::error("JSON 解析失败: tool_call里没有id");
+                    return {std::nullopt, std::nullopt};
+                }
+                const auto &name = get_optional<std::string>(func, "name");
+                if (!name.has_value()) {
+                    spdlog::error("JSON 解析失败: tool_call.function里没有name");
+                    return {std::nullopt, std::nullopt};
+                }
+                const auto &arguments = get_optional<std::string>(func, "arguments");
+                if (!name.has_value()) {
+                    spdlog::error("JSON 解析失败: tool_call.function里没有arguments");
+                    return {std::nullopt, std::nullopt};
+                }
+
+                function_calls.emplace_back(ChatCompletionMessageToolCall{*name, *arguments, *name});
+            }
+            return {std::nullopt, function_calls};
+        }
+
+        return {ChatMessage(ROLE_ASSISTANT, result), std::nullopt};
     } catch (const std::exception &e) {
         spdlog::error("JSON 解析失败: {}", e.what());
     }
-    return ChatMessage();
+    return {std::nullopt, std::nullopt};
 }
 
 std::string query_chat_session_knowledge(const bot_cmd::CommandContext &context,
@@ -140,13 +181,13 @@ void process_llm(const bot_cmd::CommandContext &context,
         const auto bot_profile = context.adapter.get_bot_profile();
 
         if (context.is_deep_think) {
-            context.adapter.send_replay_msg(*context.e->sender_ptr,
-                                            bot_adapter::make_message_chain_list(
-                                                bot_adapter::PlainTextMessage{"正在思思考中..."},
-                                                bot_adapter::ImageMessage{Config::instance().think_image_url}),
-                                            false);
+            context.adapter.send_replay_msg(
+                *context.e->sender_ptr,
+                bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage{"正在思思考中..."},
+                                                     bot_adapter::ImageMessage{Config::instance().think_image_url}),
+                false);
         }
-        
+
         auto system_prompt = gen_common_prompt(bot_profile, *context.e->sender_ptr, context.is_deep_think);
 
         system_prompt += "\n" + query_chat_session_knowledge(context, msg_content_str);
@@ -160,7 +201,54 @@ void process_llm(const bot_cmd::CommandContext &context,
         auto user_chat_msg = ChatMessage(ROLE_USER, msg_content_str);
         add_to_msg_json(msg_json, user_chat_msg);
 
-        auto llm_chat_msg = get_llm_response(msg_json, context.is_deep_think);
+        auto llm_res = get_llm_response(msg_json, context.is_deep_think);
+
+        // process function call
+        std::vector<ChatMessage> append_tool_msg;
+        while (llm_res.function_calls_opt) {
+            for (const auto &func_calls : *llm_res.function_calls_opt) {
+                if (func_calls.name == "search_info") {
+                    const auto &arguments = func_calls.arguments;
+                    const std::optional<std::string> &query = get_optional(arguments, "query");
+                    bool include_date = get_optional(arguments, "includeDate").value_or(false);
+                    spdlog::info("Function call id {}: search_info(query={}, include_date={})", func_calls.id,
+                                 query.value_or(EMPTY_JSON_STR_VALUE), include_date);
+                    if (!query.has_value() || query->empty())
+                        spdlog::warn("Function call id {}: search_info(query={}, include_date={}), query is null",
+                                     func_calls.id, query.value_or(EMPTY_JSON_STR_VALUE), include_date);
+
+                    std::string content;
+                    const auto knowledge_list = rag::query_knowledge(*query);
+                    for (const auto &knowledge : knowledge_list)
+                        content += fmt::format("{}: {}\n", join_str(std::cbegin(knowledge.class_list),
+                                                                    std::cend(knowledge.class_list), "-"));
+                    const auto net_search_list = rag::net_search_content(*query);
+                    for (const auto &net_search : net_search_list)
+                        content += fmt::format("{}({}): ", net_search.title, net_search.url, net_search.content);
+                    append_tool_msg.emplace_back(ROLE_TOOL, content, func_calls.id);
+                }
+            }
+            if (!append_tool_msg.empty()) {
+                // auto session_map = g_chat_session_map.write();
+                // auto &session = session_map->find(context.e->sender_ptr->id)->second;
+                // session.message_list.insert(std::end(session.message_list),
+                //                             std::make_move_iterator(std::begin(append_tool_msg)),
+                //                             std::make_move_iterator(std::end(append_tool_msg)));
+                for (auto &append : append_tool_msg) {
+                    add_to_msg_json(msg_json, append);
+                    // session.message_list.emplace_back(std::move(append));
+                }
+            }
+            llm_res = get_llm_response(msg_json, context.is_deep_think);
+        }
+
+        if (!llm_res.chat_message_opt) {
+            spdlog::warn("LLM did not response any chat message...");
+            context.adapter.send_replay_msg(*context.e->sender_ptr,
+                                            bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("?")));
+            release_processing_llm(context.e->sender_ptr->id);
+            return;
+        }
 
         auto session_map = g_chat_session_map.write();
         auto &session = session_map->find(context.e->sender_ptr->id)->second;
@@ -171,21 +259,128 @@ void process_llm(const bot_cmd::CommandContext &context,
         } else {
             ++session.user_msg_count;
         }
-
         session.message_list.push_back(user_chat_msg);
-        session.message_list.emplace_back(llm_chat_msg.role, llm_chat_msg.content);
+        session.message_list.insert(std::end(session.message_list),
+                                    std::make_move_iterator(std::begin(append_tool_msg)),
+                                    std::make_move_iterator(std::end(append_tool_msg)));
+        session.message_list.emplace_back(llm_res.chat_message_opt->role, llm_res.chat_message_opt->content);
 
         spdlog::info("Prepare to send msg response");
 
-        context.adapter.send_long_plain_text_replay(*context.e->sender_ptr, llm_chat_msg.content);
+        context.adapter.send_long_plain_text_replay(*context.e->sender_ptr, llm_res.chat_message_opt->content);
         if (const auto &group_sender = bot_adapter::try_group_sender(*context.e->sender_ptr)) {
-            database::get_global_db_connection().insert_message(llm_chat_msg.content, bot_adapter::GroupSender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt, "", std::nullopt, std::chrono::system_clock::now(), group_sender->get().group), std::chrono::system_clock::now(), std::set<uint64_t>{context.e->sender_ptr->id});
+            database::get_global_db_connection().insert_message(
+                llm_res.chat_message_opt->content,
+                bot_adapter::GroupSender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt, "",
+                                         std::nullopt, std::chrono::system_clock::now(), group_sender->get().group),
+                std::chrono::system_clock::now(), std::set<uint64_t>{context.e->sender_ptr->id});
         } else {
-            database::get_global_db_connection().insert_message(llm_chat_msg.content, bot_adapter::Sender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt), std::chrono::system_clock::now(), std::set<uint64_t>{context.e->sender_ptr->id});
+            database::get_global_db_connection().insert_message(
+                llm_res.chat_message_opt->content,
+                bot_adapter::Sender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt),
+                std::chrono::system_clock::now(), std::set<uint64_t>{context.e->sender_ptr->id});
         }
 
         release_processing_llm(context.e->sender_ptr->id);
     });
 
     llm_thread.detach();
+}
+
+std::optional<OptimMessageResult> optimize_message_query(const bot_adapter::Profile &bot_profile,
+                                                         const std::string_view sender_name, qq_id_t sender_id,
+                                                         const MessageProperties &message_props) {
+    auto msg_list = get_message_list_from_chat_session(sender_name, sender_id);
+    std::string current_message{join_str(std::cbegin(msg_list), std::cend(msg_list), "\n")};
+    current_message += sender_name;
+    current_message += ": \"";
+    if (message_props.ref_msg_content != nullptr && !message_props.ref_msg_content->empty()) {
+        current_message += "引用一条消息: " + (*message_props.ref_msg_content);
+    }
+    if (message_props.plain_content != nullptr && !message_props.plain_content->empty()) {
+        current_message += "\n" + (*message_props.plain_content);
+    }
+    current_message += "\"\n";
+
+    nlohmann::json msg_json;
+    msg_json.push_back(
+        {{"role", "system"},
+         {"content", fmt::format(
+                         R"(请执行下列任务
+1. 分析用户提供的聊天记录（格式为 \"用户名\": \"内容\", \"用户名\": \"内容\"），按顺序排列，并整合整个对话历史的相关信息，但须以最下方（最新消息）为核心。
+2. 用户信息如下：
+- “你”的对象：名字“{}”，QQ号“{}”；
+- “我”（用户）：名字“{}”，QQ号“{}”。
+3. 将最新一条聊天内容转换为搜索查询，其中：
+- 查询字符串需包含最新消息中需查询的信息，并整合整个对话历史中的相关细节；
+- 如查询信息涉及时效性，例如新闻，版本号，训练数据中未出现过的库或者技术，设置queryDate的值为接进1.0，时效性越强越接近1.0，否则0.0。
+4. 以最新消息为核心，分析总结现在用户对话中的意图并记录于 JSON 结果中的 \"summary\" 字段。例如：当用户输入 “一脚踢飞你” 时，由于上下文已知对象“紫幻”，则应转换为sumarry: "紫幻被一脚踢飞"；输入“掀裙子时”，则应转换为summary: "紫幻被掀裙子"
+5. 分析聊天中你所缺乏的数据和信息，如何缺乏数据或者信息，存入\"fetchData\": [{{\"function\": \"获取信息的方式\", \"query\": \"查询字符串\"}}]，支持的获取信息的\"function\"如下
+- 查询用户头像（查询字符串须为 QQ 号）
+- 查询用户聊天记录（查询字符串须为 QQ 号）
+- 查询用户资料（查询字符串须为 QQ 号）
+- 联网搜索（主要是时效新闻，技术相关信息等，只有模型知识不覆盖才需要搜索）
+- 查询配置信息（模型信息，运行硬件信息等，查询字符串为查询内容关键字）
+
+\"fetchData\"中\"function\"必须等于功能名字的字符串，如果当前聊天不缺少任何信息，则\"fetchData\"为空列表[]。
+6. 返回结果必须为一个 JSON 对象，格式如下：
+{{
+\"summary\": \"总结用户意图\",
+\"queryDate\": 时效指数0.0-1.0,
+\"fetchData\": [
+{{
+\"function\": \"获取信息的方式\",
+\"query\": \"查询字符串\"
+}},
+...
+]
+}}
+)",
+                         bot_profile.name, bot_profile.id, sender_name, sender_id, get_today_date_str())}});
+
+    msg_json.push_back({{"role", "user"}, {"content", current_message}});
+
+    nlohmann::json body = {
+        {"model", config.llm_model_name}, {"messages", msg_json}, {"stream", false}, {"temperature", 0.0}};
+    const auto json_str = body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
+    spdlog::info("llm body: {}", json_str);
+    cpr::Response response =
+        cpr::Post(cpr::Url{config.llm_api_url}, cpr::Body{json_str},
+                  cpr::Header{{"Content-Type", "application/json"}, {"Authorization", config.llm_api_token}});
+
+    try {
+        spdlog::info(response.text);
+        auto json = nlohmann::json::parse(response.text);
+        std::string result = std::string(ltrim(json["choices"][0]["message"]["content"].get<std::string_view>()));
+        remove_text_between_markers(result, "<think>", "</think>");
+        nlohmann::json json_result = nlohmann::json::parse(result);
+        auto summary = get_optional(json_result, "summary");
+        auto query_date = get_optional(json_result, "queryDate");
+        std::optional<nlohmann::json> fetch_data = get_optional(json_result, "fetchData");
+        std::vector<FetchData> fetch_data_list;
+        if (fetch_data.has_value()) {
+            for (nlohmann::json &e : *fetch_data) {
+                auto function = get_optional(e, "function");
+                if (!function.has_value()) {
+                    spdlog::warn(
+                        "OptimMessageResult fetchData Node 解析失败, 没有function，跳过该fetchData。原始json为: {}",
+                        e.dump());
+                    continue;
+                }
+                auto query = get_optional(e, "query");
+                if (!function.has_value()) {
+                    spdlog::warn(
+                        "OptimMessageResult fetchData Node 解析失败, 没有query，跳过该fetchData。原始json为: {}",
+                        e.dump());
+                    continue;
+                }
+                fetch_data_list.emplace_back(*function, *query);
+            }
+        }
+
+        return OptimMessageResult(std::move(*summary), *query_date, std::move(fetch_data_list));
+    } catch (const std::exception &e) {
+        spdlog::error("JSON 解析失败: {}", e.what());
+    }
+    return std::nullopt;
 }
