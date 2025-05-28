@@ -13,7 +13,7 @@ inline nlohmann::json make_object_params(const std::vector<std::pair<std::string
                                          const std::vector<std::string> &required = {}) {
     nlohmann::json props;
     for (const auto &p : properties) {
-        props.push_back({p.first, p.second});
+        props[p.first] = p.second;
     }
     return {{"type", "object"}, {"properties", props}, {"required", required}};
 }
@@ -34,15 +34,32 @@ const nlohmann::json DEFAULT_TOOLS = nlohmann::json::array(
 
      // Interact tool
      make_tool_function(
-         "interact", "如果用户的消息中与某个对象互动.如揍'张三'则是与'张三'互动.",
+         "interact", "如果用户的消息中与某个对象互动.如揍'张三'则是与'张三'互动, @1232142,则是@1232142这个QQ号",
          make_object_params(
              {{"target",
                {{"type", "string"}, {"description", "对象.如揍'张三'则为'张三',如果未提及对象,默认是你('紫幻')"}}},
               {"idOption", {{"type", "string"}, {"description", "target的QQ号(可空)"}}},
-              {"action", {{"type", "string"}, {"description", "互动内容.如揍'张三'则为'揍'或者'打一顿'"}}}})),
+              {"action",
+               {{"type", "string"}, {"description", "互动内容.如揍'张三'则为'揍'或者'打一顿', 如@1232142则为@"}}}})),
+
+     // query user tool
+     make_tool_function(
+         "query_user", "如果用户的消息中涉及查看某个群友或者用户的资料,调用此函数",
+         make_object_params(
+             {{"target", {{"type", "string"}, {"description", "对象.只能为QQ号或者名字"}}},
+              {"item",
+               {{"type", "string"},
+                {"description",
+                 "查询内容,仅支持AVATAR(头像),SUMMARY(印象或者评价),MESSAGES(最近的消息).除此以外则是OTHER"}}}})),
+     // query group tool
+     make_tool_function(
+         "query_group",
+         "如果用户的消息中涉及查看群的信息,调用此函数",
+         make_object_params(
+             {{"item",
+               {{"type", "string"},
+                {"description", "查询内容,仅支持OWNER(群主),ADMIN(管理员),MESSAGES(最近的消息).除此以外则是OTHER"}}}})),
 
      // Fetch URL content tool
-     make_tool_function(
-         "fetchUrlContent", "如果用户的信息中包含有网页链接,则调用此函数",
-         {{"properties",
-           {{"type", "objects"}, {"properties", {{"url", {{"type", "string"}, {"description", "网页链接"}}}}}}}})});
+     make_tool_function("fetchUrlContent", "如果用户的信息中包含有网页链接,则调用此函数",
+                        make_object_params({{"url", {{"type", "string"}, {"description", "网页链接"}}}}, {"url"}))});

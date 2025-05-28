@@ -226,12 +226,12 @@ namespace bot_cmd {
                     context.adapter.get_bot_profile().name,
                     bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("参考资料")));
                 for (const auto res : net_search_res) {
-                    net_search_str.append(fmt::format("{},{}:{}\n", res.url, res.title, res.content));
+                    net_search_str.append(fmt::format("{}( {} ):{}\n", res.url, res.title, res.content));
                     first_replay.emplace_back(
                         context.adapter.get_bot_profile().id, std::chrono::system_clock::now(),
                         context.adapter.get_bot_profile().name,
                         bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
-                            fmt::format("关联度: {:.2f}%\n{}({})", res.score * 100.0f, res.title, res.url))));
+                            fmt::format("关联度: {:.2f}%\n{}( {} )", res.score * 100.0f, res.title, res.url))));
                 }
             }
             spdlog::info(net_search_str);
@@ -248,13 +248,7 @@ namespace bot_cmd {
     }
 
     bot_cmd::CommandRes url_search_command(bot_cmd::CommandContext context) {
-        std::string search{};
-        if (context.msg_prop.ref_msg_content != nullptr && !rtrim(ltrim(*context.msg_prop.ref_msg_content)).empty()) {
-            search += *context.msg_prop.ref_msg_content;
-        }
-        if (context.msg_prop.plain_content != nullptr && !rtrim(ltrim(*context.msg_prop.plain_content)).empty()) {
-            search += '\n' + *context.msg_prop.plain_content;
-        }
+        std::string search{context.param};
 
         // If no search query is provided, prompt the user to enter one
         if (search.empty() || search == "#url") {

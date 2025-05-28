@@ -13,9 +13,8 @@ struct Config {
     Config &operator=(const Config &) = delete;
 
     std::string llm_api_url;
-    std::string llm_api_token;
+    uint32_t llm_api_port;
     std::string llm_model_name;
-    std::string llm_deep_think_model_name;
     std::string custom_system_prompt;
     std::optional<std::string> custom_deep_think_system_prompt_option;
     // std::string BOT_NAME;
@@ -34,11 +33,10 @@ struct Config {
 
     uint64_t bot_id;
 
-    std::string net_search_api_url;
-    std::string net_search_token;
+    std::string search_api_url;
 
-    std::string url_search_api_url;
-    std::string url_search_token;
+    uint32_t search_api_port;
+
 
     uint64_t update_group_info_period_sec = 1800;
 

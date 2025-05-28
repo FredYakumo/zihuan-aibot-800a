@@ -59,19 +59,21 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
             if (msg_prop.plain_content == nullptr || msg_prop.plain_content->empty()) {
                 continue;
             }
+
             if (cmd.second.is_need_param) {
                 if (auto param = extract_parentheses_content_after_keyword(*msg_prop.plain_content, cmd.first);
                     !param.empty()) {
                     // Remove the str which used to be command(param)
+                    auto p = std::string(param);
                     *msg_prop.plain_content =
                         replace_keyword_and_parentheses_content(*msg_prop.plain_content, cmd.first, "");
 
                     run_cmd_list.push_back(std::make_pair(
-                        cmd.second.runer, bot_cmd::CommandContext(adapter, event, param,
+                        cmd.second.runer, bot_cmd::CommandContext(adapter, event, std::move(p),
                                                                   is_strict_format(*msg_prop.plain_content, cmd.first),
                                                                   is_deep_think, msg_prop)));
 
-                } else {
+                } else if (msg_prop.plain_content->find(cmd.first) != std::string::npos) {
                     adapter.send_replay_msg(*event->sender_ptr,
                                             bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
                                                 fmt::format(" 错误。请指定参数, 用法 {} (...)", cmd.first))));
@@ -155,7 +157,8 @@ void on_friend_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_a
 
     // @TODO: need optim
     spdlog::info("开始处理指令信息");
-
+    std::vector<std::pair<std::function<bot_cmd::CommandRes(bot_cmd::CommandContext)>, bot_cmd::CommandContext>>
+        run_cmd_list;
     for (auto &cmd : bot_cmd::keyword_command_map) {
         if (cmd.second.is_need_admin && !admin) {
             continue;
@@ -167,10 +170,14 @@ void on_friend_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_a
         if (cmd.second.is_need_param) {
             if (auto param = extract_parentheses_content_after_keyword(*msg_prop.plain_content, cmd.first);
                 !param.empty()) {
-                res = cmd.second.runer(bot_cmd::CommandContext(adapter, event, param,
-                                                               is_strict_format(*msg_prop.plain_content, cmd.first),
-                                                               is_deep_think, msg_prop));
-            } else {
+                auto p = std::string(param);
+                *msg_prop.plain_content =
+                    replace_keyword_and_parentheses_content(*msg_prop.plain_content, cmd.first, "");
+                run_cmd_list.push_back(std::make_pair(
+                    cmd.second.runer, bot_cmd::CommandContext(adapter, event, std::move(p),
+                                                              is_strict_format(*msg_prop.plain_content, cmd.first),
+                                                              is_deep_think, msg_prop)));
+            } else if (msg_prop.plain_content->find(cmd.first) != std::string::npos) {
                 adapter.send_replay_msg(*event->sender_ptr,
                                         bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
                                             fmt::format(" 错误。请指定参数, 用法 {} (...)", cmd.first))));
@@ -178,11 +185,27 @@ void on_friend_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_a
             }
         } else {
             if (msg_prop.plain_content->find(cmd.first) != std::string::npos) {
-                res = cmd.second.runer(bot_cmd::CommandContext(adapter, event, "", true, is_deep_think, msg_prop));
+                *msg_prop.plain_content = replace_str(*msg_prop.plain_content, cmd.first, "");
+                run_cmd_list.push_back(std::make_pair(
+                    cmd.second.runer, bot_cmd::CommandContext(adapter, event, "", true, is_deep_think, msg_prop)));
             } else {
                 continue;
             }
         }
+        if (res.is_break_cmd_process) {
+            return;
+        }
+        if (res.is_deep_think) {
+            is_deep_think = true;
+        }
+
+        if (res.is_modify_msg) {
+            res.is_modify_msg.value()(msg_prop);
+        }
+    }
+
+    for (const auto &cmd : run_cmd_list) {
+        const auto res = cmd.first(cmd.second);
         if (res.is_break_cmd_process) {
             return;
         }

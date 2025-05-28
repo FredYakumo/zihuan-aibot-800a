@@ -37,21 +37,23 @@ inline nlohmann::json msg_list_to_json(const std::string_view system_prompt, con
     nlohmann::json msg_json = nlohmann::json::array();
     msg_json.push_back(nlohmann::json{{"role", "system"}, {"content", system_prompt}});
     for (const auto &msg : msg_list) {
-        nlohmann::json msg_entry;
-        msg_entry["role"] = msg.role;
-        msg_entry["content"] = msg.content;
-        spdlog::info("msg_entry: role={}, content={}", msg.role, msg.content);
-        msg_json.push_back(msg_entry);
+        nlohmann::json msg_entry = msg.to_json();
+        spdlog::info("msg_entry: {}", msg_entry.dump());
+        msg_json.push_back(std::move(msg_entry));
     }
     return msg_json;
 }
 
 inline nlohmann::json &add_to_msg_json(nlohmann::json &msg_json, const ChatMessage &msg) {
-    nlohmann::json append_json {{"role", msg.role}, {"content", msg.content}};
-    if (msg.tool_call_id) {
-        append_json["tool_call_id"] = *msg.tool_call_id;
-    }
-    msg_json.push_back(std::move(append_json));
+    // nlohmann::json append_json {{"role", msg.role}, {"content", msg.content}};
+    // if (msg.tool_calls) {
+    //     append_json["tool_calls"] = *msg.tool_calls;
+    // }
+    // if (msg.tool_call_id) {
+    //     append_json["tool_call_id"] = *msg.tool_call_id;
+    // }
+    // msg_json.push_back(std::move(append_json));
+    msg_json.push_back(msg.to_json());
     return msg_json;
 }
 

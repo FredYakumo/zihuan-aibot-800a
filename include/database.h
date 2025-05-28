@@ -54,7 +54,8 @@ namespace database {
         }
 
         void create_tools_call_record_table(const std::string &table_name = DEFAULT_TOOLS_CALL_RECORD_TABLE) {
-            session.sql(fmt::format(R"(
+            session
+                .sql(fmt::format(R"(
                 CREATE TABLE IF NOT EXISTS {} (
                     sender_name VARCHAR(255) NOT NULL,
                     sender_id VARCHAR(255) NOT NULL,
@@ -63,7 +64,10 @@ namespace database {
                     tool_calls TEXT NOT NULL,
                     tool_calls_content TEXT NOT NULL
                 );
-                )", table_name));
+                )",
+                                 table_name))
+                .execute();
+            spdlog::info("Table '{}' created successfully.", table_name);
         }
 
         void insert_message(const std::string &content, const bot_adapter::Sender &sender,

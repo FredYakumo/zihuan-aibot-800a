@@ -115,29 +115,16 @@ void Config::init() {
     load_yaml_config(node, "llm_api_url", config.llm_api_url);
     load_env_config_str("AIBOT_LLM_API_URL", config.llm_api_url);
 
-    load_yaml_config(node, "llm_api_token", config.llm_api_token);
-    load_env_config_str("AIBOT_LLM_API_TOKEN", config.llm_api_token);
-
     load_yaml_config(node, "llm_model_name", config.llm_model_name);
     load_env_config_str("AIBOT_LLM_MODEL_NAME", config.llm_model_name);
 
-    load_yaml_config(node, "llm_deep_think_model_name", config.llm_deep_think_model_name);
-    load_env_config_str("AIBOT_LLM_DEEP_THINK_MODEL_NAME", config.llm_deep_think_model_name);
 
     load_yaml_config(node, "custom_system_prompt", config.custom_system_prompt);
     load_env_config_str("AIBOT_CUSTOM_SYSTEM_PROMPT", config.custom_system_prompt);
 
-    load_yaml_config(node, "net_search_api_url", config.net_search_api_url);
-    load_env_config_str("AIBOT_NET_SEARCH_API_URL", config.net_search_api_url);
+    load_yaml_config(node, "search_api_url", config.search_api_url);
+    load_env_config_str("AIBOT_SEARCH_API_URL", config.search_api_url);
 
-    load_yaml_config(node, "net_search_token", config.net_search_token);
-    load_env_config_str("AIBOT_NET_SEARCH_TOKEN", config.net_search_token);
-
-    load_yaml_config(node, "url_search_api_url", config.url_search_api_url);
-    load_env_config_str("AIBOT_URL_SEARCH_API_URL", config.url_search_api_url);
-
-    load_yaml_config(node, "url_search_token", config.url_search_token);
-    load_env_config_str("AIBOT_URL_SEARCH_TOKEN", config.url_search_token);
 
     load_yaml_config(node, "vec_db_url", config.vec_db_url);
     load_env_config_str("AIBOT_MSG_DB_URL", config.vec_db_url);
@@ -157,6 +144,12 @@ void Config::init() {
     // 数值类型配置
     load_yaml_config(node, "bot_id", config.bot_id);
     load_env_config_num<uint64_t>("AIBOT_BOT_ID", config.bot_id);
+
+    load_yaml_config(node, "llm_api_port", config.llm_api_port);
+    load_env_config_num("AIBOT_LLM_API_PORT", config.llm_api_port);
+
+    load_yaml_config(node, "search_api_port", config.search_api_port);
+    load_env_config_num("AIBOT_SEARCH_API_PORT", config.search_api_port);
 
     load_yaml_config(node, "database_port", config.database_port);
     load_env_config_num<uint16_t>("DATABASE_PORT", config.database_port);

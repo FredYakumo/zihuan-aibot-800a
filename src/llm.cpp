@@ -2,17 +2,23 @@
 #include "adapter_message.h"
 #include "adapter_model.h"
 #include "bot_cmd.h"
+#include "chat_session.hpp"
 #include "config.h"
 #include "constants.hpp"
 #include "database.h"
+#include "get_optional.hpp"
 #include "global_data.h"
 #include "rag.h"
 #include "utils.h"
+#include <_strings.h>
 #include <chrono>
 #include <cpr/cpr.h>
+#include <cstdint>
+#include <iterator>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
+#include <utility>
 
 #include "llm_function_tools.hpp"
 
@@ -29,19 +35,13 @@ std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot
         get_current_time_formatted(), sender.name, sender.id);
 }
 
-struct ChatCompletionMessageToolCall {
-    std::string id;
-    nlohmann::json arguments;
-    std::string name;
-};
-
 struct LLMResponse {
     std::optional<ChatMessage> chat_message_opt;
-    std::optional<std::vector<ChatCompletionMessageToolCall>> function_calls_opt;
+    std::optional<std::vector<ToolCall>> function_calls_opt;
 };
 
-LLMResponse get_llm_response(const nlohmann::json &msg_json, bool is_deep_think = false,
-                             const nlohmann::json &tools = DEFAULT_TOOLS) {
+std::optional<ChatMessage> get_llm_response(const nlohmann::json &msg_json, bool is_deep_think = false,
+                                            const nlohmann::json &tools = DEFAULT_TOOLS) {
     nlohmann::json body = {{"model", config.llm_model_name},
                            {"messages", msg_json},
                            {"stream", false},
@@ -50,47 +50,35 @@ LLMResponse get_llm_response(const nlohmann::json &msg_json, bool is_deep_think 
                            {"temperature", is_deep_think ? 0.0 : 1.3}};
     const auto json_str = body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
     spdlog::info("llm body: {}", json_str);
-    cpr::Response response =
-        cpr::Post(cpr::Url{config.llm_api_url}, cpr::Body{json_str},
-                  cpr::Header{{"Content-Type", "application/json"}, {"Authorization", config.llm_api_token}});
+    cpr::Response response = cpr::Post(cpr::Url{fmt::format("{}:{}/{}", config.llm_api_url, config.llm_api_port, LLM_API_SUFFIX)},
+                                       cpr::Body{json_str}, cpr::Header{{"Content-Type", "application/json"}});
     spdlog::info("Error msg: {}, status code: {}", response.error.message, response.status_code);
 
     try {
-        spdlog::info(response.text);
+        spdlog::info("LLM response: {}", response.text);
         auto json = nlohmann::json::parse(response.text);
-        std::string result = std::string(ltrim(json["choices"][0]["message"]["content"].get<std::string_view>()));
+        auto &message = json["choices"][0]["message"];
+        std::string result = std::string(ltrim(message["content"].get<std::string_view>()));
+        std::string role = get_optional(message, "role").value_or(ROLE_ASSISTANT);
         remove_text_between_markers(result, "<think>", "</think>");
-
-        if (const nlohmann::json &tool_calls = get_optional(json, "tool_calls"); tool_calls.is_array()) {
-            std::vector<ChatCompletionMessageToolCall> function_calls;
-            for (const nlohmann::json &tool_call : tool_calls) {
-                const nlohmann::json &func = get_optional(tool_call, "function");
-                const auto &id = get_optional<std::string>(tool_call, "id");
-                if (!id.has_value()) {
-                    spdlog::error("JSON 解析失败: tool_call里没有id");
-                    return {std::nullopt, std::nullopt};
-                }
-                const auto &name = get_optional<std::string>(func, "name");
-                if (!name.has_value()) {
-                    spdlog::error("JSON 解析失败: tool_call.function里没有name");
-                    return {std::nullopt, std::nullopt};
-                }
-                const auto &arguments = get_optional<std::string>(func, "arguments");
-                if (!name.has_value()) {
-                    spdlog::error("JSON 解析失败: tool_call.function里没有arguments");
-                    return {std::nullopt, std::nullopt};
-                }
-
-                function_calls.emplace_back(ChatCompletionMessageToolCall{*name, *arguments, *name});
+        ChatMessage ret{role, result};
+        if (const auto &tool_calls = get_optional(message, "tool_calls"); tool_calls.has_value()) {
+            spdlog::info("Tool calls");
+            std::vector<ToolCall> function_calls;
+            for (const nlohmann::json &tool_call : *tool_calls) {
+                if (auto tc = try_get_chat_completeion_from_messag_tool_call(tool_call); tc.has_value())
+                    function_calls.emplace_back(*tc);
+                else
+                    spdlog::error("解析tool call失败, 原始json为: {}", tool_call.dump());
             }
-            return {std::nullopt, function_calls};
+            ret.tool_calls = std::move(function_calls);
         }
+        return ret;
 
-        return {ChatMessage(ROLE_ASSISTANT, result), std::nullopt};
     } catch (const std::exception &e) {
-        spdlog::error("JSON 解析失败: {}", e.what());
+        spdlog::error("get_llm_response(): JSON 解析失败, {}", e.what());
     }
-    return {std::nullopt, std::nullopt};
+    return std::nullopt;
 }
 
 std::string query_chat_session_knowledge(const bot_cmd::CommandContext &context,
@@ -109,12 +97,25 @@ std::string query_chat_session_knowledge(const bot_cmd::CommandContext &context,
             if (knowledge.content.empty()) {
                 continue;
             }
-            if (user_set_iter->second.size() >= MAX_KNOWLEDGE_COUNT) {
-                spdlog::info("{}({})的对话session知识数量超过限制, 删除最旧的知识", context.e->sender_ptr->name,
-                             context.e->sender_ptr->id);
-                user_set_iter->second.erase(user_set_iter->second.cbegin());
-            }
+            // if (user_set_iter->second.size() >= MAX_KNOWLEDGE_LENGTH) {
+            //     spdlog::info("{}({})的对话session知识数量超过限制, 删除最旧的知识", context.e->sender_ptr->name,
+            //                  context.e->sender_ptr->id);
+            //     user_set_iter->second.erase(user_set_iter->second.cbegin());
+            // }
             user_set_iter->second.insert(knowledge.content);
+        }
+        size_t total_len = 0;
+        auto it = user_set_iter->second.rbegin();
+        while (it != user_set_iter->second.rend() && total_len < MAX_KNOWLEDGE_LENGTH) {
+            total_len += it->length();
+            ++it;
+        }
+
+        // Remove entries that exceed the limit
+        if (it != user_set_iter->second.rend()) {
+            spdlog::info("{}({})的对话session知识数量超过限制, 删除'{}'之前的知识内容", context.e->sender_ptr->name,
+                         context.e->sender_ptr->id, *it);
+            user_set_iter->second.erase(user_set_iter->second.begin(), it.base());
         }
 
         const auto user_chat_knowledge_list = map->find(context.e->sender_ptr->id);
@@ -178,14 +179,29 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
     auto user_chat_msg = ChatMessage(ROLE_USER, msg_content_str);
     add_to_msg_json(msg_json, user_chat_msg);
 
-    auto llm_res = get_llm_response(msg_json, context.is_deep_think);
+    std::vector<ChatMessage> one_chat_session;
+    if (auto llm_res = get_llm_response(msg_json, context.is_deep_think); llm_res.has_value()) {
+        one_chat_session.push_back(std::move(*llm_res));
+    } else {
+        spdlog::warn("LLM did not response any chat message...");
+        context.adapter.send_replay_msg(*context.e->sender_ptr,
+                                        bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("?")));
+        release_processing_llm(context.e->sender_ptr->id);
+        return;
+    }
 
     // process function call
-    std::vector<ChatMessage> append_tool_msg;
-    while (llm_res.function_calls_opt) {
-        for (const auto &func_calls : *llm_res.function_calls_opt) {
+    // loop check if have function call
+    while (one_chat_session.rbegin()->tool_calls) {
+        spdlog::info("Tool calls");
+        const auto &llm_res = *one_chat_session.rbegin();
+
+        // llm request tool call
+        add_to_msg_json(msg_json, llm_res);
+        std::vector<ChatMessage> append_tool_calls;
+        for (const auto &func_calls : *llm_res.tool_calls) {
             if (func_calls.name == "search_info") {
-                const auto &arguments = func_calls.arguments;
+                const auto arguments = nlohmann::json::parse(func_calls.arguments);
                 const std::optional<std::string> &query = get_optional(arguments, "query");
                 bool include_date = get_optional(arguments, "includeDate").value_or(false);
                 spdlog::info("Function call id {}: search_info(query={}, include_date={})", func_calls.id,
@@ -201,63 +217,95 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
                         "{}: {}\n", join_str(std::cbegin(knowledge.class_list), std::cend(knowledge.class_list), "-"),
                         knowledge.content);
 
-                const auto net_search_list = rag::net_search_content(*query);
-                for (const auto &net_search : net_search_list)
-                    content += fmt::format("{}({}): ", net_search.title, net_search.url, net_search.content);
-                append_tool_msg.emplace_back(ROLE_TOOL, content, func_calls.id);
+                const auto net_search_list = rag::net_search_content(
+                    include_date ? fmt::format("{} {}", get_current_time_formatted(), *query) : *query);
+                std::vector<bot_adapter::ForwardMessageNode> first_replay;
+                first_replay.emplace_back(
+                    context.adapter.get_bot_profile().id, std::chrono::system_clock::now(),
+                    context.adapter.get_bot_profile().name,
+                    bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("参考资料")));
+                for (const auto &net_search : net_search_list) {
+                    content += fmt::format("{}( {} ): {}", net_search.title, net_search.url, net_search.content);
+                    first_replay.emplace_back(context.adapter.get_bot_profile().id, std::chrono::system_clock::now(),
+                                              context.adapter.get_bot_profile().name,
+                                              bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
+                                                  fmt::format("关联度: {:.2f}%\n{}( {} )", net_search.score * 100.0f,
+                                                              net_search.title, net_search.url))));
+                }
+                if (!first_replay.empty()) {
+                    context.adapter.send_replay_msg(
+                        *context.e->sender_ptr,
+                        bot_adapter::make_message_chain_list(bot_adapter::ForwardMessage(
+                            first_replay, bot_adapter::DisplayNode(std::string("联网搜索结果")))));
+                }
+                append_tool_calls.emplace_back(ChatMessage(ROLE_TOOL, content, func_calls.id));
             }
         }
-        if (!append_tool_msg.empty()) {
-            // auto session_map = g_chat_session_map.write();
-            // auto &session = session_map->find(context.e->sender_ptr->id)->second;
-            // session.message_list.insert(std::end(session.message_list),
-            //                             std::make_move_iterator(std::begin(append_tool_msg)),
-            //                             std::make_move_iterator(std::end(append_tool_msg)));
-            for (auto &append : append_tool_msg) {
+        if (!append_tool_calls.empty()) {
+            for (auto &append : append_tool_calls) {
                 add_to_msg_json(msg_json, append);
-                // session.message_list.emplace_back(std::move(append));
+                one_chat_session.insert(std::end(one_chat_session),
+                                        std::make_move_iterator(std::begin(append_tool_calls)),
+                                        std::make_move_iterator(std::end(append_tool_calls)));
             }
         }
-        llm_res = get_llm_response(msg_json, context.is_deep_think);
+
+        if (auto llm_res = get_llm_response(msg_json, context.is_deep_think); llm_res.has_value()) {
+            one_chat_session.push_back(std::move(*llm_res));
+        } else {
+            spdlog::warn("LLM did not response any chat message...");
+            context.adapter.send_replay_msg(*context.e->sender_ptr,
+                                            bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("?")));
+            release_processing_llm(context.e->sender_ptr->id);
+            return;
+        }
     }
 
-    if (!llm_res.chat_message_opt) {
-        spdlog::warn("LLM did not response any chat message...");
-        context.adapter.send_replay_msg(*context.e->sender_ptr,
-                                        bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("?")));
-        release_processing_llm(context.e->sender_ptr->id);
-        return;
-    }
-
+    // Add msg to global storage
     auto session_map = g_chat_session_map.write();
     auto &session = session_map->find(context.e->sender_ptr->id)->second;
 
-    if (session.user_msg_count + 1 >= USER_SESSION_MSG_LIMIT) {
-        session.message_list.pop_front();
-        session.message_list.pop_front();
-    } else {
-        ++session.user_msg_count;
-    }
     session.message_list.push_back(user_chat_msg);
-    session.message_list.insert(std::end(session.message_list), std::make_move_iterator(std::begin(append_tool_msg)),
-                                std::make_move_iterator(std::end(append_tool_msg)));
-    session.message_list.emplace_back(llm_res.chat_message_opt->role, llm_res.chat_message_opt->content);
+    std::string replay_content = one_chat_session.rbegin()->content;
+    session.message_list.insert(std::end(session.message_list), std::make_move_iterator(std::begin(one_chat_session)),
+                                std::make_move_iterator(std::end(one_chat_session)));
 
     spdlog::info("Prepare to send msg response");
 
-    context.adapter.send_long_plain_text_replay(*context.e->sender_ptr, llm_res.chat_message_opt->content);
+    context.adapter.send_long_plain_text_replay(*context.e->sender_ptr, replay_content);
     if (const auto &group_sender = bot_adapter::try_group_sender(*context.e->sender_ptr)) {
         database::get_global_db_connection().insert_message(
-            llm_res.chat_message_opt->content,
+            replay_content,
             bot_adapter::GroupSender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt, "",
                                      std::nullopt, std::chrono::system_clock::now(), group_sender->get().group),
             std::chrono::system_clock::now(), std::set<uint64_t>{context.e->sender_ptr->id});
     } else {
         database::get_global_db_connection().insert_message(
-            llm_res.chat_message_opt->content,
-            bot_adapter::Sender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt),
+            replay_content, bot_adapter::Sender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt),
             std::chrono::system_clock::now(), std::set<uint64_t>{context.e->sender_ptr->id});
     }
+
+    size_t total_len = 0;
+    auto sess_it = session.message_list.rbegin();
+    while (sess_it != session.message_list.rend() && total_len < USER_SESSION_MSG_LIMIT) {
+        total_len += sess_it->content.length(); // UTF-8 length
+        ++sess_it;
+    }
+
+    // Remove messages that exceed the limit
+    if (sess_it != session.message_list.rend()) {
+        spdlog::info("{}({})的对话长度超过限制, 删除'{}'之前的上下文内容", context.e->sender_ptr->name,
+                     context.e->sender_ptr->name, sess_it->content);
+
+        session.message_list.erase(session.message_list.begin(), sess_it.base());
+    }
+
+    // if (session.user_msg_count + 1 >= USER_SESSION_MSG_LIMIT) {
+    //     session.message_list.pop_front();
+    //     session.message_list.pop_front();
+    // } else {
+    //     ++session.user_msg_count;
+    // }
 
     release_processing_llm(context.e->sender_ptr->id);
 }
@@ -350,9 +398,8 @@ std::optional<OptimMessageResult> optimize_message_query(const bot_adapter::Prof
         {"model", config.llm_model_name}, {"messages", msg_json}, {"stream", false}, {"temperature", 0.0}};
     const auto json_str = body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
     spdlog::info("llm body: {}", json_str);
-    cpr::Response response =
-        cpr::Post(cpr::Url{config.llm_api_url}, cpr::Body{json_str},
-                  cpr::Header{{"Content-Type", "application/json"}, {"Authorization", config.llm_api_token}});
+    cpr::Response response = cpr::Post(cpr::Url{fmt::format("{}:{}/{}", config.llm_api_url, config.llm_api_port, LLM_API_SUFFIX)},
+                                       cpr::Body{json_str}, cpr::Header{{"Content-Type", "application/json"}});
 
     try {
         spdlog::info(response.text);

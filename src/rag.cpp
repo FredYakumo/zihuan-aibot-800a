@@ -194,11 +194,11 @@ namespace rag {
 
     std::vector<NetSearchResult> net_search_content(const std::string_view query) {
         std::vector<NetSearchResult> results;
-        nlohmann::json request_body{{"query", query}, {"include_images", false}, {"include_image_descriptions", false}};
+        nlohmann::json request_body{{"query", query}};
 
         cpr::Response r =
-            cpr::Post(cpr::Url{config.net_search_api_url},
-                      cpr::Header{{"Content-Type", "application/json"}, {"Authorization", config.net_search_token}},
+            cpr::Post(cpr::Url{fmt::format("{}:{}/{}", config.search_api_url, config.search_api_port, SEARCH_WEB_SUFFIX)},
+                      cpr::Header{{"Content-Type", "application/json"}},
 
                       cpr::Body{request_body.dump()});
 
@@ -230,11 +230,11 @@ namespace rag {
     std::optional<std::string> url_search_content(const std::vector<std::string> &url_list) {
         std::string results{"(以下引用了一些网页链接和它的内容，由于这个输入用户看不到，所以请在回答中列出概要或者详细"
                             "的结果[根据用户的指示]):\n"};
-        nlohmann::json request_body{{"urls", url_list}, {"extract_depth", "advanced"}};
+        nlohmann::json request_body{{"urls", url_list}};
 
         cpr::Response r =
-            cpr::Post(cpr::Url{config.url_search_api_url},
-                      cpr::Header{{"Content-Type", "application/json"}, {"Authorization", config.url_search_token}},
+            cpr::Post(cpr::Url{fmt::format("{}:{}/{}", config.search_api_url, config.search_api_port, SEARCH_URL_SUFFIX)},
+                      cpr::Header{{"Content-Type", "application/json"}},
 
                       cpr::Body{request_body.dump()});
 
