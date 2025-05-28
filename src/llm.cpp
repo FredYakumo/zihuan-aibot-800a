@@ -145,6 +145,123 @@ std::string query_chat_session_knowledge(const bot_cmd::CommandContext &context,
     return chat_use_knowledge_str + sender_name_knowledge_str;
 }
 
+void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &msg_content_str,
+                   const std::optional<std::string> &additional_system_prompt_option) {
+    spdlog::debug("Event type: {}, Sender json: {}", context.e->get_typename(),
+                  context.e->sender_ptr->to_json().dump());
+
+    spdlog::info("Start llm thread.");
+    set_thread_name("AIBot LLM process");
+    if (context.is_deep_think) {
+        spdlog::info("开始深度思考");
+    }
+    const auto bot_profile = context.adapter.get_bot_profile();
+
+    if (context.is_deep_think) {
+        context.adapter.send_replay_msg(
+            *context.e->sender_ptr,
+            bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage{"正在思思考中..."},
+                                                 bot_adapter::ImageMessage{Config::instance().think_image_url}),
+            false);
+    }
+
+    auto system_prompt = gen_common_prompt(bot_profile, *context.e->sender_ptr, context.is_deep_think);
+
+    system_prompt += "\n" + query_chat_session_knowledge(context, msg_content_str);
+
+    if (additional_system_prompt_option.has_value()) {
+        system_prompt += additional_system_prompt_option.value();
+    }
+
+    auto msg_json = get_msg_json(system_prompt, context.e->sender_ptr->id, context.e->sender_ptr->name);
+
+    auto user_chat_msg = ChatMessage(ROLE_USER, msg_content_str);
+    add_to_msg_json(msg_json, user_chat_msg);
+
+    auto llm_res = get_llm_response(msg_json, context.is_deep_think);
+
+    // process function call
+    std::vector<ChatMessage> append_tool_msg;
+    while (llm_res.function_calls_opt) {
+        for (const auto &func_calls : *llm_res.function_calls_opt) {
+            if (func_calls.name == "search_info") {
+                const auto &arguments = func_calls.arguments;
+                const std::optional<std::string> &query = get_optional(arguments, "query");
+                bool include_date = get_optional(arguments, "includeDate").value_or(false);
+                spdlog::info("Function call id {}: search_info(query={}, include_date={})", func_calls.id,
+                             query.value_or(EMPTY_JSON_STR_VALUE), include_date);
+                if (!query.has_value() || query->empty())
+                    spdlog::warn("Function call id {}: search_info(query={}, include_date={}), query is null",
+                                 func_calls.id, query.value_or(EMPTY_JSON_STR_VALUE), include_date);
+
+                std::string content;
+                const auto knowledge_list = rag::query_knowledge(*query);
+                for (const auto &knowledge : knowledge_list)
+                    content += fmt::format(
+                        "{}: {}\n", join_str(std::cbegin(knowledge.class_list), std::cend(knowledge.class_list), "-"),
+                        knowledge.content);
+
+                const auto net_search_list = rag::net_search_content(*query);
+                for (const auto &net_search : net_search_list)
+                    content += fmt::format("{}({}): ", net_search.title, net_search.url, net_search.content);
+                append_tool_msg.emplace_back(ROLE_TOOL, content, func_calls.id);
+            }
+        }
+        if (!append_tool_msg.empty()) {
+            // auto session_map = g_chat_session_map.write();
+            // auto &session = session_map->find(context.e->sender_ptr->id)->second;
+            // session.message_list.insert(std::end(session.message_list),
+            //                             std::make_move_iterator(std::begin(append_tool_msg)),
+            //                             std::make_move_iterator(std::end(append_tool_msg)));
+            for (auto &append : append_tool_msg) {
+                add_to_msg_json(msg_json, append);
+                // session.message_list.emplace_back(std::move(append));
+            }
+        }
+        llm_res = get_llm_response(msg_json, context.is_deep_think);
+    }
+
+    if (!llm_res.chat_message_opt) {
+        spdlog::warn("LLM did not response any chat message...");
+        context.adapter.send_replay_msg(*context.e->sender_ptr,
+                                        bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("?")));
+        release_processing_llm(context.e->sender_ptr->id);
+        return;
+    }
+
+    auto session_map = g_chat_session_map.write();
+    auto &session = session_map->find(context.e->sender_ptr->id)->second;
+
+    if (session.user_msg_count + 1 >= USER_SESSION_MSG_LIMIT) {
+        session.message_list.pop_front();
+        session.message_list.pop_front();
+    } else {
+        ++session.user_msg_count;
+    }
+    session.message_list.push_back(user_chat_msg);
+    session.message_list.insert(std::end(session.message_list), std::make_move_iterator(std::begin(append_tool_msg)),
+                                std::make_move_iterator(std::end(append_tool_msg)));
+    session.message_list.emplace_back(llm_res.chat_message_opt->role, llm_res.chat_message_opt->content);
+
+    spdlog::info("Prepare to send msg response");
+
+    context.adapter.send_long_plain_text_replay(*context.e->sender_ptr, llm_res.chat_message_opt->content);
+    if (const auto &group_sender = bot_adapter::try_group_sender(*context.e->sender_ptr)) {
+        database::get_global_db_connection().insert_message(
+            llm_res.chat_message_opt->content,
+            bot_adapter::GroupSender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt, "",
+                                     std::nullopt, std::chrono::system_clock::now(), group_sender->get().group),
+            std::chrono::system_clock::now(), std::set<uint64_t>{context.e->sender_ptr->id});
+    } else {
+        database::get_global_db_connection().insert_message(
+            llm_res.chat_message_opt->content,
+            bot_adapter::Sender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt),
+            std::chrono::system_clock::now(), std::set<uint64_t>{context.e->sender_ptr->id});
+    }
+
+    release_processing_llm(context.e->sender_ptr->id);
+}
+
 void process_llm(const bot_cmd::CommandContext &context,
                  const std::optional<std::string> &additional_system_prompt_option) {
     spdlog::info("开始处理LLM信息");
@@ -170,118 +287,7 @@ void process_llm(const bot_cmd::CommandContext &context,
     spdlog::info(msg_content_str);
 
     auto llm_thread = std::thread([context, msg_content_str, additional_system_prompt_option] {
-        spdlog::debug("Event type: {}, Sender json: {}", context.e->get_typename(),
-                      context.e->sender_ptr->to_json().dump());
-
-        spdlog::info("Start llm thread.");
-        set_thread_name("AIBot LLM process");
-        if (context.is_deep_think) {
-            spdlog::info("开始深度思考");
-        }
-        const auto bot_profile = context.adapter.get_bot_profile();
-
-        if (context.is_deep_think) {
-            context.adapter.send_replay_msg(
-                *context.e->sender_ptr,
-                bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage{"正在思思考中..."},
-                                                     bot_adapter::ImageMessage{Config::instance().think_image_url}),
-                false);
-        }
-
-        auto system_prompt = gen_common_prompt(bot_profile, *context.e->sender_ptr, context.is_deep_think);
-
-        system_prompt += "\n" + query_chat_session_knowledge(context, msg_content_str);
-
-        if (additional_system_prompt_option.has_value()) {
-            system_prompt += additional_system_prompt_option.value();
-        }
-
-        auto msg_json = get_msg_json(system_prompt, context.e->sender_ptr->id, context.e->sender_ptr->name);
-
-        auto user_chat_msg = ChatMessage(ROLE_USER, msg_content_str);
-        add_to_msg_json(msg_json, user_chat_msg);
-
-        auto llm_res = get_llm_response(msg_json, context.is_deep_think);
-
-        // process function call
-        std::vector<ChatMessage> append_tool_msg;
-        while (llm_res.function_calls_opt) {
-            for (const auto &func_calls : *llm_res.function_calls_opt) {
-                if (func_calls.name == "search_info") {
-                    const auto &arguments = func_calls.arguments;
-                    const std::optional<std::string> &query = get_optional(arguments, "query");
-                    bool include_date = get_optional(arguments, "includeDate").value_or(false);
-                    spdlog::info("Function call id {}: search_info(query={}, include_date={})", func_calls.id,
-                                 query.value_or(EMPTY_JSON_STR_VALUE), include_date);
-                    if (!query.has_value() || query->empty())
-                        spdlog::warn("Function call id {}: search_info(query={}, include_date={}), query is null",
-                                     func_calls.id, query.value_or(EMPTY_JSON_STR_VALUE), include_date);
-
-                    std::string content;
-                    const auto knowledge_list = rag::query_knowledge(*query);
-                    for (const auto &knowledge : knowledge_list)
-                        content += fmt::format("{}: {}\n", join_str(std::cbegin(knowledge.class_list),
-                                                                    std::cend(knowledge.class_list), "-"));
-                    const auto net_search_list = rag::net_search_content(*query);
-                    for (const auto &net_search : net_search_list)
-                        content += fmt::format("{}({}): ", net_search.title, net_search.url, net_search.content);
-                    append_tool_msg.emplace_back(ROLE_TOOL, content, func_calls.id);
-                }
-            }
-            if (!append_tool_msg.empty()) {
-                // auto session_map = g_chat_session_map.write();
-                // auto &session = session_map->find(context.e->sender_ptr->id)->second;
-                // session.message_list.insert(std::end(session.message_list),
-                //                             std::make_move_iterator(std::begin(append_tool_msg)),
-                //                             std::make_move_iterator(std::end(append_tool_msg)));
-                for (auto &append : append_tool_msg) {
-                    add_to_msg_json(msg_json, append);
-                    // session.message_list.emplace_back(std::move(append));
-                }
-            }
-            llm_res = get_llm_response(msg_json, context.is_deep_think);
-        }
-
-        if (!llm_res.chat_message_opt) {
-            spdlog::warn("LLM did not response any chat message...");
-            context.adapter.send_replay_msg(*context.e->sender_ptr,
-                                            bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("?")));
-            release_processing_llm(context.e->sender_ptr->id);
-            return;
-        }
-
-        auto session_map = g_chat_session_map.write();
-        auto &session = session_map->find(context.e->sender_ptr->id)->second;
-
-        if (session.user_msg_count + 1 >= USER_SESSION_MSG_LIMIT) {
-            session.message_list.pop_front();
-            session.message_list.pop_front();
-        } else {
-            ++session.user_msg_count;
-        }
-        session.message_list.push_back(user_chat_msg);
-        session.message_list.insert(std::end(session.message_list),
-                                    std::make_move_iterator(std::begin(append_tool_msg)),
-                                    std::make_move_iterator(std::end(append_tool_msg)));
-        session.message_list.emplace_back(llm_res.chat_message_opt->role, llm_res.chat_message_opt->content);
-
-        spdlog::info("Prepare to send msg response");
-
-        context.adapter.send_long_plain_text_replay(*context.e->sender_ptr, llm_res.chat_message_opt->content);
-        if (const auto &group_sender = bot_adapter::try_group_sender(*context.e->sender_ptr)) {
-            database::get_global_db_connection().insert_message(
-                llm_res.chat_message_opt->content,
-                bot_adapter::GroupSender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt, "",
-                                         std::nullopt, std::chrono::system_clock::now(), group_sender->get().group),
-                std::chrono::system_clock::now(), std::set<uint64_t>{context.e->sender_ptr->id});
-        } else {
-            database::get_global_db_connection().insert_message(
-                llm_res.chat_message_opt->content,
-                bot_adapter::Sender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt),
-                std::chrono::system_clock::now(), std::set<uint64_t>{context.e->sender_ptr->id});
-        }
-
-        release_processing_llm(context.e->sender_ptr->id);
+        on_llm_thread(context, msg_content_str, additional_system_prompt_option);
     });
 
     llm_thread.detach();

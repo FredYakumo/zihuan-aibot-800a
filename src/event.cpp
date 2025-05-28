@@ -89,14 +89,14 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
         }
     }
 
-    auto omq_result = optimize_message_query(adapter.get_bot_profile(), event->get_group_sender().name,
-                                                              event->get_group_sender().id, msg_prop);
-    if (omq_result.has_value()) {
-        spdlog::info("优化消息查询, summary: {}, query date prop: {}", omq_result->function,
-            omq_result->query_date, omq_result->query_string);
-    } else {
-        spdlog::info("优化消息查询失败");
-    }
+    // auto omq_result = optimize_message_query(adapter.get_bot_profile(), event->get_group_sender().name,
+    //                                                           event->get_group_sender().id, msg_prop);
+    // if (omq_result.has_value()) {
+    //     spdlog::info("优化消息查询, summary: {}, query date prop: {}", omq_result->function,
+    //         omq_result->query_date, omq_result->query_string);
+    // } else {
+    //     spdlog::info("优化消息查询失败");
+    // }
 
     for (const auto &cmd : run_cmd_list) {
         const auto res = cmd.first(cmd.second);

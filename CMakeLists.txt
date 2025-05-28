@@ -52,6 +52,7 @@ endif()
 
 # 收集源码文件
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/ SRC_FILES)
+aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network NN_SRC_FILES)
 
 # set(ALL_SOURCES
 #     ${CMAKE_CURRENT_SOURCE_DIR}/external/MiraiCP-template/single_include/MiraiCP/MiraiCP.cpp  # MiraiCP 源文件
@@ -62,12 +63,16 @@ aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/ SRC_FILES)
 
 set(BIN_SOURCES
     ${SRC_FILES}
+    ${NN_SRC_FILES}
     ${PLUGIN_SOURCE_PATH}
     ${CMAKE_CURRENT_SOURCE_DIR}/external/easywsclient/easywsclient.cpp
 )
 
 # 打印所有源文件（方便调试）
-foreach(file IN LISTS ALL_SOURCES)
+foreach(file IN LISTS SRC_FILES)
+    message(STATUS "Source file: ${file}")
+endforeach()
+foreach(file IN LISTS NN_SRC_FILES)
     message(STATUS "Source file: ${file}")
 endforeach()
 
