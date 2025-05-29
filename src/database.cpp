@@ -56,7 +56,7 @@ void DBConnection::insert_tool_calls_record(const std::string &sender_name, qq_i
                                             const std::string &tool_calls, const std::string &tool_calls_content) {
                                                 try {
                                                     get_tool_calls_record_table()
-                                                        .insert("sender_name", "sender_id", "chat_session", "send_time", "tool_calls", "tool_calls_content")
+                                                        .insert("sender_name", "sender_id", "origin_chat_session_view", "send_time", "tool_calls", "tool_calls_content")
                                                         .values(sender_name, sender_id, origin_chat_session_view, time_point_to_db_str(send_time), 
                                                                 tool_calls, tool_calls_content)
                                                         .execute();
