@@ -2,6 +2,7 @@
 #define DATABASE_H
 
 #include "adapter_model.h"
+#include "constants.hpp"
 #include "utils.h"
 #include <chrono>
 #include <cstdint>
@@ -26,6 +27,15 @@ namespace database {
         GroupMessageRecord(const std::string_view content, const std::chrono::system_clock::time_point &send_time,
                            const bot_adapter::GroupSender &sender)
             : content(content), send_time(send_time), sender(sender) {}
+    };
+
+    struct ToolCallsRecord {
+        std::string sender_name;
+        qq_id_t sender_id;
+        std::string origin_chat_session_view;
+        std::chrono::system_clock::time_point send_time;
+        std::string tool_calls;
+        std::string tool_calls_content;
     };
 
     class DBConnection {
@@ -72,59 +82,35 @@ namespace database {
 
         void insert_message(const std::string &content, const bot_adapter::Sender &sender,
                             const std::chrono::system_clock::time_point send_time,
-                            const std::optional<std::set<uint64_t>> at_target_set = std::nullopt) {
-            try {
-                const auto at_target_value = (at_target_set && !at_target_set->empty())
-                                                 ? join_str(std::cbegin(*at_target_set), std::cend(*at_target_set), ",",
-                                                            [](const auto i) { return std::to_string(i); })
-                                                 : mysqlx::nullvalue;
-                if (const auto &group_sender = bot_adapter::try_group_sender(sender)) {
-                    const auto &g = group_sender->get();
-                    get_message_record_table()
-                        .insert("sender_name", "sender_id", "content", "send_time", "group_name", "group_id",
-                                "group_permission", "at_target_list")
-                        .values(g.name, g.id, content, time_point_to_db_str(send_time), g.group.name, g.group.id,
-                                g.permission, at_target_value)
-                        .execute();
-                } else {
-                    get_message_record_table()
-                        .insert("sender_name", "sender_id", "content", "send_time", "at_target_list")
-                        .values(sender.name, sender.id, content, time_point_to_db_str(send_time), at_target_value)
-                        .execute();
-                }
-                spdlog::info("Insert message successed.");
-            } catch (const mysqlx::Error &e) {
-                spdlog::error("Insert message error at MySQL X DevAPI Error: {}", e.what());
-            }
-        }
+                            const std::optional<std::set<uint64_t>> at_target_set = std::nullopt);
+
+        void insert_tool_calls_record(const std::string &sender_name, qq_id_t sender_id,
+                                      const std::string &origin_chat_session_view,
+                                      const std::chrono::system_clock::time_point &send_time,
+
+                                      const std::string &tool_calls, const std::string &tool_calls_content);
 
         std::vector<GroupMessageRecord> query_group_user_message(uint64_t sender_id, uint64_t group_id,
-                                                                 size_t count_limit = 10) {
-            mysqlx::RowResult sql_result = get_message_record_table()
-                                               .select("content", "send_time")
-                                               .where("sender_id = :sender_id and group_id = :group_id")
-                                               .orderBy("send_time DESC")
-                                               .limit(count_limit)
-                                               .bind("sender_id", sender_id)
-                                               .bind("group_id", group_id)
-                                               .execute();
-            std::vector<GroupMessageRecord> result;
-            for (auto row : sql_result) {
-                // result.emplace_back(row.get(0), )
-            }
-            return result;
-        }
+                                                                 size_t count_limit = 10);
 
       private:
         mysqlx::Session session;
         mysqlx::Schema schema;
         std::optional<mysqlx::Table> message_record_table = std::nullopt;
+        std::optional<mysqlx::Table> tool_calls_record_table = std::nullopt;
 
         mysqlx::Table &get_message_record_table() {
             if (!message_record_table) {
                 message_record_table = schema.getTable(std::string(DEFAULT_MESSAGE_RECORD_TABLE_NAME), true);
             }
             return *message_record_table;
+        }
+
+        mysqlx::Table &get_tool_calls_record_table() {
+            if (!tool_calls_record_table) {
+                tool_calls_record_table = schema.getTable(std::string(DEFAULT_TOOLS_CALL_RECORD_TABLE), true);
+            }
+            return *tool_calls_record_table;
         }
     };
 

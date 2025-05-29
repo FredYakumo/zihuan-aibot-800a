@@ -50,8 +50,9 @@ std::optional<ChatMessage> get_llm_response(const nlohmann::json &msg_json, bool
                            {"temperature", is_deep_think ? 0.0 : 1.3}};
     const auto json_str = body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
     spdlog::info("llm body: {}", json_str);
-    cpr::Response response = cpr::Post(cpr::Url{fmt::format("{}:{}/{}", config.llm_api_url, config.llm_api_port, LLM_API_SUFFIX)},
-                                       cpr::Body{json_str}, cpr::Header{{"Content-Type", "application/json"}});
+    cpr::Response response =
+        cpr::Post(cpr::Url{fmt::format("{}:{}/{}", config.llm_api_url, config.llm_api_port, LLM_API_SUFFIX)},
+                  cpr::Body{json_str}, cpr::Header{{"Content-Type", "application/json"}});
     spdlog::info("Error msg: {}, status code: {}", response.error.message, response.status_code);
 
     try {
@@ -146,6 +147,22 @@ std::string query_chat_session_knowledge(const bot_cmd::CommandContext &context,
     return chat_use_knowledge_str + sender_name_knowledge_str;
 }
 
+void insert_tool_call_record_async(const std::string& sender_name, qq_id_t sender_id, 
+                                 const nlohmann::json& msg_json,
+                                 const std::string& func_name, 
+                                 const std::string& func_arguments,
+                                 const std::string& tool_content) {
+    std::thread([=] {
+        set_thread_name("insert tool call record");
+        spdlog::info("Start insert tool call record thread.");
+        database::get_global_db_connection().insert_tool_calls_record(
+            sender_name, sender_id, msg_json.dump(),
+            std::chrono::system_clock::now(), 
+            fmt::format("{}({})", func_name, func_arguments),
+            tool_content);
+    }).detach();
+}
+
 void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &msg_content_str,
                    const std::optional<std::string> &additional_system_prompt_option) {
     spdlog::debug("Event type: {}, Sender json: {}", context.e->get_typename(),
@@ -200,6 +217,7 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
         add_to_msg_json(msg_json, llm_res);
         std::vector<ChatMessage> append_tool_calls;
         for (const auto &func_calls : *llm_res.tool_calls) {
+            std::optional<ChatMessage> tool_call_msg = std::nullopt;
             if (func_calls.name == "search_info") {
                 const auto arguments = nlohmann::json::parse(func_calls.arguments);
                 const std::optional<std::string> &query = get_optional(arguments, "query");
@@ -238,7 +256,42 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
                         bot_adapter::make_message_chain_list(bot_adapter::ForwardMessage(
                             first_replay, bot_adapter::DisplayNode(std::string("联网搜索结果")))));
                 }
-                append_tool_calls.emplace_back(ChatMessage(ROLE_TOOL, content, func_calls.id));
+                tool_call_msg = ChatMessage(ROLE_TOOL, content, func_calls.id);
+            } else if (func_calls.name == "fetch_url_content") {
+                const auto &content = llm_res.content;
+                const auto arguments = nlohmann::json::parse(func_calls.arguments);
+                const std::optional<std::string> &url = get_optional(arguments, "url");
+                spdlog::info("Function call id {}: fetch_url_content(url={})", func_calls.id,
+                             url.value_or(EMPTY_JSON_STR_VALUE));
+                if (!url.has_value() || url->empty()) {
+                    spdlog::warn("Function call id {}: fetch_url_content(url={}), url is null", func_calls.id,
+                                 url.value_or(EMPTY_JSON_STR_VALUE));
+                    context.adapter.send_long_plain_text_replay(*context.e->sender_ptr,
+                                                                "你发的啥,我看不到...再发一遍呢?", true);
+                } else {
+                    context.adapter.send_long_plain_text_replay(*context.e->sender_ptr, "等我看看这个链接哦...", true);
+                }
+                const auto url_search_res = rag::url_search_content({*url});
+                if (!url_search_res.has_value()) {
+                    spdlog::error("url_search: {} failed", *url);
+                    tool_call_msg =
+                        ChatMessage(ROLE_TOOL, "打开链接失败,可能是网络抽风了或者网站有反爬机制导致紫幻获取不到内容",
+                                    func_calls.id);
+                } else {
+                    tool_call_msg = ChatMessage(ROLE_TOOL, *url_search_res, func_calls.id);
+                }
+            } else {
+                spdlog::error("Function {} is not impl.", func_calls.name);
+                tool_call_msg = ChatMessage(ROLE_TOOL,
+                                            "主人还没有实现这个功能,快去github页面( "
+                                            "https://github.com/FredYakumo/zihuan-aibot-800a )提issues吧",
+                                            func_calls.id);
+            }
+
+            if (tool_call_msg.has_value()) {
+                append_tool_calls.emplace_back(std::move(*tool_call_msg));
+                insert_tool_call_record_async(context.e->sender_ptr->name, context.e->sender_ptr->id, msg_json,
+                                              func_calls.name, func_calls.arguments, tool_call_msg->content);
             }
         }
         if (!append_tool_calls.empty()) {
@@ -398,8 +451,9 @@ std::optional<OptimMessageResult> optimize_message_query(const bot_adapter::Prof
         {"model", config.llm_model_name}, {"messages", msg_json}, {"stream", false}, {"temperature", 0.0}};
     const auto json_str = body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
     spdlog::info("llm body: {}", json_str);
-    cpr::Response response = cpr::Post(cpr::Url{fmt::format("{}:{}/{}", config.llm_api_url, config.llm_api_port, LLM_API_SUFFIX)},
-                                       cpr::Body{json_str}, cpr::Header{{"Content-Type", "application/json"}});
+    cpr::Response response =
+        cpr::Post(cpr::Url{fmt::format("{}:{}/{}", config.llm_api_url, config.llm_api_port, LLM_API_SUFFIX)},
+                  cpr::Body{json_str}, cpr::Header{{"Content-Type", "application/json"}});
 
     try {
         spdlog::info(response.text);
