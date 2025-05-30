@@ -236,9 +236,13 @@ namespace bot_cmd {
             }
             spdlog::info(net_search_str);
             if (!first_replay.empty()) {
-                context.adapter.send_replay_msg(*context.e->sender_ptr,
-                                                bot_adapter::make_message_chain_list(bot_adapter::ForwardMessage(
-                                                    first_replay, bot_adapter::DisplayNode(std::string("联网搜索结果")))));
+                context.adapter.send_replay_msg(
+                    *context.e->sender_ptr, bot_adapter::make_message_chain_list(bot_adapter::ForwardMessage(
+                                                first_replay, bot_adapter::DisplayNode(std::string("联网搜索结果")))));
+                context.adapter.send_replay_msg(
+                    *context.e->sender_ptr,
+                    bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
+                        "PS: 紫幻现在自己会思考要不要去网上找数据啦, 你可以不用每次都用#联网.")));
             }
             *context.msg_prop.plain_content = replace_str(search, "#联网", net_search_str);
             process_llm(context, net_search_str);

@@ -297,10 +297,11 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
         if (!append_tool_calls.empty()) {
             for (auto &append : append_tool_calls) {
                 add_to_msg_json(msg_json, append);
-                one_chat_session.insert(std::end(one_chat_session),
-                                        std::make_move_iterator(std::begin(append_tool_calls)),
-                                        std::make_move_iterator(std::end(append_tool_calls)));
+                one_chat_session.emplace_back(std::move(append));
             }
+            // one_chat_session.insert(std::end(one_chat_session),
+            //                             std::make_move_iterator(std::begin(append_tool_calls)),
+            //                             std::make_move_iterator(std::end(append_tool_calls)));
         }
 
         if (auto llm_res = get_llm_response(msg_json, context.is_deep_think); llm_res.has_value()) {

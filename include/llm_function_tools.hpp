@@ -61,5 +61,5 @@ const nlohmann::json DEFAULT_TOOLS = nlohmann::json::array(
                 {"description", "查询内容,仅支持OWNER(群主),ADMIN(管理员),MESSAGES(最近的消息).除此以外则是OTHER"}}}})),
 
      // Fetch URL content tool
-     make_tool_function("fetch_url_content", "如果用户的信息中包含有网页链接,则调用此函数",
+     make_tool_function("fetch_url_content", "你可以使用这个函数来查看网页链接里的内容",
                         make_object_params({{"url", {{"type", "string"}, {"description", "网页链接"}}}}, {"url"}))});

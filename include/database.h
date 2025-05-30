@@ -18,6 +18,8 @@ namespace database {
     constexpr std::string DEFAULT_MYSQL_SCHEMA_NAME = "aibot_800a";
     constexpr std::string DEFAULT_MESSAGE_RECORD_TABLE_NAME = "message_record";
     constexpr std::string DEFAULT_TOOLS_CALL_RECORD_TABLE = "tool_calls_record";
+    constexpr std::string DEFAULT_USER_CHAT_PROMPT_TABLE_NAME = "user_chat_prompt";
+    constexpr std::string DEFAULT_USER_PORTAIT_TABLE_NAME = "user_protait";
 
     struct GroupMessageRecord {
         std::string content;
@@ -37,6 +39,8 @@ namespace database {
         std::string tool_calls;
         std::string tool_calls_content;
     };
+
+    
 
     class DBConnection {
       public:
