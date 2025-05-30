@@ -147,19 +147,15 @@ std::string query_chat_session_knowledge(const bot_cmd::CommandContext &context,
     return chat_use_knowledge_str + sender_name_knowledge_str;
 }
 
-void insert_tool_call_record_async(const std::string& sender_name, qq_id_t sender_id, 
-                                 const nlohmann::json& msg_json,
-                                 const std::string& func_name, 
-                                 const std::string& func_arguments,
-                                 const std::string& tool_content) {
+void insert_tool_call_record_async(const std::string &sender_name, qq_id_t sender_id, const nlohmann::json &msg_json,
+                                   const std::string &func_name, const std::string &func_arguments,
+                                   const std::string &tool_content) {
     std::thread([=] {
         set_thread_name("insert tool call record");
         spdlog::info("Start insert tool call record thread.");
         database::get_global_db_connection().insert_tool_calls_record(
-            sender_name, sender_id, msg_json.dump(),
-            std::chrono::system_clock::now(), 
-            fmt::format("{}({})", func_name, func_arguments),
-            tool_content);
+            sender_name, sender_id, msg_json.dump(), std::chrono::system_clock::now(),
+            fmt::format("{}({})", func_name, func_arguments), tool_content);
     }).detach();
 }
 
@@ -289,9 +285,9 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
             }
 
             if (tool_call_msg.has_value()) {
-                append_tool_calls.emplace_back(std::move(*tool_call_msg));
                 insert_tool_call_record_async(context.e->sender_ptr->name, context.e->sender_ptr->id, msg_json,
                                               func_calls.name, func_calls.arguments, tool_call_msg->content);
+                append_tool_calls.emplace_back(std::move(*tool_call_msg));
             }
         }
         if (!append_tool_calls.empty()) {
