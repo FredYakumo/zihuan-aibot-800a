@@ -75,13 +75,12 @@ if __name__ == "__main__":
                 
                 content = e["content"] if not pd.isna(e["content"]) else ""
                 
-                keyword_list = []
-                if not pd.isna(e["keyword"]):
-                    keyword_list = [i.strip() for i in e["keyword"].split(",")]
-                    print(f"Use file keywords: {','.join(keyword_list)}")
+                class_name_list = []
+                if not pd.isna(e["class_name_list"]):
+                    class_name_list = [i.strip() for i in e["class_name_list"].split("|")]
+                    print(f"Class_name_list: {','.join(class_name_list)}")
                 else:
-                    keyword_list = list(jieba.cut(content))
-                    print(f"Use jieba cut keywords: {','.join(keyword_list)}")
+                    print("No class name")
 
                 creator_name = e["creator_name"] if not pd.isna(e["creator_name"]) else ""
                 if "create_time" not in df.columns:
@@ -89,22 +88,37 @@ if __name__ == "__main__":
                 else:
                     create_time = convert_to_rfc3339(e["create_time"]) if not pd.isna(e["create_time"]) else datetime.datetime.now(pytz.UTC).isoformat()
                 
-                # Calculate embeddings for keywords
-                keyword_text = " ".join(keyword_list)
-                keyword_inputs = tokenizer(keyword_text, return_tensors="pt", padding=True, truncation=True)
-                keyword_outputs = model(**keyword_inputs)
-                keyword_embedding = mean_pooling(keyword_outputs, keyword_inputs["attention_mask"]).detach().numpy().tolist()[0]
+                # Calculate embeddings for class_name_list
+                class_name_text = " ".join(class_name_list)
+                class_name_inputs = tokenizer(class_name_text, return_tensors="pt", padding=True, truncation=True)
+                class_name_outputs = model(**class_name_inputs)
+                class_name_embedding = mean_pooling(class_name_outputs, class_name_inputs["attention_mask"]).detach().numpy().tolist()[0]
                 
-                # logger.info("Delete old same content...")
-                # collection.data.delete_many(Filter.by_property("content").equal(content))
+                # Calculate embeddings for content
+                # 先对content进行分词
+                words = jieba.cut(content)
+                # 去除停用词
+                filtered_words = [word for word in words if word not in stop_words and word.strip()]
+                # 重新组合成文本
+                filtered_content = " ".join(filtered_words)
+                # 计算embedding
+                content_inputs = tokenizer(filtered_content, return_tensors="pt", padding=True, truncation=True)
+                content_outputs = model(**content_inputs)
+                content_embedding = mean_pooling(content_outputs, content_inputs["attention_mask"]).detach().numpy().tolist()[0]
+                
+                # Combine embeddings with weights (3x for class_name_list, 1x for content)
+                combined_embedding = []
+                class_name_tensor = torch.tensor(class_name_embedding)
+                content_tensor = torch.tensor(content_embedding)
+                combined_embedding = ((3 * class_name_tensor + content_tensor) / 4).tolist()
                 
                 logger.info("Adding object.")
                 batch.add_object(properties={
-                    "keyword": keyword_list,
+                    "class_name_list": class_name_list,
                     "content": content,
                     "create_time": create_time,
                     "creator_name": creator_name
-                }, vector=keyword_embedding)
+                }, vector=combined_embedding)
                 if batch.number_errors > 10:
                     logger.error("Batch import stopped due to excessive errors.")
                     break

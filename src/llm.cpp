@@ -103,7 +103,7 @@ std::string query_chat_session_knowledge(const bot_cmd::CommandContext &context,
             //                  context.e->sender_ptr->id);
             //     user_set_iter->second.erase(user_set_iter->second.cbegin());
             // }
-            user_set_iter->second.insert(knowledge.content);
+            user_set_iter->second.insert(fmt::format("{}:{}", join_str(std::cbegin(knowledge.class_name_list), std::cend(knowledge.class_name_list), "|"), knowledge.content));
         }
         size_t total_len = 0;
         auto it = user_set_iter->second.rbegin();
@@ -123,28 +123,28 @@ std::string query_chat_session_knowledge(const bot_cmd::CommandContext &context,
         if (user_chat_knowledge_list == map->cend() || user_chat_knowledge_list->second.empty()) {
             spdlog::info("未查询到对话关联的知识");
         } else {
-            chat_use_knowledge_str.append("当前对话相关的知识:\"");
+            chat_use_knowledge_str.append("相关的知识:\"");
             chat_use_knowledge_str.append(join_str(std::cbegin(user_chat_knowledge_list->second),
-                                                   std::cend(user_chat_knowledge_list->second), "\n"));
+                                                   std::cend(user_chat_knowledge_list->second), "."));
             chat_use_knowledge_str.append("\"");
         }
     }
 
     // Search knowledge for username
-    spdlog::info("Search knowledge for username");
-    auto sender_name_knowledge_list = rag::query_knowledge(context.e->sender_ptr->name, true);
-    std::string sender_name_knowledge_str;
-    if (sender_name_knowledge_list.empty()) {
-        spdlog::info("未查询到用户关联的知识");
-    } else {
-        sender_name_knowledge_str = "与你聊天用户相关的信息:\"";
-        sender_name_knowledge_str.append(join_str(std::cbegin(sender_name_knowledge_list),
-                                                  std::cend(sender_name_knowledge_list), "\n",
-                                                  [](const auto &knowledge) { return knowledge.content; }));
-        sender_name_knowledge_str.append("\"");
-    }
+    // spdlog::info("Search knowledge for username");
+    // auto sender_name_knowledge_list = rag::query_knowledge(context.e->sender_ptr->name, true);
+    // std::string sender_name_knowledge_str;
+    // if (sender_name_knowledge_list.empty()) {
+    //     spdlog::info("未查询到用户关联的知识");
+    // } else {
+    //     sender_name_knowledge_str = "与你聊天用户相关的信息:\"";
+    //     sender_name_knowledge_str.append(join_str(std::cbegin(sender_name_knowledge_list),
+    //                                               std::cend(sender_name_knowledge_list), "\n",
+    //                                               [](const auto &knowledge) { return knowledge.content; }));
+    //     sender_name_knowledge_str.append("\"");
+    // }
 
-    return chat_use_knowledge_str + sender_name_knowledge_str;
+    return chat_use_knowledge_str;
 }
 
 void insert_tool_call_record_async(const std::string &sender_name, qq_id_t sender_id, const nlohmann::json &msg_json,
@@ -228,8 +228,8 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
                 const auto knowledge_list = rag::query_knowledge(*query);
                 for (const auto &knowledge : knowledge_list)
                     content += fmt::format(
-                        "{}: {}\n", join_str(std::cbegin(knowledge.class_list), std::cend(knowledge.class_list), "-"),
-                        knowledge.content);
+                        "{}:{}\n", join_str(std::cbegin(knowledge.class_name_list), std::cend(knowledge.class_name_list), "|"),
+                        knowledge.content) + ".";
 
                 const auto net_search_list = rag::net_search_content(
                     include_date ? fmt::format("{} {}", get_current_time_formatted(), *query) : *query);
@@ -237,9 +237,9 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
                 first_replay.emplace_back(
                     context.adapter.get_bot_profile().id, std::chrono::system_clock::now(),
                     context.adapter.get_bot_profile().name,
-                    bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("参考资料")));
+                    bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(fmt::format("搜索: \"{}\"", query))));
                 for (const auto &net_search : net_search_list) {
-                    content += fmt::format("{}( {} ): {}", net_search.title, net_search.url, net_search.content);
+                    content += fmt::format("{}( {} ):{}\n", net_search.title, net_search.url, net_search.content);
                     first_replay.emplace_back(context.adapter.get_bot_profile().id, std::chrono::system_clock::now(),
                                               context.adapter.get_bot_profile().name,
                                               bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(

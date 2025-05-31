@@ -64,16 +64,16 @@ def query_knowledge(query: str) -> List[Knowledge]:
     res = g_vec_db_collection.query.near_vector(
         near_vector=vector,
         # limit=5,
-        certainty=0.71,
+        certainty=0.75,
         return_metadata=["certainty"],
-        return_properties=["keyword", "content", "create_time", "creator_name"],
+        return_properties=["class_name_list", "content", "create_time", "creator_name"],
     )
     end_time = time.time()
     knowledge_result = []
     for e in res.objects:
-        logger.info(f"{e.properties.get('content')} - 创建者: {e.properties.get('creator_name')} - 时间: {e.properties.get('create_time')}, 置信度: {e.metadata.certainty}, keyword: {e.properties.get('keyword')}")
+        logger.info(f"{e.properties.get('class_name_list')}: {e.properties.get('content')} - 创建者: {e.properties.get('creator_name')} - 时间: {e.properties.get('create_time')}, 置信度: {e.metadata.certainty}")
         knowledge_result.append(Knowledge(
-            keyword=e.properties.get("keyword"),
+            class_name_list=e.properties.get("class_name_list"),
             content=e.properties.get("content"),
             create_time=e.properties.get("create_time"),
             creator_name=e.properties.get("creator_name"),
@@ -87,20 +87,21 @@ def query_knowledge(query: str) -> List[Knowledge]:
 def query_data(request: QueryKnowledgeRequest):
     return query_knowledge(request.query)
 
-@app.post("/find_keyword_match")
-def find_keyword_match(request: QueryKnowledgeRequest):
-    logger.info(f"从向量数据库中精确查找关键字: {request.query}")
+@app.post("/find_class_name_match")
+def find_class_name_match(request: QueryKnowledgeRequest):
+    logger.info(f"从向量数据库中精确查找类别: {request.query}")
     start_time = time.time()
     res = g_vec_db_collection.query.fetch_objects(
-        filters=Filter.by_property("keyword").contains_any([request.query]),
-        return_properties=["keyword", "content", "create_time", "creator_name"]
+        filters=Filter.by_property("class_name_list").contains_any([request.query]),
+        return_properties=["class_name_list", "content", "create_time", "creator_name"]
     )
     end_time = time.time()
     knowledge_result = []
     for e in res.objects:
-        logger.info(f"{e.properties.get('content')} - 创建者: {e.properties.get('creator_name')} - 时间: {e.properties.get('create_time')}, 置信度: {e.metadata.certainty}, keyword: {e.properties.get('keyword')}")
+        logger.info(f"{e.properties.get('class_name_list')}: {e.properties.get('content')} - 创建者: {e.properties.get('creator_name')} - 时间: {e.properties.get('create_time')}, 置信度: {e.metadata.certainty}")
+
         knowledge_result.append(Knowledge(
-            keyword=e.properties.get("keyword"),
+            class_name_list=e.properties.get("class_name_list"),
             content=e.properties.get("content"),
             create_time=e.properties.get("create_time"),
             creator_name=e.properties.get("creator_name"),

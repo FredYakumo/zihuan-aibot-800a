@@ -28,9 +28,9 @@ if __name__ == "__main__":
             },
             "properties": [
                 {
-                    "name": "keyword",
+                    "name": "class_name_list",
                     "dataType": ["string[]"],
-                    "description": "关键字"
+                    "description": "类别列表"
                 },
                 {
                     "name": "content",

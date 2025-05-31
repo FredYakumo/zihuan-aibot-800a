@@ -106,9 +106,9 @@ namespace rag {
 
         nlohmann::json request_body{{"query", query}};
 
-        cpr::Response r = cpr::Post(
-            cpr::Url{fmt::format("{}{}", config.vec_db_url, exactly_match ? "find_keyword_match" : "query_knowledge")},
-            cpr::Header{{"Content-Type", "application/json"}}, cpr::Body{request_body.dump()});
+        cpr::Response r = cpr::Post(cpr::Url{fmt::format("{}{}", config.vec_db_url,
+                                                         exactly_match ? "find_class_name_match" : "query_knowledge")},
+                                    cpr::Header{{"Content-Type", "application/json"}}, cpr::Body{request_body.dump()});
 
         if (r.status_code != 200) {
             spdlog::error("查询知识失败: {}", r.text);
@@ -118,15 +118,16 @@ namespace rag {
             auto knowledge_json = nlohmann::json::parse(r.text);
 
             for (auto &json : knowledge_json) {
-                DBKnowledge knowledge{
-                    get_optional<std::string_view>(json, "content").value_or(""),
-                    get_optional<std::string_view>(json, "creator_name").value_or(""),
-                    get_optional<std::string_view>(json, "create_time").value_or(""),
-                    get_optional<std::vector<std::string>>(json, "class_list").value_or(std::vector<std::string>()),
-                    get_optional<float>(json, "certainty").value_or(0.0f)};
-                spdlog::info("{}: {}, 创建者: {}, 日期: {}, 置信度: {}",
-                             join_str(std::cbegin(knowledge.class_list), std::cend(knowledge.class_list), "-"),
-                             knowledge.content, knowledge.creator_name, knowledge.create_dt, knowledge.certainty);
+                DBKnowledge knowledge{get_optional<std::string_view>(json, "content").value_or(""),
+                                      get_optional<std::string_view>(json, "creator_name").value_or(""),
+                                      get_optional<std::string_view>(json, "create_time").value_or(""),
+                                      get_optional<std::vector<std::string>>(json, "class_name_list")
+                                          .value_or(std::vector<std::string>()),
+                                      get_optional<float>(json, "certainty").value_or(0.0f)};
+                spdlog::info(
+                    "{}: {}, 创建者: {}, 日期: {}, 置信度: {}",
+                    join_str(std::cbegin(knowledge.class_name_list), std::cend(knowledge.class_name_list), "|"),
+                    knowledge.content, knowledge.creator_name, knowledge.create_dt, knowledge.certainty);
                 result.push_back(knowledge);
             }
         } catch (const nlohmann::json::exception &e) {
