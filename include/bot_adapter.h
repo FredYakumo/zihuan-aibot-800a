@@ -103,6 +103,11 @@ namespace bot_adapter {
 
         const Profile &get_bot_profile() const { return bot_profile; }
 
+        inline const GroupWrapper &get_group(qq_id_t group_id) const {
+            const auto &m = group_info_map.read();
+            return m->find(group_id)->second;
+        }
+
       private:
         void handle_message(const std::string &message);
         std::vector<std::function<void(std::shared_ptr<Event> e)>> msg_handle_func_list;

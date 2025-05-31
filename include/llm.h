@@ -3,8 +3,8 @@
 #include "bot_cmd.h"
 #include "global_data.h"
 
-std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot_adapter::Sender &sender,
-                              bool is_deep_think = false);
+std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot_adapter::BotAdapter &adapter,
+                              const bot_adapter::Sender &sender, bool is_deep_think);
 
 void process_llm(const bot_cmd::CommandContext &context,
                  const std::optional<std::string> &additional_system_prompt_option);

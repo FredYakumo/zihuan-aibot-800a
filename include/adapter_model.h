@@ -297,6 +297,17 @@ namespace bot_adapter {
         return GroupPermission::UNKNOWN;
     }
 
+    inline std::string get_permission_chs(const GroupPermission perm) {
+        switch (perm) {
+        case GroupPermission::OWNER:
+            return "群主";
+        case GroupPermission::ADMINISTRATOR:
+            return "管理员";
+        default:
+            return "普通群友";
+        }
+    }
+
     struct GroupInfo {
         qq_id_t group_id;
         std::string name;
@@ -328,9 +339,8 @@ namespace bot_adapter {
         std::optional<std::chrono::system_clock::time_point> last_speak_time;
         float mute_time_remaining;
 
-        GroupMemberInfo(qq_id_t id, qq_id_t group_id, std::string member_name,
-                        std::optional<std::string> special_title, GroupPermission permission,
-                        std::optional<std::chrono::system_clock::time_point> join_time,
+        GroupMemberInfo(qq_id_t id, qq_id_t group_id, std::string member_name, std::optional<std::string> special_title,
+                        GroupPermission permission, std::optional<std::chrono::system_clock::time_point> join_time,
                         std::optional<std::chrono::system_clock::time_point> last_speak_time, float mute_time_remaining)
             : id(id), group_id(group_id), member_name(std::move(member_name)), special_title(std::move(special_title)),
               permission(permission), join_time(std::move(join_time)), last_speak_time(std::move(last_speak_time)),

@@ -1,6 +1,7 @@
 #include "llm.h"
 #include "adapter_message.h"
 #include "adapter_model.h"
+#include "bot_adapter.h"
 #include "bot_cmd.h"
 #include "chat_session.hpp"
 #include "config.h"
@@ -24,15 +25,40 @@
 
 const Config &config = Config::instance();
 
-std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot_adapter::Sender &sender,
-                              bool is_deep_think) {
-    return fmt::format(
-        "你的名字叫{}(qq号{}),性别是: {}，{}。当前时间是: {}，当前跟你聊天的群友的名字叫\"{}\"(qq号{})，",
-        bot_profile.name, bot_profile.id, bot_adapter::to_chs_string(bot_profile.sex),
-        (is_deep_think && config.custom_deep_think_system_prompt_option.has_value())
-            ? *config.custom_deep_think_system_prompt_option
-            : config.custom_system_prompt,
-        get_current_time_formatted(), sender.name, sender.id);
+inline std::string get_permission_chs(const std::string_view perm) {
+    if (perm == "OWNER") {
+        return "群主";
+    } else if (perm == "ADMINISTRATOR") {
+        return "管理员";
+    }
+    return "普通群友";
+}
+
+std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot_adapter::BotAdapter &adapter,
+                              const bot_adapter::Sender &sender, bool is_deep_think) {
+    if (const auto &group_sender = bot_adapter::try_group_sender(sender); group_sender.has_value()) {
+        std::string permission = get_permission_chs(group_sender->get().group.permission);
+        std::string bot_perm =
+            get_permission_chs(adapter.get_group(group_sender->get().group.id).group_info.bot_in_group_permission);
+
+        return fmt::format(
+            "你是一个'{}'群里的{},你的名字叫{}(qq号{}),性别是: "
+            "{}。{}。当前时间{}，当前跟你聊天的群友的名字叫\"{}\"(qq号{}),身份是{}。输出与该群友聊天的内容",
+            group_sender->get().group.name, bot_perm, bot_profile.name, bot_profile.id,
+            bot_adapter::to_chs_string(bot_profile.sex),
+            (is_deep_think && config.custom_deep_think_system_prompt_option.has_value())
+                ? *config.custom_deep_think_system_prompt_option
+                : config.custom_system_prompt,
+            get_current_time_formatted(), sender.name, sender.id, permission);
+    } else {
+        return fmt::format("你的名字叫{}(qq号{}),性别是: "
+                           "{}。{}。当前时间{}，当前跟你聊天的好友的名字叫\"{}\"(qq号{})。输出与该好友聊天的内容",
+                           bot_profile.name, bot_profile.id, bot_adapter::to_chs_string(bot_profile.sex),
+                           (is_deep_think && config.custom_deep_think_system_prompt_option.has_value())
+                               ? *config.custom_deep_think_system_prompt_option
+                               : config.custom_system_prompt,
+                           get_current_time_formatted(), sender.name, sender.id);
+    }
 }
 
 struct LLMResponse {
@@ -103,7 +129,9 @@ std::string query_chat_session_knowledge(const bot_cmd::CommandContext &context,
             //                  context.e->sender_ptr->id);
             //     user_set_iter->second.erase(user_set_iter->second.cbegin());
             // }
-            user_set_iter->second.insert(fmt::format("{}:{}", join_str(std::cbegin(knowledge.class_name_list), std::cend(knowledge.class_name_list), "|"), knowledge.content));
+            user_set_iter->second.insert(fmt::format(
+                "{}:{}", join_str(std::cbegin(knowledge.class_name_list), std::cend(knowledge.class_name_list), "|"),
+                knowledge.content));
         }
         size_t total_len = 0;
         auto it = user_set_iter->second.rbegin();
@@ -179,7 +207,7 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
             false);
     }
 
-    auto system_prompt = gen_common_prompt(bot_profile, *context.e->sender_ptr, context.is_deep_think);
+    auto system_prompt = gen_common_prompt(bot_profile, context.adapter, *context.e->sender_ptr, context.is_deep_think);
 
     system_prompt += "\n" + query_chat_session_knowledge(context, msg_content_str);
 
@@ -227,17 +255,19 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
                 std::string content;
                 const auto knowledge_list = rag::query_knowledge(*query);
                 for (const auto &knowledge : knowledge_list)
-                    content += fmt::format(
-                        "{}:{}\n", join_str(std::cbegin(knowledge.class_name_list), std::cend(knowledge.class_name_list), "|"),
-                        knowledge.content) + ".";
+                    content += fmt::format("{}:{}\n",
+                                           join_str(std::cbegin(knowledge.class_name_list),
+                                                    std::cend(knowledge.class_name_list), "|"),
+                                           knowledge.content) +
+                               ".";
 
                 const auto net_search_list = rag::net_search_content(
                     include_date ? fmt::format("{} {}", get_current_time_formatted(), *query) : *query);
                 std::vector<bot_adapter::ForwardMessageNode> first_replay;
-                first_replay.emplace_back(
-                    context.adapter.get_bot_profile().id, std::chrono::system_clock::now(),
-                    context.adapter.get_bot_profile().name,
-                    bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(fmt::format("搜索: \"{}\"", *query))));
+                first_replay.emplace_back(context.adapter.get_bot_profile().id, std::chrono::system_clock::now(),
+                                          context.adapter.get_bot_profile().name,
+                                          bot_adapter::make_message_chain_list(
+                                              bot_adapter::PlainTextMessage(fmt::format("搜索: \"{}\"", *query))));
                 for (const auto &net_search : net_search_list) {
                     content += fmt::format("{}( {} ):{}\n", net_search.title, net_search.url, net_search.content);
                     first_replay.emplace_back(context.adapter.get_bot_profile().id, std::chrono::system_clock::now(),
@@ -255,12 +285,13 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
                 tool_call_msg = ChatMessage(ROLE_TOOL, content, func_calls.id);
             } else if (func_calls.name == "fetch_url_content") {
                 const auto arguments = nlohmann::json::parse(func_calls.arguments);
-                const std::vector<std::string> urls = get_optional(arguments, "urls").value_or(std::vector<std::string>());
+                const std::vector<std::string> urls =
+                    get_optional(arguments, "urls").value_or(std::vector<std::string>());
                 spdlog::info("Function call id {}: fetch_url_content(urls=[{}])", func_calls.id,
                              join_str(std::cbegin(urls), std::cend(urls)));
                 if (urls.empty()) {
                     spdlog::info("Function call id {}: fetch_url_content(urls=[{}])", func_calls.id,
-                             join_str(std::cbegin(urls), std::cend(urls)));
+                                 join_str(std::cbegin(urls), std::cend(urls)));
                     context.adapter.send_long_plain_text_replay(*context.e->sender_ptr,
                                                                 "你发的啥,我看不到...再发一遍呢?", true);
                 } else {
@@ -271,22 +302,22 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
                 std::string content;
 
                 // Process successful results
-                for (const auto& [url, raw_content] : url_search_res.results) {
+                for (const auto &[url, raw_content] : url_search_res.results) {
                     content += fmt::format("链接[{}]内容:\n{}\n\n", url, raw_content);
                 }
 
                 // Process failed results
                 if (!url_search_res.failed_reason.empty()) {
                     content += "以下链接获取失败:\n";
-                    for (const auto& [url, error] : url_search_res.failed_reason) {
+                    for (const auto &[url, error] : url_search_res.failed_reason) {
                         content += fmt::format("链接[{}]失败原因: {}\n", url, error);
                     }
                 }
 
                 if (url_search_res.results.empty()) {
                     spdlog::error("url_search: {} failed", join_str(std::cbegin(urls), std::cend(urls)));
-                    tool_call_msg = ChatMessage(ROLE_TOOL, 
-                        "抱歉，所有链接都获取失败了,可能是网络抽风了或者网站有反爬机制导致紫幻获取不到内容",
+                    tool_call_msg = ChatMessage(
+                        ROLE_TOOL, "抱歉，所有链接都获取失败了,可能是网络抽风了或者网站有反爬机制导致紫幻获取不到内容",
                         func_calls.id);
                 } else {
                     tool_call_msg = ChatMessage(ROLE_TOOL, content, func_calls.id);
