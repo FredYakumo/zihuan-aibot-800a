@@ -3,6 +3,7 @@
 #include "bot_adapter.h"
 #include "bot_cmd.h"
 #include "config.h"
+#include "constants.hpp"
 #include "llm.h"
 #include "msg_prop.h"
 #include "utils.h"
@@ -94,7 +95,7 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
     for (const auto &cmd : run_cmd_list) {
         const auto res = cmd.first(cmd.second);
         if (res.is_break_cmd_process) {
-            break;
+            return;
         }
         if (res.is_deep_think) {
             is_deep_think = true;
@@ -103,6 +104,10 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
         if (res.is_modify_msg) {
             res.is_modify_msg.value()(msg_prop);
         }
+    }
+
+    if (ltrim(rtrim(*msg_prop.plain_content)).empty() && ltrim(rtrim(*msg_prop.ref_msg_content)).empty()) {
+        *msg_prop.plain_content = EMPTY_MSG_TAG;
     }
 
     auto msg_storage_thread = std::thread([msg_prop, event, send_time] {
@@ -188,7 +193,7 @@ void on_friend_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_a
     for (const auto &cmd : run_cmd_list) {
         const auto res = cmd.first(cmd.second);
         if (res.is_break_cmd_process) {
-            break;
+            return;
         }
         if (res.is_deep_think) {
             is_deep_think = true;
@@ -197,6 +202,10 @@ void on_friend_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_a
         if (res.is_modify_msg) {
             res.is_modify_msg.value()(msg_prop);
         }
+    }
+
+    if (ltrim(rtrim(*msg_prop.plain_content)).empty() && ltrim(rtrim(*msg_prop.ref_msg_content)).empty()) {
+        *msg_prop.plain_content = EMPTY_MSG_TAG;
     }
 
     auto msg_storage_thread = std::thread([msg_prop, event, send_time, bot_id] {
