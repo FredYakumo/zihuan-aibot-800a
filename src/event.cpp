@@ -106,7 +106,7 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
         }
     }
 
-    if (ltrim(rtrim(*msg_prop.plain_content)).empty() && ltrim(rtrim(*msg_prop.ref_msg_content)).empty()) {
+    if ((msg_prop.plain_content == nullptr || ltrim(rtrim(*msg_prop.plain_content)).empty()) && (msg_prop.ref_msg_content == nullptr || ltrim(rtrim(*msg_prop.ref_msg_content)).empty())) {
         *msg_prop.plain_content = EMPTY_MSG_TAG;
     }
 
@@ -204,7 +204,7 @@ void on_friend_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_a
         }
     }
 
-    if (ltrim(rtrim(*msg_prop.plain_content)).empty() && ltrim(rtrim(*msg_prop.ref_msg_content)).empty()) {
+    if ((msg_prop.plain_content == nullptr || ltrim(rtrim(*msg_prop.plain_content)).empty()) && (msg_prop.ref_msg_content == nullptr || ltrim(rtrim(*msg_prop.ref_msg_content)).empty())) {
         *msg_prop.plain_content = EMPTY_MSG_TAG;
     }
 
