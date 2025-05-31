@@ -237,7 +237,7 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
                 first_replay.emplace_back(
                     context.adapter.get_bot_profile().id, std::chrono::system_clock::now(),
                     context.adapter.get_bot_profile().name,
-                    bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(fmt::format("搜索: \"{}\"", query))));
+                    bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(fmt::format("搜索: \"{}\"", *query))));
                 for (const auto &net_search : net_search_list) {
                     content += fmt::format("{}( {} ):{}\n", net_search.title, net_search.url, net_search.content);
                     first_replay.emplace_back(context.adapter.get_bot_profile().id, std::chrono::system_clock::now(),
