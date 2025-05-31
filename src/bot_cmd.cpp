@@ -16,41 +16,6 @@
 namespace bot_cmd {
     std::vector<std::pair<std::string, bot_cmd::CommandProperty>> keyword_command_map;
 
-    // CommandRes queto_command(bot_adapter::BotAdapter &adapter, CommandContext context) {
-    //     std::string res{};
-    //     const auto group_msg = rag::query_group_msg(context.param, context.group_id);
-    //     if (group_msg.empty()) {
-    //         if (const auto group_sender = bot_adapter::try_group_sender(*context.e.sender_ptr)) {
-    //             adapter.send_message(
-    //                 group_sender->get().group,
-    //                 bot_adapter::make_message_chain_list(
-    //                     bot_adapter::AtTargetMessage(group_sender->get().id),
-    //                     bot_adapter::PlainTextMessage(fmt::format(" 在本群中未找到关于\"{}\"的语录",
-    //                     context.param))));
-    //         }
-
-    //         return CommandRes{true};
-    //     }
-    //     for (const auto &e : group_msg) {
-    //         res.append(fmt::format("\n{}: {}。时间: {}, 关联度: {:.4f}", e.first.sender_name, e.first.content,
-    //                                e.first.send_time, e.second));
-    //     }
-
-    //     if (context.is_command_only) {
-    //         output_in_split_string(adapter, bot_adapter::Group(context.group_id, "", ""),
-    //                                bot_adapter::GroupSender(*context.e.sender_ptr_id, *context.e.sender_ptr_name,
-    //                                std::nullopt, "",
-    //                                                         std::nullopt, std::chrono::system_clock::now()),
-    //                                res);
-    //         return CommandRes{true};
-    //     }
-
-    //     return CommandRes{false, [res](const MessageProperties &msg_prop) {
-    //                           *msg_prop.plain_content = replace_keyword_and_parentheses_content(
-    //                               *msg_prop.plain_content, "#语录", fmt::format("在本群中关于: {}的消息", res));
-    //                       }};
-    // }
-
     CommandRes clear_chat_session_command(CommandContext context) {
         spdlog::info("开始清除聊天记录");
         auto chat_session_map = g_chat_session_map.write();
@@ -96,7 +61,7 @@ namespace bot_cmd {
             return CommandRes{true};
         }
         for (const auto &e : query_msg) {
-            res.append(fmt::format("\n{}。创建者: {}, 时间: {},  置信度: {:.4f}", e.content, e.creator_name,
+            res.append(fmt::format("\n{}。创建者: {}, 时间: {},   置信度: {:.4f}", e.content, e.creator_name,
                                    e.create_dt, e.certainty));
         }
         context.adapter.send_long_plain_text_replay(*context.e->sender_ptr, res);
@@ -271,16 +236,29 @@ namespace bot_cmd {
             }
 
             auto net_search_res = rag::url_search_content(url_list);
-            if (net_search_res.has_value()) {
-                const auto &res = net_search_res.value();
-                spdlog::info(res);
-                *context.msg_prop.plain_content = replace_keyword_and_parentheses_content(search, "#url", res);
-                process_llm(context, res);
-            } else {
+            std::string content;
+
+            // Process successful results
+            for (const auto& [url, raw_content] : net_search_res.results) {
+                content += fmt::format("链接[{}]内容:\n{}\n\n", url, raw_content);
+            }
+
+            // Process failed results 
+            if (!net_search_res.failed_reason.empty()) {
+                content += "以下链接获取失败:\n";
+                for (const auto& [url, error] : net_search_res.failed_reason) {
+                    content += fmt::format("链接[{}]失败原因: {}\n", url, error);
+                }
+            }
+
+            if (net_search_res.results.empty()) {
                 context.adapter.send_replay_msg(
                     *context.e->sender_ptr,
                     bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage{
                         fmt::format("{}打开url: {}失败, 请重试.", context.adapter.get_bot_profile().name, search)}));
+            } else {
+                *context.msg_prop.plain_content = replace_keyword_and_parentheses_content(search, "#url", content);
+                process_llm(context, content);
             }
         }).detach();
 

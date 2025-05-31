@@ -62,4 +62,4 @@ const nlohmann::json DEFAULT_TOOLS = nlohmann::json::array(
 
      // Fetch URL content tool
      make_tool_function("fetch_url_content", "你可以使用这个函数来查看网页链接里的内容",
-                        make_object_params({{"url", {{"type", "string"}, {"description", "网页链接"}}}}, {"url"}))});
+                        make_object_params({{"urls", {{"type", "array"}, {"description", "网页链接列表,每个元素为url字符串"}}}}, {"url"}))});

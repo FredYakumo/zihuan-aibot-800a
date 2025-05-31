@@ -9,6 +9,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -35,6 +36,11 @@ namespace rag {
         double score;
     };
 
+    struct UrlSearchResult {
+        std::vector<std::pair<std::string, std::string>> results;
+        std::vector<std::pair<std::string, std::string>> failed_reason;
+    };
+
 
     std::vector<std::pair<DBGroupMessage, double>>
     query_group_msg(const std::string_view query, std::optional<uint64_t> group_id_option = std::nullopt);
@@ -50,7 +56,7 @@ namespace rag {
 
     std::vector<NetSearchImage> net_search_image(const std::string_view query);
 
-    std::optional<std::string> url_search_content(const std::vector<std::string> &url_list);
+    UrlSearchResult url_search_content(const std::vector<std::string> &url_list);
 } // namespace rag
 
 #endif

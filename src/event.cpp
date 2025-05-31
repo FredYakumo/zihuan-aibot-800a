@@ -91,19 +91,10 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
         }
     }
 
-    // auto omq_result = optimize_message_query(adapter.get_bot_profile(), event->get_group_sender().name,
-    //                                                           event->get_group_sender().id, msg_prop);
-    // if (omq_result.has_value()) {
-    //     spdlog::info("优化消息查询, summary: {}, query date prop: {}", omq_result->function,
-    //         omq_result->query_date, omq_result->query_string);
-    // } else {
-    //     spdlog::info("优化消息查询失败");
-    // }
-
     for (const auto &cmd : run_cmd_list) {
         const auto res = cmd.first(cmd.second);
         if (res.is_break_cmd_process) {
-            return;
+            break;
         }
         if (res.is_deep_think) {
             is_deep_think = true;
@@ -121,10 +112,6 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
         msg_storage(msg_prop, *event->sender_ptr, send_time);
     });
     msg_storage_thread.detach();
-
-    if (!msg_prop.is_at_me) {
-        return;
-    }
 
     auto context = bot_cmd::CommandContext(adapter, event, "", false, is_deep_think, msg_prop);
     process_llm(context, std::nullopt);
@@ -166,7 +153,6 @@ void on_friend_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_a
         if (msg_prop.plain_content == nullptr || msg_prop.plain_content->empty()) {
             continue;
         }
-        bot_cmd::CommandRes res;
         if (cmd.second.is_need_param) {
             if (auto param = extract_parentheses_content_after_keyword(*msg_prop.plain_content, cmd.first);
                 !param.empty()) {
@@ -192,22 +178,13 @@ void on_friend_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_a
                 continue;
             }
         }
-        if (res.is_break_cmd_process) {
-            return;
-        }
-        if (res.is_deep_think) {
-            is_deep_think = true;
-        }
-
-        if (res.is_modify_msg) {
-            res.is_modify_msg.value()(msg_prop);
-        }
     }
 
+    bot_cmd::CommandRes res;
     for (const auto &cmd : run_cmd_list) {
         const auto res = cmd.first(cmd.second);
         if (res.is_break_cmd_process) {
-            return;
+            break;
         }
         if (res.is_deep_think) {
             is_deep_think = true;
@@ -224,10 +201,6 @@ void on_friend_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_a
         msg_storage(msg_prop, *event->sender_ptr, send_time, std::set<uint64_t>{bot_id});
     });
     msg_storage_thread.detach();
-
-    // if (!msg_prop.is_at_me) {
-    //     return;
-    // }
 
     auto context = bot_cmd::CommandContext(adapter, event, "", false, is_deep_think, msg_prop);
     process_llm(context, std::nullopt);

@@ -254,27 +254,42 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
                 }
                 tool_call_msg = ChatMessage(ROLE_TOOL, content, func_calls.id);
             } else if (func_calls.name == "fetch_url_content") {
-                const auto &content = llm_res.content;
                 const auto arguments = nlohmann::json::parse(func_calls.arguments);
-                const std::optional<std::string> &url = get_optional(arguments, "url");
-                spdlog::info("Function call id {}: fetch_url_content(url={})", func_calls.id,
-                             url.value_or(EMPTY_JSON_STR_VALUE));
-                if (!url.has_value() || url->empty()) {
-                    spdlog::warn("Function call id {}: fetch_url_content(url={}), url is null", func_calls.id,
-                                 url.value_or(EMPTY_JSON_STR_VALUE));
+                const std::vector<std::string> urls = get_optional(arguments, "urls").value_or(std::vector<std::string>());
+                spdlog::info("Function call id {}: fetch_url_content(urls=[{}])", func_calls.id,
+                             join_str(std::cbegin(urls), std::cend(urls)));
+                if (urls.empty()) {
+                    spdlog::info("Function call id {}: fetch_url_content(urls=[{}])", func_calls.id,
+                             join_str(std::cbegin(urls), std::cend(urls)));
                     context.adapter.send_long_plain_text_replay(*context.e->sender_ptr,
                                                                 "你发的啥,我看不到...再发一遍呢?", true);
                 } else {
                     context.adapter.send_long_plain_text_replay(*context.e->sender_ptr, "等我看看这个链接哦...", true);
                 }
-                const auto url_search_res = rag::url_search_content({*url});
-                if (!url_search_res.has_value()) {
-                    spdlog::error("url_search: {} failed", *url);
-                    tool_call_msg =
-                        ChatMessage(ROLE_TOOL, "打开链接失败,可能是网络抽风了或者网站有反爬机制导致紫幻获取不到内容",
-                                    func_calls.id);
+
+                const auto url_search_res = rag::url_search_content(urls);
+                std::string content;
+
+                // Process successful results
+                for (const auto& [url, raw_content] : url_search_res.results) {
+                    content += fmt::format("链接[{}]内容:\n{}\n\n", url, raw_content);
+                }
+
+                // Process failed results
+                if (!url_search_res.failed_reason.empty()) {
+                    content += "以下链接获取失败:\n";
+                    for (const auto& [url, error] : url_search_res.failed_reason) {
+                        content += fmt::format("链接[{}]失败原因: {}\n", url, error);
+                    }
+                }
+
+                if (url_search_res.results.empty()) {
+                    spdlog::error("url_search: {} failed", join_str(std::cbegin(urls), std::cend(urls)));
+                    tool_call_msg = ChatMessage(ROLE_TOOL, 
+                        "抱歉，所有链接都获取失败了,可能是网络抽风了或者网站有反爬机制导致紫幻获取不到内容",
+                        func_calls.id);
                 } else {
-                    tool_call_msg = ChatMessage(ROLE_TOOL, *url_search_res, func_calls.id);
+                    tool_call_msg = ChatMessage(ROLE_TOOL, content, func_calls.id);
                 }
             } else {
                 spdlog::error("Function {} is not impl.", func_calls.name);

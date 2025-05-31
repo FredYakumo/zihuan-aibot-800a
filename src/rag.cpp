@@ -196,11 +196,11 @@ namespace rag {
         std::vector<NetSearchResult> results;
         nlohmann::json request_body{{"query", query}};
 
-        cpr::Response r =
-            cpr::Post(cpr::Url{fmt::format("{}:{}/{}", config.search_api_url, config.search_api_port, SEARCH_WEB_SUFFIX)},
-                      cpr::Header{{"Content-Type", "application/json"}},
+        cpr::Response r = cpr::Post(
+            cpr::Url{fmt::format("{}:{}/{}", config.search_api_url, config.search_api_port, SEARCH_WEB_SUFFIX)},
+            cpr::Header{{"Content-Type", "application/json"}},
 
-                      cpr::Body{request_body.dump()});
+            cpr::Body{request_body.dump()});
 
         if (r.status_code != 200) {
             spdlog::error("请求失败: {}", r.text);
@@ -227,40 +227,46 @@ namespace rag {
 
     // }
 
-    std::optional<std::string> url_search_content(const std::vector<std::string> &url_list) {
-        std::string results{"(以下引用了一些网页链接和它的内容，由于这个输入用户看不到，所以请在回答中列出概要或者详细"
-                            "的结果[根据用户的指示]):\n"};
+    UrlSearchResult url_search_content(const std::vector<std::string> &url_list) {
         nlohmann::json request_body{{"urls", url_list}};
 
-        cpr::Response r =
-            cpr::Post(cpr::Url{fmt::format("{}:{}/{}", config.search_api_url, config.search_api_port, SEARCH_URL_SUFFIX)},
-                      cpr::Header{{"Content-Type", "application/json"}},
+        cpr::Response r = cpr::Post(
+            cpr::Url{fmt::format("{}:{}/{}", config.search_api_url, config.search_api_port, SEARCH_URL_SUFFIX)},
+            cpr::Header{{"Content-Type", "application/json"}},
 
-                      cpr::Body{request_body.dump()});
+            cpr::Body{request_body.dump()});
 
+        UrlSearchResult ret;
         if (r.status_code != 200) {
             spdlog::error("请求失败: {}", r.text);
-            return std::nullopt;
+            return ret;
         }
-        try {
 
+        try {
             auto j = nlohmann::json::parse(r.text);
             auto res = j["results"];
-            if (res.empty()) {
-                return std::nullopt;
-            }
 
             for (const auto &item : res) {
-                results.append(item.value("url", ""));
-                results += ',';
-                results.append(item.value("raw_content", ""));
-                results += '\n';
+                ret.results.push_back(std::make_pair(item.value("url", EMPTY_JSON_STR_VALUE),
+                                                     item.value("raw_content", EMPTY_JSON_STR_VALUE)));
             }
+            auto failed = j["failed_results"];
+            for (const auto &item : failed) {
+                ret.failed_reason.push_back(
+                    std::make_pair(item.value("url", EMPTY_JSON_STR_VALUE), item.value("error", EMPTY_JSON_STR_VALUE)));
+            }
+
+            if (ret.results.empty()) {
+                spdlog::error("Url search content failed: for [{}]",
+                              join_str(std::cbegin(url_list), std::cend(url_list)));
+            } else {
+                spdlog::info("Url search {} succesed, {} failed.", ret.results.size(), ret.failed_reason.size());
+            }
+
         } catch (const nlohmann::json::exception &e) {
             spdlog::error("JSON解析失败: {}", e.what());
-            return std::nullopt;
         }
-        return results;
+        return ret;
     }
 
 } // namespace rag
