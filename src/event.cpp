@@ -113,6 +113,10 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
     });
     msg_storage_thread.detach();
 
+    if (!msg_prop.is_at_me) {
+        return;
+    }
+
     auto context = bot_cmd::CommandContext(adapter, event, "", false, is_deep_think, msg_prop);
     process_llm(context, std::nullopt);
 }

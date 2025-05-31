@@ -44,13 +44,13 @@ const nlohmann::json DEFAULT_TOOLS = nlohmann::json::array(
 
      // query user tool
      make_tool_function(
-         "query_user", "如果用户的消息中涉及查看某个群友或者用户的资料,调用此函数",
+         "query_user", "你可以调用此函数来查看用户或者群友的资料,如性别,地址信息等",
          make_object_params(
              {{"target", {{"type", "string"}, {"description", "对象.只能为QQ号或者名字"}}},
               {"item",
                {{"type", "string"},
                 {"description",
-                 "查询内容,仅支持AVATAR(头像),SUMMARY(印象或者评价),MESSAGES(最近的消息).除此以外则是OTHER"}}}})),
+                 "查询内容,仅支持PROFILE(用户资料),AVATAR(头像),SUMMARY(印象或者评价),MESSAGES(最近的消息).除此以外则是OTHER"}}}})),
      // query group tool
      make_tool_function(
          "query_group",
@@ -58,7 +58,7 @@ const nlohmann::json DEFAULT_TOOLS = nlohmann::json::array(
          make_object_params(
              {{"item",
                {{"type", "string"},
-                {"description", "查询内容,仅支持OWNER(群主),ADMIN(管理员),MESSAGES(最近的消息).除此以外则是OTHER"}}}})),
+                {"description", "查询内容,仅支持OWNER(群主),ADMIN(管理员),MESSAGES(最近的消息),PROFILE(群资料),NOTICE(群公告).除此以外则是OTHER"}}}})),
 
      // Fetch URL content tool
      make_tool_function("fetch_url_content", "你可以使用这个函数来查看网页链接里的内容",
