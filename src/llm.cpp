@@ -37,7 +37,7 @@ inline std::string get_permission_chs(const std::string_view perm) {
 std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot_adapter::BotAdapter &adapter,
                               const bot_adapter::Sender &sender, bool is_deep_think) {
     if (const auto &group_sender = bot_adapter::try_group_sender(sender); group_sender.has_value()) {
-        std::string permission = get_permission_chs(group_sender->get().group.permission);
+        std::string permission = get_permission_chs(group_sender->get().permission);
         std::string bot_perm =
             get_permission_chs(adapter.get_group(group_sender->get().group.id).group_info.bot_in_group_permission);
 
