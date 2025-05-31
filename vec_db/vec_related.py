@@ -11,8 +11,8 @@ def mean_pooling(model_output, attention_mask):
     return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
 
 
-sentences = ["如何进行杀猪盘", "如何学习Rust", "如何杀猪"]
-t = "杀猪盘"
+sentences = ["ISO/IEC C++ Unofficial 🌱②", "复位: 十瓶药是ISO/IEC C++ Unofficial 🌱②群里一个人做的神秘游戏"]
+t = "ISO/IEC C++ Unofficial 🌱②"
 encoded_sentences = tokenizer(sentences, padding=True, truncation=True, return_tensors='pt')
 encoded_target = tokenizer(t, padding=True, truncation=True, return_tensors='pt')
 # Compute token embeddings

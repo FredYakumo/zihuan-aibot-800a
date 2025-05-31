@@ -85,13 +85,13 @@ if __name__ == "__main__":
                 content = e["content"] if not pd.isna(e["content"]) else ""
 
                 class_name_list = []
-                if pd.isna(e["class_name_list"]) or len(e["class_name_list"]) > 0:
+                if pd.isna(e["class_name_list"]) or len(e["class_name_list"]) < 1:
                     print("No class name")
                 else:
                     class_name_list = [
                         i.strip() for i in e["class_name_list"].split("|")
                     ]
-                    print(f"Class_name_list: {','.join(class_name_list)}")
+                    print(f"Class_name_list: {'|'.join(class_name_list)}")
 
                 creator_name = (
                     e["creator_name"] if not pd.isna(e["creator_name"]) else ""
@@ -121,17 +121,22 @@ if __name__ == "__main__":
                 )
 
                 # Calculate embeddings for content
+                
+                # 去除停用词后，搜索反而不准确。因为query中的向量实际上也含有停用词
+                
                 # 先对content进行分词
-                words = jieba.cut(content)
-                # 去除停用词
-                filtered_words = [
-                    word for word in words if word not in stop_words and word.strip()
-                ]
-                # 重新组合成文本
-                filtered_content = " ".join(filtered_words)
+                # words = jieba.cut(content)
+                # # 去除停用词
+                # filtered_words = [
+                #     word for word in words if word not in stop_words and word.strip()
+                # ]
+                # # 重新组合成文本
+                # filtered_content = "".join(filtered_words)
+                
+                
                 # 计算embedding
                 content_inputs = tokenizer(
-                    filtered_content, return_tensors="pt", padding=True, truncation=True
+                    content, return_tensors="pt", padding=True, truncation=True
                 )
                 content_outputs = model(**content_inputs)
                 content_embedding = (
