@@ -43,7 +43,7 @@ std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot
 
         return fmt::format(
             "你是一个'{}'群里的{},你的名字叫{}(qq号{}),性别是: "
-            "{}。{}。当前时间{}，当前跟你聊天的群友的名字叫\"{}\"(qq号{}),身份是{}。输出与该群友聊天的内容",
+            "{}。{}。当前时间{}，当前跟你聊天的群友的名字叫\"{}\"(qq号{}),身份是{}。你只需要输出与该群友的聊天内容",
             group_sender->get().group.name, bot_perm, bot_profile.name, bot_profile.id,
             bot_adapter::to_chs_string(bot_profile.sex),
             (is_deep_think && config.custom_deep_think_system_prompt_option.has_value())
@@ -52,7 +52,7 @@ std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot
             get_current_time_formatted(), sender.name, sender.id, permission);
     } else {
         return fmt::format("你的名字叫{}(qq号{}),性别是: "
-                           "{}。{}。当前时间{}，当前跟你聊天的好友的名字叫\"{}\"(qq号{})。输出与该好友聊天的内容",
+                           "{}。{}。当前时间{}，当前跟你聊天的好友的名字叫\"{}\"(qq号{})。你只输出与该好友聊天的内容",
                            bot_profile.name, bot_profile.id, bot_adapter::to_chs_string(bot_profile.sex),
                            (is_deep_think && config.custom_deep_think_system_prompt_option.has_value())
                                ? *config.custom_deep_think_system_prompt_option
@@ -129,9 +129,15 @@ std::string query_chat_session_knowledge(const bot_cmd::CommandContext &context,
             //                  context.e->sender_ptr->id);
             //     user_set_iter->second.erase(user_set_iter->second.cbegin());
             // }
-            user_set_iter->second.insert(fmt::format(
-                "{}:{}", join_str(std::cbegin(knowledge.class_name_list), std::cend(knowledge.class_name_list), "|"),
-                knowledge.content));
+            if (knowledge.class_name_list.empty()) {
+                user_set_iter->second.insert(fmt::format("{}", knowledge.content));
+
+            } else {
+                user_set_iter->second.insert(fmt::format(
+                    "{}:{}",
+                    join_str(std::cbegin(knowledge.class_name_list), std::cend(knowledge.class_name_list), "|"),
+                    knowledge.content));
+            }
         }
         size_t total_len = 0;
         auto it = user_set_iter->second.rbegin();
@@ -423,10 +429,10 @@ void process_llm(const bot_cmd::CommandContext &context,
 
     std::string msg_content_str{};
     if (context.msg_prop.ref_msg_content != nullptr && !context.msg_prop.ref_msg_content->empty()) {
-        msg_content_str.append(fmt::format("我引用了一个消息: {}\n", *context.msg_prop.ref_msg_content));
+        msg_content_str.append(fmt::format("\"{}\"引用了一个消息: \"{}\",", context.e->sender_ptr->name, *context.msg_prop.ref_msg_content));
     }
     if (context.msg_prop.plain_content != nullptr && !context.msg_prop.plain_content->empty()) {
-        msg_content_str.append(*context.msg_prop.plain_content);
+        msg_content_str.append(fmt::format("\"{}\":\"{}\"", context.e->sender_ptr->name, *context.msg_prop.plain_content));
     }
     spdlog::info(msg_content_str);
 

@@ -55,6 +55,31 @@ MutexData<std::vector<DBKnowledge>> g_wait_add_knowledge_list;
  */
 MutexData<std::unordered_map<uint64_t, ChatSession>> g_group_chat_bot_send_msg;
 
+/**
+ * @brief A thread-safe nested map structure for storing group message properties.
+ *
+ * This is a two-level unordered_map where:
+ * - The outer map uses group number (uint64_t) as keys
+ * - Each group ID maps to a MutexData-protected inner map
+ * - The inner map uses message IDs (uint64_t) as keys and stores MessageProperties
+ *
+ * The structure allows thread-safe access and modification of message properties
+ * for messages within different groups.
+ */
+ std::unordered_map<uint64_t, MutexData<std::unordered_map<uint64_t, MessageProperties>>> group_message_storage;
+
+ /**
+  * @brief A thread-safe nested map structure for storing friend message properties.
+  *
+  * Similar to group_message_storage, but designed for one-to-one friend messages:
+  * - The outer map uses friend qq number (uint64_t) as keys
+  * - Each user ID maps to a MutexData-protected inner map
+  * - The inner map uses message IDs (uint64_t) as keys and stores MessageProperties
+  *
+  * This structure provides thread-safe access to message properties in friend chats.
+  */
+ std::unordered_map<uint64_t, MutexData<std::unordered_map<uint64_t, MessageProperties>>> friend_message_storage;
+
 
 std::optional<ChatSession> get_user_chat_session(uint64_t chat_session) {
     auto chat_session_map = g_chat_session_map.read();

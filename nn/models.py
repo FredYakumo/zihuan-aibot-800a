@@ -11,6 +11,8 @@ def get_device() -> torch.device:
     elif torch.backends.mps.is_available():
         logger.info("Using Apple Silicon GPU")
         device = torch.device('mps')
+    else:
+        logger.info("Using CPU")
     return device
 
 class CosineSimilarityModel(nn.Module):

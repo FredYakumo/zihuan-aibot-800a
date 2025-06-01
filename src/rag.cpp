@@ -126,7 +126,7 @@ namespace rag {
                                       get_optional<float>(json, "certainty").value_or(0.0f)};
                 spdlog::info(
                     "{}: {}, 创建者: {}, 日期: {}, 置信度: {}",
-                    join_str(std::cbegin(knowledge.class_name_list), std::cend(knowledge.class_name_list), "|"),
+                    knowledge.class_name_list.empty()? "No Class" : join_str(std::cbegin(knowledge.class_name_list), std::cend(knowledge.class_name_list), "|"),
                     knowledge.content, knowledge.creator_name, knowledge.create_dt, knowledge.certainty);
                 result.push_back(knowledge);
             }
