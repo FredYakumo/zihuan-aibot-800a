@@ -36,6 +36,9 @@ inline std::string get_permission_chs(const std::string_view perm) {
 
 std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot_adapter::BotAdapter &adapter,
                               const bot_adapter::Sender &sender, bool is_deep_think) {
+    const std::string &custom_prompt = (is_deep_think && config.custom_deep_think_system_prompt_option.has_value())
+                                           ? *config.custom_deep_think_system_prompt_option
+                                           : config.custom_system_prompt;
     if (const auto &group_sender = bot_adapter::try_group_sender(sender); group_sender.has_value()) {
         std::string permission = get_permission_chs(group_sender->get().permission);
         std::string bot_perm =
@@ -45,18 +48,12 @@ std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot
             "你是一个'{}'群里的{},你的名字叫{}(qq号{}),性别是: "
             "{}。{}。当前时间{}，当前跟你聊天的群友的名字叫\"{}\"(qq号{}),身份是{}。你只需要输出与该群友的聊天内容",
             group_sender->get().group.name, bot_perm, bot_profile.name, bot_profile.id,
-            bot_adapter::to_chs_string(bot_profile.sex),
-            (is_deep_think && config.custom_deep_think_system_prompt_option.has_value())
-                ? *config.custom_deep_think_system_prompt_option
-                : config.custom_system_prompt,
-            get_current_time_formatted(), sender.name, sender.id, permission);
+            bot_adapter::to_chs_string(bot_profile.sex), custom_prompt, get_current_time_formatted(), sender.name,
+            sender.id, permission);
     } else {
         return fmt::format("你的名字叫{}(qq号{}),性别是: "
                            "{}。{}。当前时间{}，当前跟你聊天的好友的名字叫\"{}\"(qq号{})。你只输出与该好友聊天的内容",
-                           bot_profile.name, bot_profile.id, bot_adapter::to_chs_string(bot_profile.sex),
-                           (is_deep_think && config.custom_deep_think_system_prompt_option.has_value())
-                               ? *config.custom_deep_think_system_prompt_option
-                               : config.custom_system_prompt,
+                           bot_profile.name, bot_profile.id, bot_adapter::to_chs_string(bot_profile.sex), custom_prompt,
                            get_current_time_formatted(), sender.name, sender.id);
     }
 }
@@ -429,10 +426,12 @@ void process_llm(const bot_cmd::CommandContext &context,
 
     std::string msg_content_str{};
     if (context.msg_prop.ref_msg_content != nullptr && !context.msg_prop.ref_msg_content->empty()) {
-        msg_content_str.append(fmt::format("\"{}\"引用了一个消息: \"{}\",", context.e->sender_ptr->name, *context.msg_prop.ref_msg_content));
+        msg_content_str.append(fmt::format("\"{}\"引用了一个消息: \"{}\",", context.e->sender_ptr->name,
+                                           *context.msg_prop.ref_msg_content));
     }
     if (context.msg_prop.plain_content != nullptr && !context.msg_prop.plain_content->empty()) {
-        msg_content_str.append(fmt::format("\"{}\":\"{}\"", context.e->sender_ptr->name, *context.msg_prop.plain_content));
+        msg_content_str.append(
+            fmt::format("\"{}\":\"{}\"", context.e->sender_ptr->name, *context.msg_prop.plain_content));
     }
     spdlog::info(msg_content_str);
 
