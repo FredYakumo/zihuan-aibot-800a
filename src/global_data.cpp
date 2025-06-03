@@ -1,4 +1,5 @@
 #include "global_data.h"
+#include "msg_prop.h"
 #include "mutex_data.hpp"
 #include <optional>
 #include <set>
@@ -67,6 +68,15 @@ MutexData<std::unordered_map<uint64_t, ChatSession>> g_group_chat_bot_send_msg;
  * for messages within different groups.
  */
  std::unordered_map<uint64_t, MutexData<std::unordered_map<uint64_t, MessageProperties>>> group_message_storage;
+
+
+ std::optional<MutexData<std::unordered_map<uint64_t, MessageProperties>>> &get_group_message(uint64_t group_id) {
+    if (auto &)
+ }
+
+ void insert_group_message(uint64_t group_id, uint64_t message_id, MessageProperties msg_prop) {
+
+ }
 
  /**
   * @brief A thread-safe nested map structure for storing friend message properties.
