@@ -177,8 +177,7 @@ namespace bot_cmd {
             if (net_search_res.empty()) {
                 net_search_str = fmt::format("联网搜索了{}, 但是没有搜到任何东西。", search_text);
             } else {
-                net_search_str += "\n以下是联网查询的结果, "
-                                  "由于这个输入用户看不到，所以请在回答中列出概要或者详细的结果(根据用户的指示):\n";
+                net_search_str += "\n以下是联网查询的结果:\n";
                 first_replay.emplace_back(
                     context.adapter.get_bot_profile().id, std::chrono::system_clock::now(),
                     context.adapter.get_bot_profile().name,
@@ -203,11 +202,10 @@ namespace bot_cmd {
                     bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
                         "PS: 紫幻现在自己会思考要不要去网上找数据啦, 你可以不用每次都用#联网.")));
             }
-            *context.msg_prop.plain_content = replace_str(search, "#联网", net_search_str);
             process_llm(context, net_search_str);
         }).detach();
 
-        return bot_cmd::CommandRes{true};
+        return bot_cmd::CommandRes{true, true};
     }
 
     bot_cmd::CommandRes url_search_command(bot_cmd::CommandContext context) {
@@ -257,6 +255,6 @@ namespace bot_cmd {
             }
         }).detach();
 
-        return bot_cmd::CommandRes{true};
+        return bot_cmd::CommandRes{true, true};
     }
 } // namespace bot_cmd
