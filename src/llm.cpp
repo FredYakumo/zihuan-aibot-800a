@@ -375,7 +375,7 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
     if (const auto &group_sender = bot_adapter::try_group_sender(*context.event->sender_ptr)) {
         database::get_global_db_connection().insert_message(
             replay_content,
-            bot_adapter::GroupSender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt, "",
+            bot_adapter::GroupSender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt, group_sender->get().permission,
                                      std::nullopt, std::chrono::system_clock::now(), group_sender->get().group),
             std::chrono::system_clock::now(), std::set<uint64_t>{context.event->sender_ptr->id});
     } else {

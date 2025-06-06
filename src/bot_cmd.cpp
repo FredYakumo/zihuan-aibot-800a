@@ -29,26 +29,18 @@ namespace bot_cmd {
         if ((context.msg_prop.plain_content == nullptr ||
              ltrim(rtrim(replace_str(*context.msg_prop.plain_content, "#新对话", ""))).empty()) &&
             (context.msg_prop.ref_msg_content == nullptr || ltrim(rtrim(*context.msg_prop.ref_msg_content)).empty())) {
-            context.adapter.send_replay_msg(
-                *context.event->sender_ptr, bot_adapter::make_message_chain_list(
-                                            bot_adapter::PlainTextMessage("成功清除了对话上下文，请继续跟我聊天吧。")));
+            context.adapter.send_replay_msg(*context.event->sender_ptr,
+                                            bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
+                                                "成功清除了对话上下文，请继续跟我聊天吧。")));
             return CommandRes{true};
         }
-        return CommandRes{false,
-                          [](const MessageProperties &msg_prop) {
-                              *msg_prop.plain_content = replace_str(*msg_prop.plain_content, "#新对话", "");
-                          },
-                          false};
+        return CommandRes{false, false, false};
     }
 
     CommandRes deep_think_command(CommandContext context) {
         spdlog::info("开始深度思考");
 
-        return CommandRes{false,
-                          [](const MessageProperties &msg_prop) {
-                              *msg_prop.plain_content = replace_str(*msg_prop.plain_content, "#思考", "");
-                          },
-                          true};
+        return CommandRes{false, false, true};
     }
 
     CommandRes query_knowledge_command(CommandContext context) {
@@ -170,8 +162,9 @@ namespace bot_cmd {
 
         // If no search query is provided, prompt the user to enter one
         if (search.empty() || search == "#联网") {
-            context.adapter.send_replay_msg(*context.event->sender_ptr, bot_adapter::make_message_chain_list(
-                                                                        bot_adapter::PlainTextMessage("请输入查询。")));
+            context.adapter.send_replay_msg(
+                *context.event->sender_ptr,
+                bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("请输入查询。")));
             return bot_cmd::CommandRes{true};
         }
         std::thread([context, search]() {
@@ -202,8 +195,9 @@ namespace bot_cmd {
             spdlog::info(net_search_str);
             if (!first_replay.empty()) {
                 context.adapter.send_replay_msg(
-                    *context.event->sender_ptr, bot_adapter::make_message_chain_list(bot_adapter::ForwardMessage(
-                                                first_replay, bot_adapter::DisplayNode(std::string("联网搜索结果")))));
+                    *context.event->sender_ptr,
+                    bot_adapter::make_message_chain_list(bot_adapter::ForwardMessage(
+                        first_replay, bot_adapter::DisplayNode(std::string("联网搜索结果")))));
                 context.adapter.send_replay_msg(
                     *context.event->sender_ptr,
                     bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
@@ -221,8 +215,9 @@ namespace bot_cmd {
 
         // If no search query is provided, prompt the user to enter one
         if (search.empty() || search == "#url") {
-            context.adapter.send_replay_msg(*context.event->sender_ptr, bot_adapter::make_message_chain_list(
-                                                                        bot_adapter::PlainTextMessage("请输入查询。")));
+            context.adapter.send_replay_msg(
+                *context.event->sender_ptr,
+                bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("请输入查询。")));
             return bot_cmd::CommandRes{true};
         }
         std::thread([context, search]() {
@@ -239,14 +234,14 @@ namespace bot_cmd {
             std::string content;
 
             // Process successful results
-            for (const auto& [url, raw_content] : net_search_res.results) {
+            for (const auto &[url, raw_content] : net_search_res.results) {
                 content += fmt::format("链接[{}]内容:\n{}\n\n", url, raw_content);
             }
 
-            // Process failed results 
+            // Process failed results
             if (!net_search_res.failed_reason.empty()) {
                 content += "以下链接获取失败:\n";
-                for (const auto& [url, error] : net_search_res.failed_reason) {
+                for (const auto &[url, error] : net_search_res.failed_reason) {
                     content += fmt::format("链接[{}]失败原因: {}\n", url, error);
                 }
             }

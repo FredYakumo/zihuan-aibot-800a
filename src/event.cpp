@@ -40,6 +40,7 @@ ParseRunCmdRes parse_and_run_chat_command(bot_adapter::BotAdapter &adapter,
     /// pair.second: arguments raw string.
     std::vector<std::pair<std::function<bot_cmd::CommandRes(bot_cmd::CommandContext)>, std::string>> run_cmd_list;
     // Loop all command properties.
+    ParseRunCmdRes ret;
     for (auto &cmd : bot_cmd::keyword_command_map) {
 
         if (cmd.second.is_need_admin && !admin) {
@@ -68,7 +69,8 @@ ParseRunCmdRes parse_and_run_chat_command(bot_adapter::BotAdapter &adapter,
                 adapter.send_replay_msg(*event->sender_ptr,
                                         bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
                                             fmt::format(" 错误。请指定参数, 用法 {} (...)", cmd.first))));
-                return;
+                ret.skip_default_llm = true;
+                return ret;
             }
         } else { ///< process don't need param
             if (msg_prop.plain_content->find(cmd.first) != std::string::npos) {
@@ -80,7 +82,6 @@ ParseRunCmdRes parse_and_run_chat_command(bot_adapter::BotAdapter &adapter,
         }
     }
 
-    ParseRunCmdRes ret;
     for (const auto &cmd : run_cmd_list) {
 
         const auto res = cmd.first(bot_cmd::CommandContext{adapter, event, cmd.second, is_deep_think, msg_prop});
@@ -138,13 +139,7 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
     spdlog::debug("Event: {}", event->to_json().dump());
     spdlog::debug("Sender: {}", event->sender_ptr->to_json().dump());
 
-    const bot_adapter::GroupSender &sender = event->get_group_sender();
-    const auto group_id = sender.group.id;
-    const auto group_name = sender.group.name;
-    const auto sender_name = event->sender_ptr->name;
     const auto send_time = std::chrono::system_clock::now();
-
-    const auto admin = is_admin(sender_id);
 
     store_msg(msg_prop, event, send_time);
 
@@ -173,11 +168,6 @@ void on_friend_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_a
 
     spdlog::debug("Event: {}", event->to_json().dump());
     spdlog::debug("Sender: {}", event->sender_ptr->to_json().dump());
-
-    const bot_adapter::Sender &sender = *event->sender_ptr;
-    const auto sender_name = event->sender_ptr->name;
-
-    const auto admin = is_admin(sender_id);
 
     const auto send_time = std::chrono::system_clock::now();
     store_msg(msg_prop, event, send_time);
