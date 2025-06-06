@@ -45,14 +45,14 @@ std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot
             get_permission_chs(adapter.get_group(group_sender->get().group.id).group_info.bot_in_group_permission);
 
         return fmt::format(
-            "你是一个'{}'群里的{},你的名字叫{}(qq号{}),性别是:"
-            "{}。{}。当前时间{}，当前跟你聊天的群友的名字叫\"{}\"(qq号{}),身份是{}。你只需要输出与该群友的聊天内容",
+            "你是一个'{}'群里的{},你的名字是{}(qq号{}),性别是:"
+            "{}。{}。当前时间是{}且不存在时区不同问题，当前跟你聊天的群友的名字叫\"{}\"(qq号{}),身份是{}。",
             group_sender->get().group.name, bot_perm, bot_profile.name, bot_profile.id,
             bot_adapter::to_chs_string(bot_profile.sex), custom_prompt, get_current_time_formatted(), sender.name,
             sender.id, permission);
     } else {
-        return fmt::format("你的名字叫{}(qq号{}),性别是:"
-                           "{}。{}。当前时间{}，当前跟你聊天的好友的名字叫\"{}\"(qq号{})。你只输出与该好友聊天的内容",
+        return fmt::format("你的名字是{}(qq号{}),性别是:"
+                           "{}。{}。当前时间是{}且不存在时区不同问题，当前跟你聊天的好友的名字叫\"{}\"(qq号{})。",
                            bot_profile.name, bot_profile.id, bot_adapter::to_chs_string(bot_profile.sex), custom_prompt,
                            get_current_time_formatted(), sender.name, sender.id);
     }
