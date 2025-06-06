@@ -19,18 +19,18 @@ namespace bot_cmd {
     CommandRes clear_chat_session_command(CommandContext context) {
         spdlog::info("开始清除聊天记录");
         auto chat_session_map = g_chat_session_map.write();
-        if (auto it = chat_session_map->find(context.e->sender_ptr->id); it != chat_session_map->cend()) {
+        if (auto it = chat_session_map->find(context.event->sender_ptr->id); it != chat_session_map->cend()) {
             chat_session_map->erase(it);
         }
         auto knowledge_map = g_chat_session_knowledge_list_map.write();
-        if (auto it = knowledge_map->find(context.e->sender_ptr->id); it != knowledge_map->cend()) {
+        if (auto it = knowledge_map->find(context.event->sender_ptr->id); it != knowledge_map->cend()) {
             knowledge_map->erase(it);
         }
         if ((context.msg_prop.plain_content == nullptr ||
              ltrim(rtrim(replace_str(*context.msg_prop.plain_content, "#新对话", ""))).empty()) &&
             (context.msg_prop.ref_msg_content == nullptr || ltrim(rtrim(*context.msg_prop.ref_msg_content)).empty())) {
             context.adapter.send_replay_msg(
-                *context.e->sender_ptr, bot_adapter::make_message_chain_list(
+                *context.event->sender_ptr, bot_adapter::make_message_chain_list(
                                             bot_adapter::PlainTextMessage("成功清除了对话上下文，请继续跟我聊天吧。")));
             return CommandRes{true};
         }
@@ -55,7 +55,7 @@ namespace bot_cmd {
         std::string res{};
         const auto query_msg = rag::query_knowledge(context.param);
         if (query_msg.empty()) {
-            context.adapter.send_replay_msg(*context.e->sender_ptr,
+            context.adapter.send_replay_msg(*context.event->sender_ptr,
                                             bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
                                                 fmt::format(" 未找到关于\"{}\"的数据", context.param))));
             return CommandRes{true};
@@ -64,7 +64,7 @@ namespace bot_cmd {
             res.append(fmt::format("\n{}。创建者: {}, 时间: {},   置信度: {:.4f}", e.content, e.creator_name,
                                    e.create_dt, e.certainty));
         }
-        context.adapter.send_long_plain_text_replay(*context.e->sender_ptr, res);
+        context.adapter.send_long_plain_text_replay(*context.event->sender_ptr, res);
         return CommandRes{true};
     }
 
@@ -87,7 +87,7 @@ namespace bot_cmd {
         auto param = context.param;
         auto [ptr, ec] = std::from_chars(param.data(), param.data() + param.size(), index);
         if (ec != std::errc() && ptr != param.data() + param.size()) {
-            context.adapter.send_replay_msg(*context.e->sender_ptr,
+            context.adapter.send_replay_msg(*context.event->sender_ptr,
                                             bot_adapter::make_message_chain_list(
                                                 bot_adapter::PlainTextMessage("错误。用法: #入库知识 (id: number)")));
             return CommandRes{true};
@@ -98,14 +98,14 @@ namespace bot_cmd {
             auto wait_add_list = g_wait_add_knowledge_list.write();
 
             if (index >= wait_add_list->size()) {
-                context.adapter.send_replay_msg(*context.e->sender_ptr,
+                context.adapter.send_replay_msg(*context.event->sender_ptr,
                                                 bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
                                                     fmt::format(" 错误。id {} 不存在于待添加列表中", index))));
                 return;
             }
             rag::insert_knowledge(wait_add_list->at(index));
             wait_add_list->erase(wait_add_list->cbegin() + index);
-            context.adapter.send_replay_msg(*context.e->sender_ptr,
+            context.adapter.send_replay_msg(*context.event->sender_ptr,
                                             bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
                                                 fmt::format(" 入库知识成功。列表剩余{}条。", wait_add_list->size()))));
         }).detach();
@@ -133,7 +133,7 @@ namespace bot_cmd {
                 }
             }
         }
-        context.adapter.send_long_plain_text_replay(*context.e->sender_ptr, memory_str);
+        context.adapter.send_long_plain_text_replay(*context.event->sender_ptr, memory_str);
         return CommandRes{true};
     }
 
@@ -141,7 +141,7 @@ namespace bot_cmd {
         auto wait_add_list = g_wait_add_knowledge_list.read();
         if (wait_add_list->empty()) {
             context.adapter.send_replay_msg(
-                *context.e->sender_ptr,
+                *context.event->sender_ptr,
                 bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("暂无待添加知识。")));
             return CommandRes{true};
         }
@@ -155,7 +155,7 @@ namespace bot_cmd {
         if (index < wait_add_list->size()) {
             wait_add_list_str.append(fmt::format("\n...(剩余{}条)...", wait_add_list->size() - index));
         }
-        context.adapter.send_long_plain_text_replay(*context.e->sender_ptr, wait_add_list_str);
+        context.adapter.send_long_plain_text_replay(*context.event->sender_ptr, wait_add_list_str);
         return CommandRes{true};
     }
 
@@ -170,7 +170,7 @@ namespace bot_cmd {
 
         // If no search query is provided, prompt the user to enter one
         if (search.empty() || search == "#联网") {
-            context.adapter.send_replay_msg(*context.e->sender_ptr, bot_adapter::make_message_chain_list(
+            context.adapter.send_replay_msg(*context.event->sender_ptr, bot_adapter::make_message_chain_list(
                                                                         bot_adapter::PlainTextMessage("请输入查询。")));
             return bot_cmd::CommandRes{true};
         }
@@ -202,10 +202,10 @@ namespace bot_cmd {
             spdlog::info(net_search_str);
             if (!first_replay.empty()) {
                 context.adapter.send_replay_msg(
-                    *context.e->sender_ptr, bot_adapter::make_message_chain_list(bot_adapter::ForwardMessage(
+                    *context.event->sender_ptr, bot_adapter::make_message_chain_list(bot_adapter::ForwardMessage(
                                                 first_replay, bot_adapter::DisplayNode(std::string("联网搜索结果")))));
                 context.adapter.send_replay_msg(
-                    *context.e->sender_ptr,
+                    *context.event->sender_ptr,
                     bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
                         "PS: 紫幻现在自己会思考要不要去网上找数据啦, 你可以不用每次都用#联网.")));
             }
@@ -221,7 +221,7 @@ namespace bot_cmd {
 
         // If no search query is provided, prompt the user to enter one
         if (search.empty() || search == "#url") {
-            context.adapter.send_replay_msg(*context.e->sender_ptr, bot_adapter::make_message_chain_list(
+            context.adapter.send_replay_msg(*context.event->sender_ptr, bot_adapter::make_message_chain_list(
                                                                         bot_adapter::PlainTextMessage("请输入查询。")));
             return bot_cmd::CommandRes{true};
         }
@@ -253,7 +253,7 @@ namespace bot_cmd {
 
             if (net_search_res.results.empty()) {
                 context.adapter.send_replay_msg(
-                    *context.e->sender_ptr,
+                    *context.event->sender_ptr,
                     bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage{
                         fmt::format("{}打开url: {}失败, 请重试.", context.adapter.get_bot_profile().name, search)}));
             } else {

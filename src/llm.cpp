@@ -113,9 +113,9 @@ std::string query_chat_session_knowledge(const bot_cmd::CommandContext &context,
     std::string chat_use_knowledge_str;
     {
         auto map = g_chat_session_knowledge_list_map.write();
-        auto user_set_iter = map->find(context.e->sender_ptr->id);
+        auto user_set_iter = map->find(context.event->sender_ptr->id);
         if (user_set_iter == map->cend()) {
-            user_set_iter = map->insert(std::make_pair(context.e->sender_ptr->id, std::set<std::string>())).first;
+            user_set_iter = map->insert(std::make_pair(context.event->sender_ptr->id, std::set<std::string>())).first;
         }
         for (const auto &knowledge : msg_knowledge_list) {
             if (knowledge.content.empty()) {
@@ -145,12 +145,12 @@ std::string query_chat_session_knowledge(const bot_cmd::CommandContext &context,
 
         // Remove entries that exceed the limit
         if (it != user_set_iter->second.rend()) {
-            spdlog::info("{}({})的对话session知识数量超过限制, 删除'{}'之前的知识内容", context.e->sender_ptr->name,
-                         context.e->sender_ptr->id, *it);
+            spdlog::info("{}({})的对话session知识数量超过限制, 删除'{}'之前的知识内容", context.event->sender_ptr->name,
+                         context.event->sender_ptr->id, *it);
             user_set_iter->second.erase(user_set_iter->second.begin(), it.base());
         }
 
-        const auto user_chat_knowledge_list = map->find(context.e->sender_ptr->id);
+        const auto user_chat_knowledge_list = map->find(context.event->sender_ptr->id);
         if (user_chat_knowledge_list == map->cend() || user_chat_knowledge_list->second.empty()) {
             spdlog::info("未查询到对话关联的知识");
         } else {
@@ -192,8 +192,8 @@ void insert_tool_call_record_async(const std::string &sender_name, qq_id_t sende
 
 void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &msg_content_str,
                    const std::optional<std::string> &additional_system_prompt_option) {
-    spdlog::debug("Event type: {}, Sender json: {}", context.e->get_typename(),
-                  context.e->sender_ptr->to_json().dump());
+    spdlog::debug("Event type: {}, Sender json: {}", context.event->get_typename(),
+                  context.event->sender_ptr->to_json().dump());
 
     spdlog::info("Start llm thread.");
     set_thread_name("AIBot LLM process");
@@ -204,13 +204,13 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
 
     if (context.is_deep_think) {
         context.adapter.send_replay_msg(
-            *context.e->sender_ptr,
+            *context.event->sender_ptr,
             bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage{"正在思思考中..."},
                                                  bot_adapter::ImageMessage{Config::instance().think_image_url}),
             false);
     }
 
-    auto system_prompt = gen_common_prompt(bot_profile, context.adapter, *context.e->sender_ptr, context.is_deep_think);
+    auto system_prompt = gen_common_prompt(bot_profile, context.adapter, *context.event->sender_ptr, context.is_deep_think);
 
     system_prompt += "\n" + query_chat_session_knowledge(context, msg_content_str);
 
@@ -218,7 +218,7 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
         system_prompt += additional_system_prompt_option.value();
     }
 
-    auto msg_json = get_msg_json(system_prompt, context.e->sender_ptr->id, context.e->sender_ptr->name);
+    auto msg_json = get_msg_json(system_prompt, context.event->sender_ptr->id, context.event->sender_ptr->name);
 
     auto user_chat_msg = ChatMessage(ROLE_USER, msg_content_str);
     add_to_msg_json(msg_json, user_chat_msg);
@@ -228,9 +228,9 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
         one_chat_session.push_back(std::move(*llm_res));
     } else {
         spdlog::warn("LLM did not response any chat message...");
-        context.adapter.send_replay_msg(*context.e->sender_ptr,
+        context.adapter.send_replay_msg(*context.event->sender_ptr,
                                         bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("?")));
-        release_processing_llm(context.e->sender_ptr->id);
+        release_processing_llm(context.event->sender_ptr->id);
         return;
     }
 
@@ -281,7 +281,7 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
                 }
                 if (!first_replay.empty()) {
                     context.adapter.send_replay_msg(
-                        *context.e->sender_ptr,
+                        *context.event->sender_ptr,
                         bot_adapter::make_message_chain_list(bot_adapter::ForwardMessage(
                             first_replay, bot_adapter::DisplayNode(std::string("联网搜索结果")))));
                 }
@@ -295,10 +295,10 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
                 if (urls.empty()) {
                     spdlog::info("Function call id {}: fetch_url_content(urls=[{}])", func_calls.id,
                                  join_str(std::cbegin(urls), std::cend(urls)));
-                    context.adapter.send_long_plain_text_replay(*context.e->sender_ptr,
+                    context.adapter.send_long_plain_text_replay(*context.event->sender_ptr,
                                                                 "你发的啥,我看不到...再发一遍呢?", true);
                 } else {
-                    context.adapter.send_long_plain_text_replay(*context.e->sender_ptr, "等我看看这个链接哦...", true);
+                    context.adapter.send_long_plain_text_replay(*context.event->sender_ptr, "等我看看这个链接哦...", true);
                 }
 
                 const auto url_search_res = rag::url_search_content(urls);
@@ -334,7 +334,7 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
             }
 
             if (tool_call_msg.has_value()) {
-                insert_tool_call_record_async(context.e->sender_ptr->name, context.e->sender_ptr->id, msg_json,
+                insert_tool_call_record_async(context.event->sender_ptr->name, context.event->sender_ptr->id, msg_json,
                                               func_calls.name, func_calls.arguments, tool_call_msg->content);
                 append_tool_calls.emplace_back(std::move(*tool_call_msg));
             }
@@ -353,16 +353,16 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
             one_chat_session.push_back(std::move(*llm_res));
         } else {
             spdlog::warn("LLM did not response any chat message...");
-            context.adapter.send_replay_msg(*context.e->sender_ptr,
+            context.adapter.send_replay_msg(*context.event->sender_ptr,
                                             bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("?")));
-            release_processing_llm(context.e->sender_ptr->id);
+            release_processing_llm(context.event->sender_ptr->id);
             return;
         }
     }
 
     // Add msg to global storage
     auto session_map = g_chat_session_map.write();
-    auto &session = session_map->find(context.e->sender_ptr->id)->second;
+    auto &session = session_map->find(context.event->sender_ptr->id)->second;
 
     session.message_list.push_back(user_chat_msg);
     std::string replay_content = one_chat_session.rbegin()->content;
@@ -371,17 +371,17 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
 
     spdlog::info("Prepare to send msg response");
 
-    context.adapter.send_long_plain_text_replay(*context.e->sender_ptr, replay_content);
-    if (const auto &group_sender = bot_adapter::try_group_sender(*context.e->sender_ptr)) {
+    context.adapter.send_long_plain_text_replay(*context.event->sender_ptr, replay_content);
+    if (const auto &group_sender = bot_adapter::try_group_sender(*context.event->sender_ptr)) {
         database::get_global_db_connection().insert_message(
             replay_content,
             bot_adapter::GroupSender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt, "",
                                      std::nullopt, std::chrono::system_clock::now(), group_sender->get().group),
-            std::chrono::system_clock::now(), std::set<uint64_t>{context.e->sender_ptr->id});
+            std::chrono::system_clock::now(), std::set<uint64_t>{context.event->sender_ptr->id});
     } else {
         database::get_global_db_connection().insert_message(
             replay_content, bot_adapter::Sender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt),
-            std::chrono::system_clock::now(), std::set<uint64_t>{context.e->sender_ptr->id});
+            std::chrono::system_clock::now(), std::set<uint64_t>{context.event->sender_ptr->id});
     }
 
     size_t total_len = 0;
@@ -393,8 +393,8 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
 
     // Remove messages that exceed the limit
     if (sess_it != session.message_list.rend()) {
-        spdlog::info("{}({})的对话长度超过限制, 删除'{}'之前的上下文内容", context.e->sender_ptr->name,
-                     context.e->sender_ptr->name, sess_it->content);
+        spdlog::info("{}({})的对话长度超过限制, 删除'{}'之前的上下文内容", context.event->sender_ptr->name,
+                     context.event->sender_ptr->name, sess_it->content);
 
         session.message_list.erase(session.message_list.begin(), sess_it.base());
     }
@@ -406,32 +406,32 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
     //     ++session.user_msg_count;
     // }
 
-    release_processing_llm(context.e->sender_ptr->id);
+    release_processing_llm(context.event->sender_ptr->id);
 }
 
 void process_llm(const bot_cmd::CommandContext &context,
                  const std::optional<std::string> &additional_system_prompt_option) {
     spdlog::info("开始处理LLM信息");
 
-    if (!try_begin_processing_llm(context.e->sender_ptr->id)) {
-        spdlog::warn("User {} try to let bot answer, but bot is still thiking", context.e->sender_ptr->id);
+    if (!try_begin_processing_llm(context.event->sender_ptr->id)) {
+        spdlog::warn("User {} try to let bot answer, but bot is still thiking", context.event->sender_ptr->id);
         context.adapter.send_replay_msg(
-            *context.e->sender_ptr,
+            *context.event->sender_ptr,
             bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("我还在思考中...你别急")));
         return;
     }
 
-    spdlog::debug("Event type: {}, Sender json: {}", context.e->get_typename(),
-                  context.e->sender_ptr->to_json().dump());
+    spdlog::debug("Event type: {}, Sender json: {}", context.event->get_typename(),
+                  context.event->sender_ptr->to_json().dump());
 
     std::string msg_content_str{};
     if (context.msg_prop.ref_msg_content != nullptr && !context.msg_prop.ref_msg_content->empty()) {
-        msg_content_str.append(fmt::format("\"{}\"引用了一个消息: \"{}\",", context.e->sender_ptr->name,
+        msg_content_str.append(fmt::format("\"{}\"引用了一个消息: \"{}\",", context.event->sender_ptr->name,
                                            *context.msg_prop.ref_msg_content));
     }
     if (context.msg_prop.plain_content != nullptr && !context.msg_prop.plain_content->empty()) {
         msg_content_str.append(
-            fmt::format("\"{}\":\"{}\"", context.e->sender_ptr->name, *context.msg_prop.plain_content));
+            fmt::format("\"{}\":\"{}\"", context.event->sender_ptr->name, *context.msg_prop.plain_content));
     }
     spdlog::info(msg_content_str);
 

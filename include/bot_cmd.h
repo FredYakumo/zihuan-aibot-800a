@@ -8,29 +8,44 @@
 #include <utility>
 
 namespace bot_cmd {
+    /**
+     * @brief Describe a bot command run context.
+     * This class should be construct at command running phase
+     * 
+     */
     struct CommandContext {
         bot_adapter::BotAdapter &adapter;
-        std::shared_ptr<bot_adapter::MessageEvent> e;
+        std::shared_ptr<bot_adapter::MessageEvent> event;
         std::string param;
-        bool is_no_param;
         bool is_deep_think = false;
         MessageProperties msg_prop;
 
         CommandContext(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_adapter::MessageEvent> e,
-                       std::string_view param, bool is_command_only, bool is_deep_think, MessageProperties msg_prop)
-            : adapter(adapter), e(e), param(param), is_no_param(is_command_only), is_deep_think(is_deep_think),
+                       std::string_view param, bool is_deep_think, MessageProperties msg_prop)
+            : adapter(adapter), event(e), param(param), is_deep_think(is_deep_think),
               msg_prop(msg_prop) {}
     };
 
+    /**
+     * @brief Describe a bot command run result.
+     * 
+     */
     struct CommandRes {
-        bool is_break_cmd_process;
+        /// The command wants to break following cmd process in run loop.
+        bool interrupt_following_commands;
+        /// The command wants to skip the last process_llm() function call.
+        bool skip_default_process_llm;
+        /// The command wants to reply in deep think mode.
         bool is_deep_think = false;
+        /// Func accepts MessageProps ref and purpose to modify it, or nullopts if don't need to modify msg.
         std::optional<std::function<void(const MessageProperties &)>> is_modify_msg;
 
-        CommandRes(bool is_break_cmd_process = false,
-                   std::optional<std::function<void(const MessageProperties &)>> is_modify_msg = std::nullopt,
-                   bool is_deep_think = false)
-            : is_break_cmd_process(is_break_cmd_process), is_modify_msg(is_modify_msg), is_deep_think(is_deep_think) {}
+        CommandRes(bool interrupt_following_commands = false, bool skip_default_process_llm = false,
+                   bool is_deep_think = false,
+                   std::optional<std::function<void(const MessageProperties &)>> is_modify_msg = std::nullopt)
+            : interrupt_following_commands(interrupt_following_commands),
+              skip_default_process_llm(skip_default_process_llm), is_deep_think(is_deep_think),
+              is_modify_msg(is_modify_msg) {}
     };
 
     struct CommandProperty {
