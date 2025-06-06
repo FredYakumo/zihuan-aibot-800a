@@ -210,7 +210,8 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
             false);
     }
 
-    auto system_prompt = gen_common_prompt(bot_profile, context.adapter, *context.event->sender_ptr, context.is_deep_think);
+    auto system_prompt =
+        gen_common_prompt(bot_profile, context.adapter, *context.event->sender_ptr, context.is_deep_think);
 
     system_prompt += "\n" + query_chat_session_knowledge(context, msg_content_str);
 
@@ -298,7 +299,8 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
                     context.adapter.send_long_plain_text_replay(*context.event->sender_ptr,
                                                                 "你发的啥,我看不到...再发一遍呢?", true);
                 } else {
-                    context.adapter.send_long_plain_text_replay(*context.event->sender_ptr, "等我看看这个链接哦...", true);
+                    context.adapter.send_long_plain_text_replay(*context.event->sender_ptr, "等我看看这个链接哦...",
+                                                                true);
                 }
 
                 const auto url_search_res = rag::url_search_content(urls);
@@ -375,8 +377,10 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
     if (const auto &group_sender = bot_adapter::try_group_sender(*context.event->sender_ptr)) {
         database::get_global_db_connection().insert_message(
             replay_content,
-            bot_adapter::GroupSender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt, group_sender->get().permission,
-                                     std::nullopt, std::chrono::system_clock::now(), group_sender->get().group),
+            bot_adapter::GroupSender(
+                config.bot_id, context.adapter.get_bot_profile().name, std::nullopt,
+                context.adapter.get_group(group_sender->get().group.id).group_info.bot_in_group_permission,
+                std::nullopt, std::chrono::system_clock::now(), group_sender->get().group),
             std::chrono::system_clock::now(), std::set<uint64_t>{context.event->sender_ptr->id});
     } else {
         database::get_global_db_connection().insert_message(
