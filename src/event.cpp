@@ -85,9 +85,6 @@ ParseRunCmdRes parse_and_run_chat_command(bot_adapter::BotAdapter &adapter,
     for (const auto &cmd : run_cmd_list) {
 
         const auto res = cmd.first(bot_cmd::CommandContext{adapter, event, cmd.second, is_deep_think, msg_prop});
-        if (res.interrupt_following_commands) {
-            return ret;
-        }
         if (res.is_deep_think) {
             is_deep_think = true;
             ret.is_deep_think = true;
@@ -98,6 +95,10 @@ ParseRunCmdRes parse_and_run_chat_command(bot_adapter::BotAdapter &adapter,
 
         if (res.is_modify_msg) {
             res.is_modify_msg.value()(msg_prop);
+        }
+
+        if (res.interrupt_following_commands) {
+            return ret;
         }
     }
     return ret;
