@@ -274,7 +274,7 @@ namespace bot_adapter {
 
     enum class GroupPermission { UNKNOWN = 0, MEMBER, ADMINISTRATOR, OWNER };
 
-    inline constexpr std::string_view to_string(const GroupPermission &permission) {
+    inline constexpr std::string to_string(const GroupPermission &permission) {
         switch (permission) {
         case GroupPermission::MEMBER:
             return "MEMBER";

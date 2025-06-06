@@ -379,7 +379,7 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
             replay_content,
             bot_adapter::GroupSender(
                 config.bot_id, context.adapter.get_bot_profile().name, std::nullopt,
-                context.adapter.get_group(group_sender->get().group.id).group_info.bot_in_group_permission,
+                to_string(context.adapter.get_group(group_sender->get().group.id).group_info.bot_in_group_permission),
                 std::nullopt, std::chrono::system_clock::now(), group_sender->get().group),
             std::chrono::system_clock::now(), std::set<uint64_t>{context.event->sender_ptr->id});
     } else {
