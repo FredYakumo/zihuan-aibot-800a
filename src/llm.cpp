@@ -46,15 +46,15 @@ std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot
 
         return fmt::format(
             "你是一个'{}'群里的{},你的名字是{}(qq号{}),性别是:"
-            "{}。{}。当前时间是{}且不存在时区不同问题。当前跟你聊天的群友的名字叫\"{}\"(qq号{}),身份是{}。",
+            "{}。{}。当前时间是{}且不存在时区不同问题。当前跟你聊天的群友的名字叫\"{}\"(qq号{}),身份是{}。以下发送信息都是来自群友\"{}\"",
             group_sender->get().group.name, bot_perm, bot_profile.name, bot_profile.id,
             bot_adapter::to_chs_string(bot_profile.sex), custom_prompt, get_current_time_formatted(), sender.name,
-            sender.id, permission);
+            sender.id, permission, sender.name);
     } else {
         return fmt::format("你的名字是{}(qq号{}),性别是:"
-                           "{}。{}。当前时间是{}且不存在时区不同问题。当前跟你聊天的好友的名字叫\"{}\"(qq号{})。",
+                           "{}。{}。当前时间是{}且不存在时区不同问题。当前跟你聊天的好友的名字叫\"{}\"(qq号{})。以下发送信息都是来自好友\"{}\"",
                            bot_profile.name, bot_profile.id, bot_adapter::to_chs_string(bot_profile.sex), custom_prompt,
-                           get_current_time_formatted(), sender.name, sender.id);
+                           get_current_time_formatted(), sender.name, sender.id, sender.name);
     }
 }
 

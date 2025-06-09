@@ -13,7 +13,7 @@ MutexData<std::vector<DBKnowledge>> g_wait_add_knowledge_list;
 
 MutexData<std::unordered_map<uint64_t, ChatSession>> g_group_chat_bot_send_msg;
 
-IndividualMessageIdStorage g_group_message_storage;\
+IndividualMessageIdStorage g_group_message_storage;
 
 IndividualMessageIdStorage g_friend_message_storage;
 

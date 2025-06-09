@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <functional>
 #include <mutex>
 #include <optional>
 #include <shared_mutex>
@@ -51,10 +52,12 @@ class concurrent_unordered_map {
      * @brief Inserts or updates an element in the container
      * @param key The key of the element to insert/update
      * @param value The value to associate with the key
+     * @return A reference wrapper to the inserted or updated value
      */
-    void insert_or_assign(const Key &key, const Value &value) {
+    std::reference_wrapper<Value> insert_or_assign(const Key &key, const Value &value) {
         std::unique_lock lock(m_mutex);
-        m_map.insert_or_assign(key, value);
+        auto [it, _] = m_map.insert_or_assign(key, value);
+        return std::ref(it->second);
     }
 
     /**
@@ -68,16 +71,21 @@ class concurrent_unordered_map {
 
     /**
      * @brief Finds an element with given key
-     * @return std::optional containing the value if found, empty otherwise
+     * @return std::optional containing a reference to the value if found, empty otherwise
+     * @warning The returned reference is only valid while the caller maintains appropriate synchronization
      */
-    std::optional<Value> find(const Key &key) const {
+    std::optional<std::reference_wrapper<Value>> find(const Key &key) const {
         std::shared_lock lock(m_mutex);
         auto it = m_map.find(key);
         if (it != m_map.end()) {
-            return it->second;
+            return std::ref(it->second);
         }
         return std::nullopt;
     }
+
+    // std::optional<std::reference_wrapper<Value>> try_update_value(const Key &key) const {
+
+    // }
 
     /**
      * @brief Removes the element with given key

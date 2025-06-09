@@ -6,6 +6,7 @@
 #pragma once
 
 #include <algorithm>
+#include <functional>
 #include <mutex>
 #include <optional>
 #include <shared_mutex>
@@ -65,12 +66,12 @@ template <typename T, typename Allocator = std::allocator<T>> class concurrent_v
      * @param pos Position of the element to return
      * @return std::optional containing the element if pos is valid
      */
-    std::optional<T> at(size_type pos) const {
+    std::optional<std::reference_wrapper<const T>> at(size_type pos) const {
         std::shared_lock lock(m_mutex);
         if (pos >= m_vec.size()) {
             return std::nullopt;
         }
-        return m_vec[pos];
+        return std::cref(m_vec[pos]);
     }
 
     /**
@@ -78,12 +79,12 @@ template <typename T, typename Allocator = std::allocator<T>> class concurrent_v
      * @param pos Position of the element to return
      * @return std::optional containing the element if pos is valid
      */
-    std::optional<T> operator[](size_type pos) const {
+    std::optional<std::reference_wrapper<const T>> operator[](size_type pos) const {
         std::shared_lock lock(m_mutex);
         if (pos >= m_vec.size()) {
             return std::nullopt;
         }
-        return m_vec[pos];
+        return std::cref(m_vec[pos]);
     }
 
     /**

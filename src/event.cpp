@@ -142,6 +142,8 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
 
     const auto send_time = std::chrono::system_clock::now();
 
+    g_group_message_storage.insert_message(event->get_group_sender().group.id);
+
     store_msg(msg_prop, event, send_time);
 
     if (is_banned_id(sender_id)) {
