@@ -137,12 +137,13 @@ namespace bot_adapter {
         return ret;
     }
 
-    void BotAdapter::handle_command_result(const std::string &sync_id, const nlohmann::json &data_json) {
+    bool BotAdapter::handle_command_result(const std::string &sync_id, const nlohmann::json &data_json) {
 
         try {
-            spdlog::debug("Send command success, data json: {}", data_json.dump());
             if (const auto &handle_func = command_result_handle_map.pop(sync_id); handle_func.has_value()) {
+                spdlog::debug("Send command success, data json: {}", data_json.dump());
                 handle_func.value()(data_json);
+                return true;
             }
 
         } catch (const nlohmann::json::parse_error &e) {
@@ -150,6 +151,7 @@ namespace bot_adapter {
         } catch (const std::exception &e) {
             spdlog::error("Unexpected error: {}, msg is: {}", e.what(), data_json.dump());
         }
+        return false;
     }
 
     void handle_message_event(const std::string &type, const nlohmann::json &data,
@@ -206,10 +208,11 @@ namespace bot_adapter {
                 return;
             }
 
-            const auto sync_id = get_optional(msg_json, "syncId");
-            if (sync_id.has_value()) {
-                handle_command_result(*sync_id, *data);
-                return;
+            const auto sync_id = get_optional<std::string>(msg_json, "syncId");
+            if (sync_id.has_value() && !sync_id->empty()) {
+                if (handle_command_result(*sync_id, *data)) {
+                    return;
+                }
             }
 
             const auto &type = get_optional<std::string>(*data, "type");

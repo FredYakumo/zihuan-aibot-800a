@@ -115,7 +115,15 @@ namespace bot_adapter {
 
         wheel::concurrent_unordered_map<qq_id_t, GroupWrapper> group_info_map;
 
-        void handle_command_result(const std::string &sync_id, const nlohmann::json &data_json);
+        /**
+         * @brief 
+         * 
+         * @param sync_id 
+         * @param data_json 
+         * @return true A command handle function match a called.
+         * @return false not any match handle function found.
+         */
+        bool handle_command_result(const std::string &sync_id, const nlohmann::json &data_json);
 
         void send_command(const bot_adapter::AdapterCommand &cmd,
                           const std::optional<CommandResHandleFunc> command_res_handle_func_option = std::nullopt);
