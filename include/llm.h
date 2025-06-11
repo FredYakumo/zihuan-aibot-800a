@@ -1,6 +1,8 @@
 #ifndef LLM_H
 #define LLM_H
 #include "bot_cmd.h"
+#include "chat_session.hpp"
+#include "constant_types.hpp"
 #include "global_data.h"
 
 std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot_adapter::BotAdapter &adapter,
@@ -10,15 +12,15 @@ void process_llm(const bot_cmd::CommandContext &context,
                  const std::optional<std::string> &additional_system_prompt_option);
 
 inline bool try_begin_processing_llm(uint64_t target_id) {
-    std::lock_guard lock(g_chat_processing_map.first);
-    if (auto it = g_chat_processing_map.second.find(target_id); it != std::cend(g_chat_processing_map.second)) {
-        if (it->second) {
+    if (auto v = g_chat_processing_map.find(target_id); v.has_value()) {
+        if (*v) {
             return false;
+        } else {
+            v->get() = true;
+            return true;
         }
-        it->second = true;
-        return true;
     }
-    g_chat_processing_map.second.emplace(target_id, true);
+    g_chat_processing_map.insert_or_assign(target_id, true);
     return true;
 }
 
@@ -44,34 +46,21 @@ inline nlohmann::json msg_list_to_json(const std::string_view system_prompt, con
     return msg_json;
 }
 
-inline nlohmann::json &add_to_msg_json(nlohmann::json &msg_json, const ChatMessage &msg) {
-    // nlohmann::json append_json {{"role", msg.role}, {"content", msg.content}};
-    // if (msg.tool_calls) {
-    //     append_json["tool_calls"] = *msg.tool_calls;
-    // }
-    // if (msg.tool_call_id) {
-    //     append_json["tool_call_id"] = *msg.tool_call_id;
-    // }
-    // msg_json.push_back(std::move(append_json));
+inline nlohmann::json &add_to_msg_json(nlohmann::json &msg_json, ChatMessage msg) {
     msg_json.push_back(msg.to_json());
     return msg_json;
 }
 
-inline nlohmann::json get_msg_json(const std::string_view system_prompt, const uint64_t id,
-                                   const std::string_view name) {
-    {
-        auto session = g_chat_session_map.read();
-        if (auto iter = session->find(id); iter != session->cend()) {
-            return msg_list_to_json(system_prompt, iter->second.message_list);
-        }
-    }
-    auto session = g_chat_session_map.write()->insert({id, ChatSession(name)});
-    return msg_list_to_json(system_prompt, session.first->second.message_list);
+inline nlohmann::json get_msg_json(std::string system_prompt, const qq_id_t id, std::string name) {
+    auto session = g_chat_session_map.get_or_create_value(
+        id, [name = std::move(name)]() mutable { return ChatSession(std::move(name)); });
+    return msg_list_to_json(std::move(system_prompt), session->message_list);
 }
 
-inline void release_processing_llm(uint64_t id) {
-    std::lock_guard lock(g_chat_processing_map.first);
-    g_chat_processing_map.second[id] = false;
+inline void release_processing_llm(qq_id_t id) {
+    if (auto v = g_chat_processing_map.find(id); v.has_value()) {
+        v->get() = false;
+    }
 }
 
 /**

@@ -8,8 +8,11 @@
 #include <string_view>
 #include <unordered_set>
 #include <yaml-cpp/yaml.h>
+#include <general-wheel-cpp/string_utils.hpp>
 
 namespace fs = boost::filesystem;
+
+using namespace wheel;
 
 // 通用函数：从环境变量获取字符串
 std::optional<std::string> get_var_from_env(const std::string_view env_name) {

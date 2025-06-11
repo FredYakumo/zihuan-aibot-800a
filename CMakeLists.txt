@@ -26,6 +26,8 @@ find_package(yaml-cpp REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(ncnn REQUIRED)
 find_package(onnxruntime REQUIRED)
+find_package(general-wheel-cpp REQUIRED)
+
 
 set(TOKENZIER_CPP_PATH ${CMAKE_CURRENT_SOURCE_DIR}/external/tokenizers-cpp)
 add_subdirectory(${TOKENZIER_CPP_PATH} tokenizers EXCLUDE_FROM_ALL)

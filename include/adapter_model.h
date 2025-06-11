@@ -1,12 +1,13 @@
 #ifndef ADAPTER_MODEL_H
 #define ADAPTER_MODEL_H
 
+#include "constant_types.hpp"
 #include "constants.hpp"
 #include "get_optional.hpp"
-#include "mutex_data.hpp"
 #include <chrono>
 #include <cstdint>
 #include <fmt/format.h>
+#include <general-wheel-cpp/collection/concurrent_unordered_map.hpp>
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <optional>
@@ -29,8 +30,8 @@ namespace bot_adapter {
      */
 
     struct Sender {
-        // Unique identifier for the sender
-        uint64_t id;
+        // QQ号/id
+        qq_id_t id;
         // Display name of the sender
         std::string name;
         // Remark
@@ -346,13 +347,12 @@ namespace bot_adapter {
               permission(permission), join_time(std::move(join_time)), last_speak_time(std::move(last_speak_time)),
               mute_time_remaining(mute_time_remaining) {}
     };
-
     struct GroupWrapper {
         GroupInfo group_info;
-        std::unique_ptr<MutexData<std::unordered_map<qq_id_t, GroupMemberInfo>>> member_info_list;
+        std::unique_ptr<wheel::concurrent_unordered_map<qq_id_t, GroupMemberInfo>> member_info_list;
 
         GroupWrapper(GroupInfo group_info) : group_info(std::move(group_info)) {
-            member_info_list = std::make_unique<MutexData<std::unordered_map<qq_id_t, GroupMemberInfo>>>();
+            member_info_list = std::make_unique<wheel::concurrent_unordered_map<qq_id_t, GroupMemberInfo>>();
         }
     };
 } // namespace bot_adapter

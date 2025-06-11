@@ -5,7 +5,10 @@
 #include <iterator>
 #include <neural_network/nn.h>
 #include <string>
+#include <general-wheel-cpp/string_utils.hpp>
 // #include <onnxruntime/core/session/onnxruntime_cxx_api.
+
+using namespace wheel;
 
 TEST(UnitTest, MsgPropTest) {
     bot_adapter::PlainTextMessage msg{"abc"};

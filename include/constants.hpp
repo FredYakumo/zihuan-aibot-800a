@@ -1,7 +1,8 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
-#include <string_view>
+#include "constant_types.hpp"
+#include <cstddef>
 
 constexpr const char *ROLE_SYSTEM = "system";
 constexpr const char *ROLE_USER = "user";
@@ -16,10 +17,6 @@ constexpr const char *LLM_API_SUFFIX = "chat/completions";
 
 constexpr const char *SEARCH_WEB_SUFFIX = "search_web";
 constexpr const char *SEARCH_URL_SUFFIX = "curl";
-
-
-
-using qq_id_t = uint64_t;
 
 constexpr qq_id_t UNKNOWN_ID = -1;
 

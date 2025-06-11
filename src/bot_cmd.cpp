@@ -10,29 +10,26 @@
 #include "utils.h"
 #include <charconv>
 #include <chrono>
+#include <general-wheel-cpp/string_utils.hpp>
 #include <optional>
 #include <utility>
 
 namespace bot_cmd {
+    using namespace wheel;
     std::vector<std::pair<std::string, bot_cmd::CommandProperty>> keyword_command_map;
 
     CommandRes clear_chat_session_command(CommandContext context) {
         spdlog::info("开始清除聊天记录");
-        auto chat_session_map = g_chat_session_map.write();
-        if (auto it = chat_session_map->find(context.event->sender_ptr->id); it != chat_session_map->cend()) {
-            chat_session_map->erase(it);
-        }
-        auto knowledge_map = g_chat_session_knowledge_list_map.write();
-        if (auto it = knowledge_map->find(context.event->sender_ptr->id); it != knowledge_map->cend()) {
-            knowledge_map->erase(it);
-        }
+        g_chat_session_map.erase(context.event->sender_ptr->id);
+        g_chat_session_knowledge_list_map.erase(context.event->sender_ptr->id);
+
         if ((context.msg_prop.plain_content == nullptr ||
              ltrim(rtrim(replace_str(*context.msg_prop.plain_content, "#新对话", ""))).empty()) &&
             (context.msg_prop.ref_msg_content == nullptr || ltrim(rtrim(*context.msg_prop.ref_msg_content)).empty())) {
             context.adapter.send_replay_msg(*context.event->sender_ptr,
                                             bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
                                                 "成功清除了对话上下文，请继续跟我聊天吧。")));
-            return CommandRes{true};
+            return CommandRes{true, true};
         }
         return CommandRes{false, false, false};
     }
@@ -82,56 +79,57 @@ namespace bot_cmd {
             context.adapter.send_replay_msg(*context.event->sender_ptr,
                                             bot_adapter::make_message_chain_list(
                                                 bot_adapter::PlainTextMessage("错误。用法: #入库知识 (id: number)")));
-            return CommandRes{true};
+            return CommandRes{true, true};
         }
         spdlog::info("Index = {}", index);
         std::thread([context, index] {
             spdlog::info("Start add knowledge thread.");
-            auto wait_add_list = g_wait_add_knowledge_list.write();
 
-            if (index >= wait_add_list->size()) {
-                context.adapter.send_replay_msg(*context.event->sender_ptr,
-                                                bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
-                                                    fmt::format(" 错误。id {} 不存在于待添加列表中", index))));
-                return;
-            }
-            rag::insert_knowledge(wait_add_list->at(index));
-            wait_add_list->erase(wait_add_list->cbegin() + index);
-            context.adapter.send_replay_msg(*context.event->sender_ptr,
-                                            bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
-                                                fmt::format(" 入库知识成功。列表剩余{}条。", wait_add_list->size()))));
+            g_wait_add_knowledge_list.modify_vector([context, index](std::vector<DBKnowledge> &wait_add_list) {
+                if (index >= g_wait_add_knowledge_list.size()) {
+                    context.adapter.send_replay_msg(*context.event->sender_ptr,
+                                                    bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
+                                                        fmt::format(" 错误。id {} 不存在于待添加列表中", index))));
+                    return;
+                }
+                rag::insert_knowledge(wait_add_list.at(index));
+                wait_add_list.erase(wait_add_list.cbegin() + index);
+                context.adapter.send_replay_msg(
+                    *context.event->sender_ptr,
+                    bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
+                        fmt::format(" 入库知识成功。列表剩余{}条。", wait_add_list.size()))));
+            });
         }).detach();
-        return CommandRes{true};
+        return CommandRes{true, true};
     }
 
     CommandRes query_memory_command(CommandContext context) {
         const auto bot_name = context.adapter.get_bot_profile().name;
         std::string memory_str = fmt::format(" '{}'当前记忆列表:\n", bot_name);
-        auto chat_session_map = g_chat_session_map.read();
-        if (chat_session_map->empty()) {
+
+        if (g_chat_session_map.empty()) {
             memory_str += "空的";
         } else {
-            for (auto entry : *chat_session_map) {
-                memory_str += fmt::format("QQ号: {}, 昵称: {}, 记忆数: {}\n", entry.first, entry.second.nick_name,
-                                          entry.second.user_msg_count);
-                for (auto m : entry.second.message_list) {
+            g_chat_session_map.for_each([&memory_str, &bot_name](const auto &key, const auto &value) {
+                memory_str +=
+                    fmt::format("QQ号: {}, 昵称: {}, 记忆数: {}\n", key, value.nick_name, value.message_list.size());
+                for (auto m : value.message_list) {
                     auto role = m.role;
                     if (role == "user") {
-                        role = entry.second.nick_name;
+                        role = value.nick_name;
                     } else {
                         role = bot_name;
                     }
                     memory_str += fmt::format("\t- [{}] {}: {}\n", m.get_formatted_timestamp(), role, m.content);
                 }
-            }
+            });
         }
         context.adapter.send_long_plain_text_replay(*context.event->sender_ptr, memory_str);
         return CommandRes{true};
     }
 
     CommandRes query_add_knowledge_list_command(CommandContext context) {
-        auto wait_add_list = g_wait_add_knowledge_list.read();
-        if (wait_add_list->empty()) {
+        if (g_wait_add_knowledge_list.empty()) {
             context.adapter.send_replay_msg(
                 *context.event->sender_ptr,
                 bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("暂无待添加知识。")));
@@ -139,13 +137,16 @@ namespace bot_cmd {
         }
         std::string wait_add_list_str{" 待添加知识列表:"};
         size_t index = 0;
-        for (; index < 4 && index < wait_add_list->size(); ++index) {
-            const auto &knowledge = wait_add_list->at(index);
-            wait_add_list_str.append(fmt::format("\n{} - {} - {}: {}", index, knowledge.creator_name,
-                                                 knowledge.create_dt, knowledge.content));
+        for (; index < 4 && index < g_wait_add_knowledge_list.size(); ++index) {
+            if (const auto &knowledge = g_wait_add_knowledge_list[index]; knowledge.has_value()) {
+                const auto &k = knowledge->get();
+                wait_add_list_str.append(
+                    fmt::format("\n{} - {} - {}: {}", index, k.creator_name, k.create_dt, k.content));
+            }
         }
-        if (index < wait_add_list->size()) {
-            wait_add_list_str.append(fmt::format("\n...(剩余{}条)...", wait_add_list->size() - index));
+        auto size = g_wait_add_knowledge_list.size();
+        if (index < size) {
+            wait_add_list_str.append(fmt::format("\n...(剩余{}条)...", size - index));
         }
         context.adapter.send_long_plain_text_replay(*context.event->sender_ptr, wait_add_list_str);
         return CommandRes{true};

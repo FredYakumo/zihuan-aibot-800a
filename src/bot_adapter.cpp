@@ -7,13 +7,13 @@
 #include "constants.hpp"
 #include "easywsclient.hpp"
 #include "get_optional.hpp"
-#include "mutex_data.hpp"
 #include "nlohmann/json_fwd.hpp"
 #include "time_utils.h"
 #include "utils.h"
 #include <chrono>
 #include <cstdint>
 #include <future>
+#include <general-wheel-cpp/string_utils.hpp>
 #include <memory>
 #include <optional>
 #include <string>
@@ -24,6 +24,8 @@
 #include <vector>
 
 namespace bot_adapter {
+
+    using namespace wheel;
 
     BotAdapter::~BotAdapter() {
 #ifdef _WIN32
@@ -139,11 +141,8 @@ namespace bot_adapter {
 
         try {
             spdlog::debug("Send command success, data json: {}", data_json.dump());
-            auto handle_map = command_result_handle_map.write();
-            auto iter = handle_map->find(sync_id);
-            if (iter != handle_map->cend()) {
-                iter->second(data_json);
-                handle_map->erase(iter);
+            if (const auto &handle_func = command_result_handle_map.pop(sync_id); handle_func.has_value()) {
+                handle_func.value()(data_json);
             }
 
         } catch (const nlohmann::json::parse_error &e) {
@@ -209,19 +208,8 @@ namespace bot_adapter {
 
             const auto sync_id = get_optional(msg_json, "syncId");
             if (sync_id.has_value()) {
-                bool have_sync_id = false;
-                {
-                    const auto handle_map = command_result_handle_map.read();
-                    auto iter = handle_map->find(*sync_id);
-                    if (iter != handle_map->cend()) {
-                        have_sync_id = true;
-                    }
-                }
-
-                if (have_sync_id) {
-                    handle_command_result(*sync_id, *data);
-                    return;
-                }
+                handle_command_result(*sync_id, *data);
+                return;
             }
 
             const auto &type = get_optional<std::string>(*data, "type");
@@ -263,9 +251,8 @@ namespace bot_adapter {
 
         // Add command result handle
         if (auto func = command_res_handle_func_option) {
-            auto handle_map = command_result_handle_map.write();
-            handle_map->insert(std::make_pair(
-                command.sync_id, [func](const nlohmann::json &cmd_res_data_json) { (*func)(cmd_res_data_json); }));
+            command_result_handle_map.insert_or_assign(
+                command.sync_id, [func](const nlohmann::json &cmd_res_data_json) { (*func)(cmd_res_data_json); });
         }
     }
 
@@ -427,16 +414,14 @@ namespace bot_adapter {
 
             // Fetch member info
             spdlog::info("Fetch members info for group: {}({})", group_info.name, group_info.group_id);
-            auto member_list = group_wrapper.member_info_list->write();
-            *member_list = group_by(fetch_group_member_list_sync(group_info),
-                                    [](const GroupMemberInfo &member) { return member.id; });
+            *group_wrapper.member_info_list = group_by(fetch_group_member_list_sync(group_info),
+                                                       [](const GroupMemberInfo &member) { return member.id; });
             spdlog::info("Fetch members info for group: {}({}): member count: {}", group_info.name, group_info.group_id,
-                         member_list->size());
+                         group_wrapper.member_info_list->size());
             group_wrapper_map.insert(std::make_pair(group_info.group_id, std::move(group_wrapper)));
         }
         spdlog::info("Fetch group info list successed.");
-        auto map = group_info_map.write();
-        *map = std::move(group_wrapper_map);
+        group_info_map = std::move(group_wrapper_map);
     }
 
     std::optional<Profile> BotAdapter::fetch_group_member_profile_sync(qq_id_t group_id, qq_id_t id) {
@@ -494,10 +479,12 @@ namespace bot_adapter {
     //     std::promise<nlohmann::json> promise;
     //     auto future = promise.get_future();
     //     auto sync_id = fmt::format("send_message_async_to_{}_{}", sender.id, get_current_time_formatted());
-    //     send_message(sender, message_chain, sync_id, [&promise](const nlohmann::json &res) { promise.set_value(res); });
+    //     send_message(sender, message_chain, sync_id, [&promise](const nlohmann::json &res) { promise.set_value(res);
+    //     });
 
     //     if (future.wait_for(timeout) == std::future_status::timeout) {
-    //         spdlog::error("Send command(sync) '{}'(sync id: {}) timeout. payload: {}", command.command, command.sync_id,
+    //         spdlog::error("Send command(sync) '{}'(sync id: {}) timeout. payload: {}", command.command,
+    //         command.sync_id,
     //                       command.to_json().dump());
     //         throw std::runtime_error("Command execution timeout");
     //     }

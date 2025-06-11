@@ -2,6 +2,7 @@
 #include "config.h"
 #include <memory>
 #include <stdexcept>
+#include <general-wheel-cpp/string_utils.hpp>
 
 using namespace database;
 
@@ -27,7 +28,7 @@ void DBConnection::insert_message(const std::string &content, const bot_adapter:
                                   const std::optional<std::set<uint64_t>> at_target_set) {
     try {
         const auto at_target_value = (at_target_set && !at_target_set->empty())
-                                         ? join_str(std::cbegin(*at_target_set), std::cend(*at_target_set), ",",
+                                         ? wheel::join_str(std::cbegin(*at_target_set), std::cend(*at_target_set), ",",
                                                     [](const auto i) { return std::to_string(i); })
                                          : mysqlx::nullvalue;
         if (const auto &group_sender = bot_adapter::try_group_sender(sender)) {

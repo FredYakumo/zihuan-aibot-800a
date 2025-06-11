@@ -18,9 +18,12 @@
 #include <string_view>
 #include <utility>
 #include <vector>
+#include <general-wheel-cpp/string_utils.hpp>
 
 namespace rag {
     const Config &config = Config::instance();
+
+    using namespace wheel;
 
     std::vector<std::pair<DBGroupMessage, double>> query_group_msg(const std::string_view query,
                                                                    std::optional<uint64_t> group_id_option) {

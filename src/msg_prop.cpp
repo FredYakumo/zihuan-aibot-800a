@@ -11,8 +11,11 @@
 #include <regex>
 #include <spdlog/spdlog.h>
 #include <string>
+#include <general-wheel-cpp/string_utils.hpp>
 
 std::regex at_target_pattern("@(\\d+)");
+
+using namespace wheel;
 
 MessageProperties get_msg_prop_from_event(const bot_adapter::MessageEvent &e, const std::string_view bot_name,
                                           uint64_t bot_id) {
@@ -110,12 +113,10 @@ void store_msg_prop_to_db(const MessageProperties &msg_prop, const bot_adapter::
 
 std::vector<std::string> get_message_list_from_chat_session(const std::string_view sender_name, qq_id_t sender_id) {
     std::vector<std::string> ret;
-
-    const auto &chat_session_map = g_chat_session_map.read();
-    if (const auto &chat_session = chat_session_map->find(sender_id); chat_session != chat_session_map->cend()) {
-        for (const auto &msg : chat_session->second.message_list) {
+    if (auto session = g_chat_session_map.find(sender_id); session.has_value()) {
+        for (const auto &msg : session->get().message_list) {
             ret.push_back(fmt::format("{}: {}", sender_name, msg.content));
         }
     }
-    return std::move(ret);
+    return ret;
 }

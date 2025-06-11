@@ -22,3 +22,6 @@
 [submodule "external/mysql-connector-cpp"]
 	path = external/mysql-connector-cpp
 	url = git@github.com:mysql/mysql-connector-cpp.git
+[submodule "external/general-wheel-cpp"]
+	path = external/general-wheel-cpp
+	url = https://github.com/FredYakumo/general-wheel-cpp.git

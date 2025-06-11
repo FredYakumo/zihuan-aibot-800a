@@ -107,18 +107,25 @@ struct ChatMessage {
     }
 };
 
+/**
+ * @brief A user chat session with bot
+ */
 struct ChatSession {
+    /// @brief How bot call user
     std::string nick_name;
     std::deque<ChatMessage> message_list{};
-    size_t user_msg_count = 0;
 
-    ChatSession() : nick_name("") {}
+    ChatSession(std::string name) : nick_name(std::move(name)) {}
 
-    ChatSession(const std::string_view name) : nick_name(name) {}
+    ChatSession(std::string name, ChatMessage initial_message)
+        : nick_name(std::move(name)), message_list{std::move(initial_message)} {}
 
-    ChatSession(const std::string_view name, const ChatMessage &initial_message) : nick_name(name), user_msg_count(1) {
-        message_list.push_back(initial_message);
-    }
+    ChatSession(ChatSession &&) = default;
+    ChatSession &operator=(ChatSession &&) = default;
+
+    // Prevent copy
+    ChatSession(const ChatSession &) = delete;
+    ChatSession &operator=(const ChatSession &) = delete;
 };
 
 #endif

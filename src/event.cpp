@@ -18,6 +18,9 @@
 #include <string_view>
 #include <thread>
 #include <utility>
+#include <general-wheel-cpp/string_utils.hpp>
+
+using namespace wheel;
 
 struct ParseRunCmdRes {
     bool skip_default_llm = false;
@@ -142,7 +145,8 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
 
     const auto send_time = std::chrono::system_clock::now();
 
-    g_group_message_storage.insert_message(event->get_group_sender().group.id);
+    // TODO: Add message
+    // g_group_message_storage.add_message(event->get_group_sender().group.id,);
 
     store_msg(msg_prop, event, send_time);
 

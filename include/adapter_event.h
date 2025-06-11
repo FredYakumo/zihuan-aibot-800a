@@ -8,6 +8,7 @@
 #include <memory>
 #include <string_view>
 #include <vector>
+#include <string_view>
 
 namespace bot_adapter {
     struct Event {

@@ -15,6 +15,7 @@
 #include <chrono>
 #include <cpr/cpr.h>
 #include <cstdint>
+#include <general-wheel-cpp/string_utils.hpp>
 #include <iterator>
 #include <nlohmann/json.hpp>
 #include <optional>
@@ -24,6 +25,8 @@
 #include "llm_function_tools.hpp"
 
 const Config &config = Config::instance();
+
+using namespace wheel;
 
 inline std::string get_permission_chs(const std::string_view perm) {
     if (perm == "OWNER") {
@@ -44,15 +47,16 @@ std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot
         std::string bot_perm =
             get_permission_chs(adapter.get_group(group_sender->get().group.id).group_info.bot_in_group_permission);
 
-        return fmt::format(
-            "你是一个'{}'群里的{},你的名字是{}(qq号{}),性别是:"
-            "{}。{}。当前时间是{}且不存在时区不同问题。当前跟你聊天的群友的名字叫\"{}\"(qq号{}),身份是{}。以下发送信息都是来自群友\"{}\"",
-            group_sender->get().group.name, bot_perm, bot_profile.name, bot_profile.id,
-            bot_adapter::to_chs_string(bot_profile.sex), custom_prompt, get_current_time_formatted(), sender.name,
-            sender.id, permission, sender.name);
+        return fmt::format("你是一个'{}'群里的{},你的名字是{}(qq号{}),性别是:"
+                           "{}。{}。当前时间是{}且不存在时区不同问题。当前跟你聊天的群友的名字叫\"{}\"(qq号{}),身份是{}"
+                           "。以下发送信息都是来自群友\"{}\"",
+                           group_sender->get().group.name, bot_perm, bot_profile.name, bot_profile.id,
+                           bot_adapter::to_chs_string(bot_profile.sex), custom_prompt, get_current_time_formatted(),
+                           sender.name, sender.id, permission, sender.name);
     } else {
         return fmt::format("你的名字是{}(qq号{}),性别是:"
-                           "{}。{}。当前时间是{}且不存在时区不同问题。当前跟你聊天的好友的名字叫\"{}\"(qq号{})。以下发送信息都是来自好友\"{}\"",
+                           "{}。{}。当前时间是{}且不存在时区不同问题。当前跟你聊天的好友的名字叫\"{}\"(qq号{})"
+                           "。以下发送信息都是来自好友\"{}\"",
                            bot_profile.name, bot_profile.id, bot_adapter::to_chs_string(bot_profile.sex), custom_prompt,
                            get_current_time_formatted(), sender.name, sender.id, sender.name);
     }
@@ -111,55 +115,51 @@ std::string query_chat_session_knowledge(const bot_cmd::CommandContext &context,
     spdlog::info("Search knowledge for this chat message");
     auto msg_knowledge_list = rag::query_knowledge(msg_content_str);
     std::string chat_use_knowledge_str;
-    {
-        auto map = g_chat_session_knowledge_list_map.write();
-        auto user_set_iter = map->find(context.event->sender_ptr->id);
-        if (user_set_iter == map->cend()) {
-            user_set_iter = map->insert(std::make_pair(context.event->sender_ptr->id, std::set<std::string>())).first;
+    if (!g_chat_session_knowledge_list_map.contains(context.event->sender_ptr->id)) {
+        g_chat_session_knowledge_list_map.insert_or_assign(context.event->sender_ptr->id, std::set<std::string>());
+    }
+    auto session_knowledge_set{g_chat_session_knowledge_list_map.find(context.event->sender_ptr->id).value()};
+    for (const auto &knowledge : msg_knowledge_list) {
+        if (knowledge.content.empty()) {
+            continue;
         }
-        for (const auto &knowledge : msg_knowledge_list) {
-            if (knowledge.content.empty()) {
-                continue;
-            }
-            // if (user_set_iter->second.size() >= MAX_KNOWLEDGE_LENGTH) {
-            //     spdlog::info("{}({})的对话session知识数量超过限制, 删除最旧的知识", context.e->sender_ptr->name,
-            //                  context.e->sender_ptr->id);
-            //     user_set_iter->second.erase(user_set_iter->second.cbegin());
-            // }
-            if (knowledge.class_name_list.empty()) {
-                user_set_iter->second.insert(fmt::format("{}", knowledge.content));
+        // if (user_set_iter->second.size() >= MAX_KNOWLEDGE_LENGTH) {
+        //     spdlog::info("{}({})的对话session知识数量超过限制, 删除最旧的知识", context.e->sender_ptr->name,
+        //                  context.e->sender_ptr->id);
+        //     user_set_iter->second.erase(user_set_iter->second.cbegin());
+        // }
+        if (knowledge.class_name_list.empty()) {
+            session_knowledge_set->insert(fmt::format("{}", knowledge.content));
 
-            } else {
-                user_set_iter->second.insert(fmt::format(
-                    "{}:{}",
-                    join_str(std::cbegin(knowledge.class_name_list), std::cend(knowledge.class_name_list), "|"),
-                    knowledge.content));
-            }
-        }
-        size_t total_len = 0;
-        auto it = user_set_iter->second.rbegin();
-        while (it != user_set_iter->second.rend() && total_len < MAX_KNOWLEDGE_LENGTH) {
-            total_len += it->length();
-            ++it;
-        }
-
-        // Remove entries that exceed the limit
-        if (it != user_set_iter->second.rend()) {
-            spdlog::info("{}({})的对话session知识数量超过限制, 删除'{}'之前的知识内容", context.event->sender_ptr->name,
-                         context.event->sender_ptr->id, *it);
-            user_set_iter->second.erase(user_set_iter->second.begin(), it.base());
-        }
-
-        const auto user_chat_knowledge_list = map->find(context.event->sender_ptr->id);
-        if (user_chat_knowledge_list == map->cend() || user_chat_knowledge_list->second.empty()) {
-            spdlog::info("未查询到对话关联的知识");
         } else {
-            chat_use_knowledge_str.append("相关的知识:\"");
-            chat_use_knowledge_str.append(join_str(std::cbegin(user_chat_knowledge_list->second),
-                                                   std::cend(user_chat_knowledge_list->second), "."));
-            chat_use_knowledge_str.append("\"");
+            session_knowledge_set->insert(fmt::format(
+                "{}:{}", join_str(std::cbegin(knowledge.class_name_list), std::cend(knowledge.class_name_list), "|"),
+                knowledge.content));
         }
     }
+
+    size_t total_len = 0;
+    auto it = session_knowledge_set->rbegin();
+    while (it != session_knowledge_set->rend() && total_len < MAX_KNOWLEDGE_LENGTH) {
+        total_len += it->length();
+        ++it;
+    }
+
+    // Remove entries that exceed the limit
+    if (it != session_knowledge_set->rend()) {
+        spdlog::info("{}({})的对话session知识数量超过限制, 删除'{}'之前的知识内容", context.event->sender_ptr->name,
+                     context.event->sender_ptr->id, *it);
+        session_knowledge_set->erase(session_knowledge_set->begin(), it.base());
+    }
+
+    if (session_knowledge_set->empty()) {
+        spdlog::info("未查询到对话关联的知识");
+        return chat_use_knowledge_str;
+    }
+    chat_use_knowledge_str.append("相关的知识:\"");
+    chat_use_knowledge_str.append(
+        join_str(std::cbegin(*session_knowledge_set), std::cend(*session_knowledge_set), "."));
+    chat_use_knowledge_str.append("\"");
 
     // Search knowledge for username
     // spdlog::info("Search knowledge for username");
@@ -362,14 +362,31 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
         }
     }
 
-    // Add msg to global storage
-    auto session_map = g_chat_session_map.write();
-    auto &session = session_map->find(context.event->sender_ptr->id)->second;
-
-    session.message_list.push_back(user_chat_msg);
     std::string replay_content = one_chat_session.rbegin()->content;
-    session.message_list.insert(std::end(session.message_list), std::make_move_iterator(std::begin(one_chat_session)),
-                                std::make_move_iterator(std::end(one_chat_session)));
+    
+    if (auto session = g_chat_session_map.find(context.event->sender_ptr->id); session.has_value()) {
+        auto &message_list = session->get().message_list;
+
+        // Add msg to global storage
+        message_list.push_back(user_chat_msg);
+        message_list.insert(std::end(message_list), std::make_move_iterator(std::begin(one_chat_session)),
+                            std::make_move_iterator(std::end(one_chat_session)));
+
+        // Remove messages that exceed the limit
+        size_t total_len = 0;
+        auto sess_it = message_list.rbegin();
+        while (sess_it != message_list.rend() && total_len < USER_SESSION_MSG_LIMIT) {
+            total_len += sess_it->content.length(); // UTF-8 length
+            ++sess_it;
+        }
+
+        if (sess_it != message_list.rend()) {
+            spdlog::info("{}({})的对话长度超过限制, 删除'{}'之前的上下文内容", context.event->sender_ptr->name,
+                         context.event->sender_ptr->name, sess_it->content);
+
+            message_list.erase(message_list.begin(), sess_it.base());
+        }
+    }
 
     spdlog::info("Prepare to send msg response");
 
@@ -387,28 +404,6 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
             replay_content, bot_adapter::Sender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt),
             std::chrono::system_clock::now(), std::set<uint64_t>{context.event->sender_ptr->id});
     }
-
-    size_t total_len = 0;
-    auto sess_it = session.message_list.rbegin();
-    while (sess_it != session.message_list.rend() && total_len < USER_SESSION_MSG_LIMIT) {
-        total_len += sess_it->content.length(); // UTF-8 length
-        ++sess_it;
-    }
-
-    // Remove messages that exceed the limit
-    if (sess_it != session.message_list.rend()) {
-        spdlog::info("{}({})的对话长度超过限制, 删除'{}'之前的上下文内容", context.event->sender_ptr->name,
-                     context.event->sender_ptr->name, sess_it->content);
-
-        session.message_list.erase(session.message_list.begin(), sess_it.base());
-    }
-
-    // if (session.user_msg_count + 1 >= USER_SESSION_MSG_LIMIT) {
-    //     session.message_list.pop_front();
-    //     session.message_list.pop_front();
-    // } else {
-    //     ++session.user_msg_count;
-    // }
 
     release_processing_llm(context.event->sender_ptr->id);
 }

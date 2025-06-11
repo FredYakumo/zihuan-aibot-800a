@@ -6,7 +6,6 @@
 #include "adapter_message.h"
 #include "adapter_model.h"
 #include "constants.hpp"
-#include "mutex_data.hpp"
 #include <cstdint>
 #include <easywsclient.hpp>
 #include <functional>
@@ -92,9 +91,8 @@ namespace bot_adapter {
 
         inline std::optional<std::reference_wrapper<const GroupWrapper>>
         fetch_group_member_info(qq_id_t group_id) const {
-            const auto &map = group_info_map.read();
-            if (auto iter = map->find(group_id); iter != map->cend()) {
-                return std::cref(iter->second);
+            if (auto f = group_info_map.find(group_id); f.has_value()) {
+                return std::cref(f->get());
             }
             return std::nullopt;
         }
@@ -104,19 +102,18 @@ namespace bot_adapter {
         const Profile &get_bot_profile() const { return bot_profile; }
 
         inline const GroupWrapper &get_group(qq_id_t group_id) const {
-            const auto &m = group_info_map.read();
-            return m->find(group_id)->second;
+            return group_info_map.find(group_id)->get();
         }
 
       private:
         void handle_message(const std::string &message);
         std::vector<std::function<void(std::shared_ptr<Event> e)>> msg_handle_func_list;
 
-        MutexData<std::unordered_map<std::string, CommandResHandleFunc>> command_result_handle_map;
+        wheel::concurrent_unordered_map<std::string, CommandResHandleFunc> command_result_handle_map;
 
         std::optional<Profile> fetch_group_member_profile_sync(qq_id_t group_id, qq_id_t id);
 
-        MutexData<std::unordered_map<qq_id_t, GroupWrapper>> group_info_map;
+        wheel::concurrent_unordered_map<qq_id_t, GroupWrapper> group_info_map;
 
         void handle_command_result(const std::string &sync_id, const nlohmann::json &data_json);
 
