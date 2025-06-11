@@ -147,6 +147,8 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
 
     // TODO: Add message
     // g_group_message_storage.add_message(event->get_group_sender().group.id,);
+    // g_group_message_storage.add_message(event->get_group_sender().group.id, 
+    //             )
 
     store_msg(msg_prop, event, send_time);
 

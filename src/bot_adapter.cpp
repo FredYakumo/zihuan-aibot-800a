@@ -4,6 +4,7 @@
 #include "adapter_message.h"
 #include "adapter_model.h"
 #include "config.h"
+#include "constant_types.hpp"
 #include "constants.hpp"
 #include "easywsclient.hpp"
 #include "get_optional.hpp"
@@ -64,8 +65,16 @@ namespace bot_adapter {
         return 0;
     }
 
-    std::vector<std::shared_ptr<MessageBase>> parse_message_chain(const nlohmann::json &msg_chain) {
+    struct ParseMessageChainResult {
+        MessageChainPtrList message_chain;
+        message_id_t message_id;
+        std::chrono::system_clock::time_point send_time;
+    };
+
+    ParseMessageChainResult parse_message_chain(const nlohmann::json &msg_chain) {
         std::vector<std::shared_ptr<MessageBase>> ret;
+        std::optional<message_id_t> message_id;
+        std::optional<std::chrono::system_clock::time_point> send_time;
         for (const auto &msg : msg_chain) {
 
             const auto type = get_optional<std::string>(msg, "type");
@@ -76,6 +85,16 @@ namespace bot_adapter {
 
             if (!type.has_value()) {
                 continue;
+            }
+
+            // Parse message metadata
+            if (*type == "Source") {
+                message_id = get_optional(msg, "id");
+                send_time = get_optional<uint64_t>(msg, "time").transform([](uint64_t time) {
+                    return std::chrono::system_clock::from_time_t(time);
+                });
+                spdlog::info("Source message id: {}, time: {}", message_id.value_or(-1),
+                             send_time.value_or(std::chrono::system_clock::now()));
             }
 
             if (*type == "Plain") {
@@ -134,7 +153,7 @@ namespace bot_adapter {
             }
         }
 
-        return ret;
+        return {std::move(ret), message_id.value_or(0), send_time.value_or(std::chrono::system_clock::now())};
     }
 
     bool BotAdapter::handle_command_result(const std::string &sync_id, const nlohmann::json &data_json) {
@@ -169,12 +188,11 @@ namespace bot_adapter {
         }
 
         spdlog::debug("parse message chain");
-        const auto message_chain = parse_message_chain(*msg_chain_json);
+        const auto parse_result = parse_message_chain(*msg_chain_json);
 
-        // 使用通用的处理逻辑
         auto process_event = [&](auto sender_ptr, auto create_event) {
             spdlog::debug("Sender: {}", sender_ptr->to_json().dump());
-            auto message_event = create_event(sender_ptr, message_chain);
+            auto message_event = create_event(sender_ptr, parse_result);
             spdlog::info("Event json: {}", message_event.to_json().dump());
             spdlog::debug("Call register event functions");
             for (const auto &func : msg_handle_func_list) {
@@ -189,11 +207,14 @@ namespace bot_adapter {
                 return;
             }
             auto group_sender_ptr = std::make_shared<GroupSender>(*sender_json, *group_json);
-            process_event(group_sender_ptr,
-                          [](auto sender, const auto &chain) { return GroupMessageEvent(sender, chain); });
+            process_event(group_sender_ptr, [](auto sender, const auto &parse_result) {
+                return GroupMessageEvent(parse_result.message_id, sender, parse_result.message_chain);
+            });
         } else if (type == "FriendMessage") {
             auto sender_ptr = std::make_shared<Sender>(*sender_json);
-            process_event(sender_ptr, [](auto sender, const auto &chain) { return FriendMessageEvent(sender, chain); });
+            process_event(sender_ptr, [](auto sender, const auto &parse_result) {
+                return FriendMessageEvent(parse_result.message_id, sender, parse_result.message_chain);
+            });
         }
     }
 

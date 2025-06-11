@@ -15,11 +15,14 @@
 #include <chrono>
 #include <cpr/cpr.h>
 #include <cstdint>
+#include <deque>
 #include <general-wheel-cpp/string_utils.hpp>
 #include <iterator>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 #include "llm_function_tools.hpp"
@@ -375,6 +378,7 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
         // Remove messages that exceed the limit
         size_t total_len = 0;
         auto sess_it = message_list.rbegin();
+
         while (sess_it != message_list.rend() && total_len < USER_SESSION_MSG_LIMIT) {
             total_len += sess_it->content.length(); // UTF-8 length
             ++sess_it;
@@ -383,8 +387,29 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
         if (sess_it != message_list.rend()) {
             spdlog::info("{}({})的对话长度超过限制, 删除'{}'之前的上下文内容", context.event->sender_ptr->name,
                          context.event->sender_ptr->name, sess_it->content);
+            
+            // @Purpose: Collect erase message's contain tool_call_ids
+            std::unordered_set<std::string> related_tool_call_ids;
+            for (auto it = message_list.cbegin(); it != sess_it.base(); ++it) {
+                if (it->tool_calls.has_value()) {
+                    for (const auto &tc : *it->tool_calls) {
+                        related_tool_call_ids.insert(tc.id);
+                    }
+                }
+            }
 
-            message_list.erase(message_list.begin(), sess_it.base());
+            // Use below method to erase, purpose for purpose for Remove all message which should be removed also
+            // message_list.erase(message_list.begin(), sess_it.base());
+
+            // Construct a new message_list that contains remain message(purpose for Remove all message which should be removed)
+            std::deque<ChatMessage> new_message_list;
+            for (auto it = sess_it.base(); it != message_list.end(); ++ it) {
+                if (it->tool_call_id.has_value() && related_tool_call_ids.contains(*it->tool_call_id)) {
+                    continue;
+                }
+                new_message_list.push_back(std::move(*it));
+            }
+            message_list = std::move(new_message_list);
         }
     }
 
