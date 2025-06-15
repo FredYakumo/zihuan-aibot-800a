@@ -25,3 +25,6 @@
 [submodule "external/general-wheel-cpp"]
 	path = external/general-wheel-cpp
 	url = https://github.com/FredYakumo/general-wheel-cpp.git
+[submodule "external/cpp-markdown"]
+	path = external/cpp-markdown
+	url = https://github.com/sevenjay/cpp-markdown.git

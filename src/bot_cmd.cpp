@@ -53,7 +53,7 @@ namespace bot_cmd {
             res.append(fmt::format("\n{}。创建者: {}, 时间: {},   置信度: {:.4f}", e.content, e.creator_name,
                                    e.create_dt, e.certainty));
         }
-        context.adapter.send_long_plain_text_replay(*context.event->sender_ptr, res);
+        context.adapter.send_long_plain_text_reply(*context.event->sender_ptr, res);
         return CommandRes{true};
     }
 
@@ -124,7 +124,7 @@ namespace bot_cmd {
                 }
             });
         }
-        context.adapter.send_long_plain_text_replay(*context.event->sender_ptr, memory_str);
+        context.adapter.send_long_plain_text_reply(*context.event->sender_ptr, memory_str);
         return CommandRes{true};
     }
 
@@ -148,7 +148,7 @@ namespace bot_cmd {
         if (index < size) {
             wait_add_list_str.append(fmt::format("\n...(剩余{}条)...", size - index));
         }
-        context.adapter.send_long_plain_text_replay(*context.event->sender_ptr, wait_add_list_str);
+        context.adapter.send_long_plain_text_reply(*context.event->sender_ptr, wait_add_list_str);
         return CommandRes{true};
     }
 
@@ -198,10 +198,10 @@ namespace bot_cmd {
                     *context.event->sender_ptr,
                     bot_adapter::make_message_chain_list(bot_adapter::ForwardMessage(
                         first_replay, bot_adapter::DisplayNode(std::string("联网搜索结果")))));
-                context.adapter.send_replay_msg(
-                    *context.event->sender_ptr,
-                    bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
-                        "PS: 紫幻现在自己会思考要不要去网上找数据啦, 你可以不用每次都用#联网.")));
+                // context.adapter.send_replay_msg(
+                //     *context.event->sender_ptr,
+                //     bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
+                //         "PS: 紫幻现在自己会思考要不要去网上找数据啦, 你可以不用每次都用#联网.")));
             }
             process_llm(context, net_search_str);
         }).detach();

@@ -14,33 +14,54 @@ struct Config {
 
     std::string llm_api_url;
     uint32_t llm_api_port;
-    std::string llm_model_name;
-    std::string custom_system_prompt;
-    std::optional<std::string> custom_deep_think_system_prompt_option;
-    // std::string BOT_NAME;
-    // MiraiCP::QQID BOT_QQID;
 
+    /// Use large language model name.
+    /// In 紫幻(zihuan), we use `DeepSeekR1`
+    std::string llm_model_name;
+    
+    /// Use this extra system prompt when set.
+    std::optional<std::string> custom_system_prompt_option;
+
+    /// Use this extra system prompt in deep think mode when set.
+    std::optional<std::string> custom_deep_think_system_prompt_option;
+
+    /// MySQL database host
     std::string database_host;
+    /// MySQL database port
     uint16_t database_port;
+    /// MySQL database user (DEFAULT is root)
     std::string database_user;
+    /// MySQL database password
     std::string database_password;
+    /// MySQL database SCHEMA (DEFAULT is AIBot_800a)
     std::string database_schema;
 
+    /// Vector database url. AIBot800a now use Weaviate Vector Database.
     std::string vec_db_url;
 
+    /// Some bot command required administrator privile,
+    /// user that QQ号/ID in this set will be treat as administrator.
     std::unordered_set<std::string> admin_id_set;
+
+    /// Bot won't reply user which QQ号/ID in this set
     std::unordered_set<std::string> banned_id_set;
 
     uint64_t bot_id;
 
+    /// Url of search API
     std::string search_api_url;
 
+    /// Port of search API
     uint32_t search_api_port;
 
 
     uint64_t update_group_info_period_sec = 1800;
 
+    /// A picture URL used when bot is thinking, this picture will be sent to user
     std::string think_image_url;
+
+    /// A location to store temporary results, such as rendered html files.
+    std::string temp_res_path;
 
     inline static Config &instance() {
         static Config config;

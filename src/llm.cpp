@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <deque>
 #include <general-wheel-cpp/string_utils.hpp>
+#include <general-wheel-cpp/markdown_utils.h>
 #include <iterator>
 #include <nlohmann/json.hpp>
 #include <optional>
@@ -24,6 +25,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
+#include <fstream>
 
 #include "llm_function_tools.hpp"
 
@@ -42,26 +44,46 @@ inline std::string get_permission_chs(const std::string_view perm) {
 
 std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot_adapter::BotAdapter &adapter,
                               const bot_adapter::Sender &sender, bool is_deep_think) {
-    const std::string &custom_prompt = (is_deep_think && config.custom_deep_think_system_prompt_option.has_value())
-                                           ? *config.custom_deep_think_system_prompt_option
-                                           : config.custom_system_prompt;
+    const std::optional<std::string> &custom_prompt_option =
+        (is_deep_think && config.custom_deep_think_system_prompt_option.has_value())
+            ? config.custom_deep_think_system_prompt_option
+            : config.custom_system_prompt_option;
     if (const auto &group_sender = bot_adapter::try_group_sender(sender); group_sender.has_value()) {
         std::string permission = get_permission_chs(group_sender->get().permission);
         std::string bot_perm =
             get_permission_chs(adapter.get_group(group_sender->get().group.id).group_info.bot_in_group_permission);
+        if (custom_prompt_option.has_value()) {
+            return fmt::format(
+                "你是一个'{}'群里的{},你的名字是{}(qq号{}),性别是:"
+                "{}。{}。当前时间是{}且不存在时区不同问题。当前跟你聊天的群友的名字叫\"{}\"(qq号{}),身份是{}"
+                "。以下发送信息都是来自群友\"{}\"",
+                group_sender->get().group.name, bot_perm, bot_profile.name, bot_profile.id,
+                bot_adapter::to_chs_string(bot_profile.sex), *custom_prompt_option, get_current_time_formatted(),
+                sender.name, sender.id, permission, sender.name);
+        } else {
+            return fmt::format("你是一个'{}'群里的{},你的名字是{}(qq号{}),性别是:"
+                               "{}。当前时间是{}且不存在时区不同问题。当前跟你聊天的群友的名字叫\"{}\"(qq号{}),身份是{}"
+                               "。以下发送信息都是来自群友\"{}\"",
+                               group_sender->get().group.name, bot_perm, bot_profile.name, bot_profile.id,
+                               bot_adapter::to_chs_string(bot_profile.sex), get_current_time_formatted(), sender.name,
+                               sender.id, permission, sender.name);
+        }
 
-        return fmt::format("你是一个'{}'群里的{},你的名字是{}(qq号{}),性别是:"
-                           "{}。{}。当前时间是{}且不存在时区不同问题。当前跟你聊天的群友的名字叫\"{}\"(qq号{}),身份是{}"
-                           "。以下发送信息都是来自群友\"{}\"",
-                           group_sender->get().group.name, bot_perm, bot_profile.name, bot_profile.id,
-                           bot_adapter::to_chs_string(bot_profile.sex), custom_prompt, get_current_time_formatted(),
-                           sender.name, sender.id, permission, sender.name);
     } else {
-        return fmt::format("你的名字是{}(qq号{}),性别是:"
-                           "{}。{}。当前时间是{}且不存在时区不同问题。当前跟你聊天的好友的名字叫\"{}\"(qq号{})"
-                           "。以下发送信息都是来自好友\"{}\"",
-                           bot_profile.name, bot_profile.id, bot_adapter::to_chs_string(bot_profile.sex), custom_prompt,
-                           get_current_time_formatted(), sender.name, sender.id, sender.name);
+        if (custom_prompt_option.has_value()) {
+            return fmt::format("你的名字是{}(qq号{}),性别是:"
+                               "{}。{}。当前时间是{}且不存在时区不同问题。当前跟你聊天的好友的名字叫\"{}\"(qq号{})"
+                               "。以下发送信息都是来自好友\"{}\"",
+                               bot_profile.name, bot_profile.id, bot_adapter::to_chs_string(bot_profile.sex),
+                               *custom_prompt_option, get_current_time_formatted(), sender.name, sender.id,
+                               sender.name);
+        } else {
+            return fmt::format("你的名字是{}(qq号{}),性别是:"
+                               "{}。当前时间是{}且不存在时区不同问题。当前跟你聊天的好友的名字叫\"{}\"(qq号{})"
+                               "。以下发送信息都是来自好友\"{}\"",
+                               bot_profile.name, bot_profile.id, bot_adapter::to_chs_string(bot_profile.sex),
+                               get_current_time_formatted(), sender.name, sender.id, sender.name);
+        }
     }
 }
 
@@ -216,6 +238,8 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
     auto system_prompt =
         gen_common_prompt(bot_profile, context.adapter, *context.event->sender_ptr, context.is_deep_think);
 
+
+
     system_prompt += "\n" + query_chat_session_knowledge(context, msg_content_str);
 
     if (additional_system_prompt_option.has_value()) {
@@ -299,11 +323,11 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
                 if (urls.empty()) {
                     spdlog::info("Function call id {}: fetch_url_content(urls=[{}])", func_calls.id,
                                  join_str(std::cbegin(urls), std::cend(urls)));
-                    context.adapter.send_long_plain_text_replay(*context.event->sender_ptr,
-                                                                "你发的啥,我看不到...再发一遍呢?", true);
+                    context.adapter.send_long_plain_text_reply(*context.event->sender_ptr,
+                                                               "你发的啥,我看不到...再发一遍呢?", true);
                 } else {
-                    context.adapter.send_long_plain_text_replay(*context.event->sender_ptr, "等我看看这个链接哦...",
-                                                                true);
+                    context.adapter.send_long_plain_text_reply(*context.event->sender_ptr, "等我看看这个链接哦...",
+                                                               true);
                 }
 
                 const auto url_search_res = rag::url_search_content(urls);
@@ -366,7 +390,7 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
     }
 
     std::string replay_content = one_chat_session.rbegin()->content;
-    
+
     if (auto session = g_chat_session_map.find(context.event->sender_ptr->id); session.has_value()) {
         auto &message_list = session->get().message_list;
 
@@ -387,7 +411,7 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
         if (sess_it != message_list.rend()) {
             spdlog::info("{}({})的对话长度超过限制, 删除'{}'之前的上下文内容", context.event->sender_ptr->name,
                          context.event->sender_ptr->name, sess_it->content);
-            
+
             // @Purpose: Collect erase message's contain tool_call_ids
             std::unordered_set<std::string> related_tool_call_ids;
             for (auto it = message_list.cbegin(); it != sess_it.base(); ++it) {
@@ -401,9 +425,10 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
             // Use below method to erase, purpose for purpose for Remove all message which should be removed also
             // message_list.erase(message_list.begin(), sess_it.base());
 
-            // Construct a new message_list that contains remain message(purpose for Remove all message which should be removed)
+            // Construct a new message_list that contains remain message(purpose for Remove all message which should be
+            // removed)
             std::deque<ChatMessage> new_message_list;
-            for (auto it = sess_it.base(); it != message_list.end(); ++ it) {
+            for (auto it = sess_it.base(); it != message_list.end(); ++it) {
                 if (it->tool_call_id.has_value() && related_tool_call_ids.contains(*it->tool_call_id)) {
                     continue;
                 }
@@ -415,7 +440,24 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
 
     spdlog::info("Prepare to send msg response");
 
-    context.adapter.send_long_plain_text_replay(*context.event->sender_ptr, replay_content);
+    // spdlog::info("Check if need optim reply message");
+    // bool is_long = replay_content.length() > MAX_OUTPUT_LENGTH;
+    // bool is_table = contains_markdown_table(replay_content);
+    // bool is_rich_text = contains_rich_text_features(replay_content);
+    // spdlog::info("Is long: {}, Is table: {}, Is rich text: {}", is_long, is_table, is_rich_text);
+    // if (is_long || is_table || is_rich_text) {
+    //     // spdlog::info("Optimizing reply message");
+    //     // auto opt_result = optimize_message_query(context.adapter.get_bot_profile(), context.event->sender_ptr->name,
+    //     //                                          context.event->sender_ptr->id, context.msg_prop);
+    //     // if (opt_result.has_value()) {
+    //     //     replay_content = opt_result->optimized_content;
+    //     //     spdlog::info("Optimized content: {}", replay_content);
+    //     // } else {
+    //     //     spdlog::warn("Optimize message query failed, using original content");
+    //     // }
+    // }
+
+    context.adapter.send_long_plain_text_reply(*context.event->sender_ptr, replay_content);
     if (const auto &group_sender = bot_adapter::try_group_sender(*context.event->sender_ptr)) {
         database::get_global_db_connection().insert_message(
             replay_content,
@@ -563,3 +605,49 @@ std::optional<OptimMessageResult> optimize_message_query(const bot_adapter::Prof
     }
     return std::nullopt;
 }
+
+// std::vector<ReplayContentNode> optimize_reply_content(std::string content) {
+//     nlohmann::json msg_json;
+//     msg_json.push_back({{"role", "system"}, {"content", R"(
+// 分割并转换文本为JSON数组，并且对于代码，表格等富文本信息，保存为html格式。对于代码，使用monokai的显示风格。你的返回是json数组，对于富文本和包含任何markdown信息的块，放到"rich"字段，否则放到"normal"字段。生成的结果需要保持原有文本的顺序，每一个块限定最多500个字，并且在保持信息完整的情况下尽量放入更多内容。
+// 返回示例:
+// [
+// {
+// "rich": "<!DOCTYPE html>\n<html>\n<head>\n    <style>\n    pre {\n        background: #272822;\n        color: #f8f8f2;\n        padding: 10px;\n        border-radius: 5px;\n    }\n    .keyword { color: #f92672; font-style: italic; }\n    .type { color: #66d9ef; }\n    .number { color: #ae81ff; }\n    </style>\n</head>\n<body>\n<pre><span class=\"type\">int</span> <span class=\"keyword\">main</span>() {\n   <span class=\"keyword\">return</span> <span class=\"number\">0</span>;\n}</pre>\n</body>\n</html>"
+// },
+// {
+// "normal": "这是一段普通文本"
+// },
+// {
+// "normal": "你好啊"
+// },
+// ...
+// ]
+// )"}});
+//     msg_json.push_back({{"role", "user"}, {"content", std::move(content)}});
+//     nlohmann::json body = {
+//         {"model", config.llm_model_name}, {"messages", msg_json}, {"stream", false}, {"temperature", 0.0}};
+//     cpr::Response response =
+//         cpr::Post(cpr::Url{fmt::format("{}:{}/{}", config.llm_api_url, config.llm_api_port, LLM_API_SUFFIX)},
+//                   cpr::Body{body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace)},
+//                   cpr::Header{{"Content-Type", "application/json"}});
+//     spdlog::info("optimize_reply_content LLM response: {}", response.text);
+//     std::vector<ReplayContentNode> replay_content_list;
+
+//     try {
+//         auto json = nlohmann::json::parse(response.text);
+//         for (const auto &e : json) {
+//             if (auto rich = get_optional(e, "rich"); rich.has_value()) {
+//                 replay_content_list.emplace_back(*rich);
+//             } else if (auto normal = get_optional(e, "normal"); normal.has_value()) {
+//                 replay_content_list.emplace_back(*normal);
+//             } else {
+//                 spdlog::warn("optimize_reply_content: JSON 解析失败, 没有 rich 或 normal 字段, 原始json为: {}",
+//                              e.dump());
+//             }
+//         }
+//     } catch (const std::exception &e) {
+//         spdlog::error("optimize_reply_content: JSON 解析失败: {}", e.what());
+//     }
+//     return replay_content_list;
+// }

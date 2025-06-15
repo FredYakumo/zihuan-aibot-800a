@@ -174,6 +174,16 @@ namespace bot_adapter {
         std::string url;
     };
 
+    struct LocalImageMessage : public MessageBase {
+        LocalImageMessage(const std::string_view path) : path(path) {}
+
+        std::string_view get_type() const override { return "Image"; }
+
+        nlohmann::json to_json() const override { return nlohmann::json{{"type", get_type()}, {"path", path}}; }
+
+        std::string path;
+    };
+
     struct AtTargetMessage : public MessageBase {
         AtTargetMessage(uint64_t target) : target(target) {}
 

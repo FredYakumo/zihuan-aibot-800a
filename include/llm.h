@@ -115,4 +115,13 @@ std::optional<OptimMessageResult> optimize_message_query(const bot_adapter::Prof
                                                          const std::string_view sender_name, qq_id_t sender_id,
                                                          const MessageProperties &message_props);
 
+
+struct ReplayContentNode {
+    std::optional<std::string> normal;
+    std::optional<std::string> rich_text;
+};
+
+
+std::vector<ReplayContentNode> optimize_reply_content(std::string content);
+
 #endif

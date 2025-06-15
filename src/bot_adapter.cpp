@@ -12,8 +12,11 @@
 #include "time_utils.h"
 #include "utils.h"
 #include <chrono>
+#include <cpr/cpr.h>
 #include <cstdint>
+#include <fstream>
 #include <future>
+#include <general-wheel-cpp/markdown_utils.h>
 #include <general-wheel-cpp/string_utils.hpp>
 #include <memory>
 #include <optional>
@@ -340,16 +343,19 @@ namespace bot_adapter {
         }
     }
 
-    void BotAdapter::send_long_plain_text_replay(const Sender &sender, const std::string_view text, bool at_target,
-                                                 uint64_t msg_length_limit) {
+    void BotAdapter::send_long_plain_text_reply(const Sender &sender, std::string text, bool at_target,
+                                                uint64_t msg_length_limit) {
         const auto sync_id_base = generate_send_replay_sync_id(sender);
 
-        if (text.length() < msg_length_limit) {
-            send_replay_msg(sender, make_message_chain_list(PlainTextMessage(text)));
+        // Parse llm reply content
+        auto markdown_node = wheel::parse_markdown(std::move(text));
+        if (markdown_node.size() == 1 && !markdown_node[0].render_html_text.has_value() &&
+            markdown_node[0].text.length() < msg_length_limit) {
+            spdlog::info("Markdown text is short and no render HTML.");
+            send_replay_msg(sender, make_message_chain_list(PlainTextMessage(text)), true);
             return;
         }
 
-        const auto split_output = Utf8Splitter(text, msg_length_limit);
         std::function<void(const std::string_view sync_id, const MessageChainPtrList &msg_chain)> send_func;
         if (const auto group_sender = try_group_sender(sender)) {
             send_func = [this, group_sender](const std::string_view sync_id, const MessageChainPtrList &msg_chain) {
@@ -364,16 +370,69 @@ namespace bot_adapter {
                 send_message(sender, msg_chain, sync_id);
             };
         }
-        const auto bot_profile = get_bot_profile();
+
+        size_t render_html_count = 0;
         size_t index = 0;
         std::vector<ForwardMessageNode> forward_nodes;
-        for (auto chunk : split_output) {
-            spdlog::info("长文块: {}, {}", index, chunk);
-            forward_nodes.push_back(
-                ForwardMessageNode(bot_profile.id, std::chrono::system_clock::now(), bot_profile.name,
-                                   make_message_chain_list(PlainTextMessage(chunk)), std::nullopt, std::nullopt));
-            ++index;
+        const auto &config = Config::instance();
+        for (const auto &node : markdown_node) {
+            if (node.render_html_text) {
+                std::string file_name = fmt::format("{}{}_markdown_render_block_{}", config.temp_res_path, sync_id_base,
+                                                    render_html_count++);
+
+                // ofs << "<html>\n" << node.render_html_text.value() <<"</html>\n";
+                // spdlog::info("Render HTML text to path: {}.html", file_name);
+                float font_size = 15;
+                std::string render_html = *node.render_html_text;
+                nlohmann::json send_json = nlohmann::json{{
+                                                              "html",
+                                                              std::move(render_html),
+                                                          },
+                                                          {"save_path", file_name + ".png"},
+                                                          {"font_size", font_size}};
+                if (node.rich_text.has_value() && !node.code_text.has_value() && !node.table_text.has_value()) {
+                    render_html = replace_str(render_html, "\n", "<br/>");
+                    send_json.push_back({"body_width", 350});
+
+                } else if (node.code_text.has_value()) {
+                    // Calculate HTML content width and height based on content
+                    float max_size = 20.f;
+                    size_t line_count = 1;
+                    for (auto line : SplitString(node.text, '\n')) {
+                        if (line.length() > max_size) {
+                            max_size = line.length();
+                        }
+                        ++line_count;
+                    }
+                    float width = std::max(20.f, max_size * font_size / 2.f) + 30.f +
+                                  font_size; // Estimate width from content length
+                    float height = std::max(20.f, line_count * font_size * 1.5f) +
+                                   20.f; // Estimate height based on number of lines
+                    send_json.push_back({"width", (int64_t)width});
+                    send_json.push_back({"height", (int64_t)height});
+                }
+                cpr::Response response = cpr::Post(
+                    cpr::Url{fmt::format("{}:{}/{}", config.llm_api_url, config.llm_api_port, "html_to_image")},
+                    cpr::Body{std::string(send_json.dump())}, cpr::Header{{"Content-Type", "application/json"}});
+                spdlog::info("Render HTML text to image: {}.png", file_name);
+                // 发送图片消息
+                spdlog::info("长文块: {}, 发送图片消息: {}.png", index, file_name);
+                forward_nodes.push_back(ForwardMessageNode(
+                    bot_profile.id, std::chrono::system_clock::now(), bot_profile.name,
+                    make_message_chain_list(LocalImageMessage{file_name + ".png"}), std::nullopt, std::nullopt));
+                ++index;
+            }
+            const auto split_output = Utf8Splitter(node.text, msg_length_limit);
+            for (auto chunk : split_output) {
+                spdlog::info("长文块: {}, {}", index, chunk);
+                forward_nodes.push_back(
+                    ForwardMessageNode(bot_profile.id, std::chrono::system_clock::now(), bot_profile.name,
+                                       make_message_chain_list(PlainTextMessage(chunk)), std::nullopt, std::nullopt));
+                ++index;
+            }
         }
+
+        const auto bot_profile = get_bot_profile();
 
         for (size_t i = 0; i < forward_nodes.size(); ++i) {
             forward_nodes[forward_nodes.size() - i].time -= std::chrono::seconds(i);
