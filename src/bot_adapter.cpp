@@ -376,7 +376,7 @@ namespace bot_adapter {
         std::vector<ForwardMessageNode> forward_nodes;
         const auto &config = Config::instance();
         for (const auto &node : markdown_node) {
-            if (node.render_html_text) {
+            if (node.render_html_text.has_value()) {
                 std::string file_name = fmt::format("{}{}_markdown_render_block_{}", config.temp_res_path, sync_id_base,
                                                     render_html_count++);
 
