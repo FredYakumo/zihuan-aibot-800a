@@ -410,6 +410,7 @@ namespace bot_adapter {
                                    20.f; // Estimate height based on number of lines
                     send_json.push_back({"width", (int64_t)width});
                     send_json.push_back({"height", (int64_t)height});
+                    send_json.push_back({"body_width", (int64_t)width});
                 }
                 cpr::Response response = cpr::Post(
                     cpr::Url{fmt::format("{}:{}/{}", config.llm_api_url, config.llm_api_port, "html_to_image")},
