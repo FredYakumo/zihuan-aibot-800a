@@ -211,12 +211,14 @@ namespace bot_adapter {
             }
             auto group_sender_ptr = std::make_shared<GroupSender>(*sender_json, *group_json);
             process_event(group_sender_ptr, [](auto sender, const auto &parse_result) {
-                return GroupMessageEvent(parse_result.message_id, sender, parse_result.message_chain);
+                return GroupMessageEvent(parse_result.message_id, sender, parse_result.message_chain,
+                                         parse_result.send_time);
             });
         } else if (type == "FriendMessage") {
             auto sender_ptr = std::make_shared<Sender>(*sender_json);
             process_event(sender_ptr, [](auto sender, const auto &parse_result) {
-                return FriendMessageEvent(parse_result.message_id, sender, parse_result.message_chain);
+                return FriendMessageEvent(parse_result.message_id, sender, parse_result.message_chain,
+                                          parse_result.send_time);
             });
         }
     }
@@ -417,11 +419,18 @@ namespace bot_adapter {
                     cpr::Body{std::string(send_json.dump())}, cpr::Header{{"Content-Type", "application/json"}});
                 spdlog::info("Render HTML text to image: {}.png", file_name);
                 // 发送图片消息
-                spdlog::info("长文块: {}, 发送图片消息: {}.png", index, file_name);
+                spdlog::info("长文块: {}, 发送图片消息: {}.png", index++, file_name);
+
+                if (node.text.length() <= MAX_OUTPUT_LENGTH) {
+                    forward_nodes.push_back(ForwardMessageNode(
+                        bot_profile.id, std::chrono::system_clock::now(), bot_profile.name,
+                        make_message_chain_list(LocalImageMessage{file_name + ".png"}, PlainTextMessage(node.text)),
+                        std::nullopt, std::nullopt));
+                    continue;
+                }
                 forward_nodes.push_back(ForwardMessageNode(
                     bot_profile.id, std::chrono::system_clock::now(), bot_profile.name,
                     make_message_chain_list(LocalImageMessage{file_name + ".png"}), std::nullopt, std::nullopt));
-                ++index;
             }
             const auto split_output = Utf8Splitter(node.text, msg_length_limit);
             for (auto chunk : split_output) {
