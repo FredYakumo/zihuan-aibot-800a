@@ -28,3 +28,6 @@
 [submodule "external/cpp-markdown"]
 	path = external/cpp-markdown
 	url = https://github.com/sevenjay/cpp-markdown.git
+[submodule "external/base64"]
+	path = external/base64
+	url = https://github.com/tobiaslocker/base64

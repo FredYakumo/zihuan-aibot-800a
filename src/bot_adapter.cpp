@@ -11,6 +11,7 @@
 #include "nlohmann/json_fwd.hpp"
 #include "time_utils.h"
 #include "utils.h"
+#include <base64.hpp>
 #include <chrono>
 #include <cpr/cpr.h>
 #include <cstdint>
@@ -385,6 +386,15 @@ namespace bot_adapter {
                 // ofs << "<html>\n" << node.render_html_text.value() <<"</html>\n";
                 // spdlog::info("Render HTML text to path: {}.html", file_name);
                 float font_size = 15;
+                // Calculate HTML content width and height based on content
+                float max_size = 20.f;
+                size_t line_count = 1;
+                for (auto line : SplitString(node.text, '\n')) {
+                    if (line.length() > max_size) {
+                        max_size = line.length();
+                    }
+                    ++line_count;
+                }
                 std::string render_html = *node.render_html_text;
                 nlohmann::json send_json = nlohmann::json{{
                                                               "html",
@@ -397,18 +407,10 @@ namespace bot_adapter {
                     send_json.push_back({"body_width", 350});
 
                 } else if (node.code_text.has_value()) {
-                    // Calculate HTML content width and height based on content
-                    float max_size = 20.f;
-                    size_t line_count = 1;
-                    for (auto line : SplitString(node.text, '\n')) {
-                        if (line.length() > max_size) {
-                            max_size = line.length();
-                        }
-                        ++line_count;
-                    }
-                    float width = std::max(20.f, max_size * font_size / 2.f) + 30.f +
+
+                    float width = std::max(20.f, max_size * font_size / 2.f) + 40.f +
                                   font_size; // Estimate width from content length
-                    float height = std::max(20.f, line_count * font_size * 1.5f) +
+                    float height = std::max(20.f, (line_count + 2) * font_size * 1.5f) +
                                    20.f; // Estimate height based on number of lines
                     send_json.push_back({"width", (int64_t)width});
                     send_json.push_back({"height", (int64_t)height});
@@ -421,16 +423,34 @@ namespace bot_adapter {
                 // 发送图片消息
                 spdlog::info("长文块: {}, 发送图片消息: {}.png", index++, file_name);
 
-                if (node.text.length() <= MAX_OUTPUT_LENGTH) {
+                // Use planc's code display & run project (https://github.com/hubenchang0515)
+                if (node.code_text.has_value() && line_count > 3) {
+                    std::string code_base64 = base64::to_base64(*node.code_text);
+
                     forward_nodes.push_back(ForwardMessageNode(
                         bot_profile.id, std::chrono::system_clock::now(), bot_profile.name,
-                        make_message_chain_list(LocalImageMessage{file_name + ".png"}, PlainTextMessage(node.text)),
+                        make_message_chain_list(
+                            LocalImageMessage{file_name + ".png"},
+                            PlainTextMessage(fmt::format(
+                                " 你可以在这个链接下查看并运行代码哦: https://xplanc.org/shift/?lang={}&code={}",
+                                *node.code_language, code_base64))),
                         std::nullopt, std::nullopt));
-                    continue;
+
+                } else {
+
+                    // Short line length, Markdown rener picture and line.
+                    if (node.text.length() <= MAX_OUTPUT_LENGTH) {
+                        forward_nodes.push_back(ForwardMessageNode(
+                            bot_profile.id, std::chrono::system_clock::now(), bot_profile.name,
+                            make_message_chain_list(LocalImageMessage{file_name + ".png"}, PlainTextMessage(node.text)),
+                            std::nullopt, std::nullopt));
+                        continue;
+                    }
+                    // One Markdown render picture only, and need to split_output like normal plain text
+                    forward_nodes.push_back(ForwardMessageNode(
+                        bot_profile.id, std::chrono::system_clock::now(), bot_profile.name,
+                        make_message_chain_list(LocalImageMessage{file_name + ".png"}), std::nullopt, std::nullopt));
                 }
-                forward_nodes.push_back(ForwardMessageNode(
-                    bot_profile.id, std::chrono::system_clock::now(), bot_profile.name,
-                    make_message_chain_list(LocalImageMessage{file_name + ".png"}), std::nullopt, std::nullopt));
             }
             const auto split_output = Utf8Splitter(node.text, msg_length_limit);
             for (auto chunk : split_output) {
