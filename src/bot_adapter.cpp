@@ -395,15 +395,14 @@ namespace bot_adapter {
                     }
                     ++line_count;
                 }
-                std::string render_html = *node.render_html_text;
                 nlohmann::json send_json = nlohmann::json{{
                                                               "html",
-                                                              std::move(render_html),
+                                                              *node.render_html_text,
                                                           },
                                                           {"save_path", file_name + ".png"},
                                                           {"font_size", font_size}};
-                if (node.rich_text.has_value() && !node.code_text.has_value() && !node.table_text.has_value()) {
-                    render_html = replace_str(render_html, "\n", "<br/>");
+                if (node.rich_text.has_value() && !node.code_text.has_value() && !node.table_text.has_value() && !node.latex_text.has_value()) {
+                    send_json["html"] = replace_str(*node.render_html_text, "\n", "<br/>");
                     send_json.push_back({"body_width", 350});
 
                 } else if (node.code_text.has_value()) {
@@ -425,7 +424,8 @@ namespace bot_adapter {
 
                 // Use planc's code display & run project (https://github.com/hubenchang0515)
                 if (node.code_text.has_value() && line_count > 3) {
-                    std::string code_base64 = base64::to_base64(*node.code_text);
+                    std::string code_text_param = wheel::url_encode(*node.code_text);
+                    code_text_param = base64::to_base64(code_text_param);
 
                     forward_nodes.push_back(ForwardMessageNode(
                         bot_profile.id, std::chrono::system_clock::now(), bot_profile.name,
@@ -433,7 +433,7 @@ namespace bot_adapter {
                             LocalImageMessage{file_name + ".png"},
                             PlainTextMessage(fmt::format(
                                 " 你可以在这个链接下查看并运行代码哦: https://xplanc.org/shift/?lang={}&code={}",
-                                *node.code_language, code_base64))),
+                                *node.code_language, code_text_param))),
                         std::nullopt, std::nullopt));
 
                 } else {
