@@ -76,7 +76,8 @@ namespace bot_adapter {
         std::chrono::system_clock::time_point send_time;
     };
 
-    ParseMessageChainResult parse_message_chain(const nlohmann::json &msg_chain) {
+    ParseMessageChainResult parse_message_chain(const nlohmann::json &msg_chain, std::optional<qq_id_t> group_id_opt,
+                                                std::optional<qq_id_t> friend_id_opt) {
         std::vector<std::shared_ptr<MessageBase>> ret;
         std::optional<message_id_t> message_id;
         std::optional<std::chrono::system_clock::time_point> send_time;
@@ -122,7 +123,7 @@ namespace bot_adapter {
                 spdlog::debug("quote text: {}, json: {}", quote_text, msg.dump());
                 const auto id = get_optional<uint64_t>(msg, "id");
                 const auto group_id = get_optional<uint64_t>(msg, "group_id");
-                ret.push_back(std::make_shared<QuoteMessage>(quote_text, id.value_or(0), group_id));
+                ret.push_back(std::make_shared<QuoteMessage>(quote_text, id.value_or(0), group_id_opt, friend_id_opt));
             } else if (*type == "Forward") {
                 const nlohmann::json display_option = get_optional(msg, "display");
                 std::vector<ForwardMessageNode> node_vec;
@@ -190,9 +191,8 @@ namespace bot_adapter {
         }
 
         spdlog::debug("parse message chain");
-        const auto parse_result = parse_message_chain(*msg_chain_json);
 
-        auto process_event = [&](auto sender_ptr, auto create_event) {
+        auto process_event = [&](auto sender_ptr, auto create_event, ParseMessageChainResult parse_result) {
             spdlog::debug("Sender: {}", sender_ptr->to_json().dump());
             auto message_event = create_event(sender_ptr, parse_result);
             spdlog::info("Event json: {}", message_event.to_json().dump());
@@ -209,16 +209,27 @@ namespace bot_adapter {
                 return;
             }
             auto group_sender_ptr = std::make_shared<GroupSender>(*sender_json, *group_json);
-            process_event(group_sender_ptr, [](auto sender, const auto &parse_result) {
-                return GroupMessageEvent(parse_result.message_id, sender, parse_result.message_chain,
-                                         parse_result.send_time);
-            });
+            auto parse_result = parse_message_chain(*msg_chain_json, group_sender_ptr->group.id, std::nullopt);
+            process_event(
+                group_sender_ptr,
+                [](auto sender,  ParseMessageChainResult parse_result) {
+                    return GroupMessageEvent(parse_result.message_id, sender,
+                                             std::make_shared<MessageChainPtrList>(parse_result.message_chain),
+                                             parse_result.send_time);
+                },
+                parse_result);
         } else if (type == "FriendMessage") {
             auto sender_ptr = std::make_shared<Sender>(*sender_json);
-            process_event(sender_ptr, [](auto sender, const auto &parse_result) {
-                return FriendMessageEvent(parse_result.message_id, sender, parse_result.message_chain,
-                                          parse_result.send_time);
-            });
+            auto parse_result = parse_message_chain(*msg_chain_json, std::nullopt, sender_ptr->id);
+
+            process_event(
+                sender_ptr,
+                [](auto sender, ParseMessageChainResult parse_result) {
+                    return FriendMessageEvent(parse_result.message_id, sender,
+                                              std::make_shared<MessageChainPtrList>(parse_result.message_chain),
+                                              parse_result.send_time);
+                },
+                parse_result);
         }
     }
 
@@ -399,7 +410,8 @@ namespace bot_adapter {
                                                           },
                                                           {"save_path", file_name + ".png"},
                                                           {"font_size", font_size}};
-                if (node.rich_text.has_value() && !node.code_text.has_value() && !node.table_text.has_value() && !node.latex_text.has_value()) {
+                if (node.rich_text.has_value() && !node.code_text.has_value() && !node.table_text.has_value() &&
+                    !node.latex_text.has_value()) {
                     send_json["html"] = replace_str(*node.render_html_text, "\n", "<br/>");
                     send_json.push_back({"body_width", 350});
 

@@ -2,6 +2,8 @@
 #define ADAPTER_MSG_H
 
 #include "constant_types.hpp"
+#include "constants.hpp"
+#include "get_optional.hpp"
 #include "nlohmann/json.hpp"
 #include "nlohmann/json_fwd.hpp"
 #include "time_utils.h"
@@ -137,10 +139,8 @@ namespace bot_adapter {
             : title(std::move(title)), summary(std::move(summary)) {}
 
         DisplayNode(const nlohmann::json &json) {
-            title = json.at("title").get<std::string>();
-            if (json.contains("summary")) {
-                summary = json.at("summary").get<std::string>();
-            }
+            title = get_optional<std::string>(json, "title").value_or(EMPTY_JSON_STR_VALUE);
+            summary = get_optional<std::string>(json, "summary");
         }
 
         nlohmann::json to_json() const {

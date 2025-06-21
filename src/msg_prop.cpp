@@ -6,7 +6,6 @@
 #include "database.h"
 #include "global_data.h"
 #include "utils.h"
-#include "time_utils.h"
 #include <chrono>
 #include <cstdint>
 #include <regex>
@@ -18,11 +17,11 @@ std::regex at_target_pattern("@(\\d+)");
 
 using namespace wheel;
 
-MessageProperties get_msg_prop_from_event(const bot_adapter::MessageEvent &e, const std::string_view bot_name,
+MessageProperties get_msg_prop_from_event(const bot_adapter::MessageEvent &event, const std::string_view bot_name,
                                           uint64_t bot_id) {
     spdlog::info("Get message from event");
     MessageProperties ret{};
-    for (auto msg : e.message_chain) {
+    for (auto msg : *event.message_chain_ptr) {
         if (msg == nullptr) {
             continue;
         }

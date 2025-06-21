@@ -19,18 +19,21 @@ namespace bot_adapter {
     };
 
     struct MessageEvent : public Event {
-        MessageEvent(message_id_t message_id, std::shared_ptr<Sender> sender_ptr, MessageChainPtrList message_chain,
+        MessageEvent(message_id_t message_id, std::shared_ptr<Sender> sender_ptr,
+                     std::shared_ptr<MessageChainPtrList> message_chain_ptr,
                      std::chrono::system_clock::time_point send_time)
-            : sender_ptr(sender_ptr), message_chain(std::move(message_chain)), send_time(std::move(send_time)) {}
+            : message_id(message_id), sender_ptr(sender_ptr), message_chain_ptr(message_chain_ptr), send_time(std::move(send_time)) {}
 
         std::string_view get_typename() const override = 0;
 
         nlohmann::json to_json() const override {
             nlohmann::json message_chain_json = nlohmann::json::array();
 
-            for (const auto &msg : message_chain) {
-                if (msg) {
-                    message_chain_json.push_back(msg->to_json());
+            if (message_chain_ptr != nullptr) {
+                for (const auto &msg : *message_chain_ptr) {
+                    if (msg) {
+                        message_chain_json.push_back(msg->to_json());
+                    }
                 }
             }
             nlohmann::json ret_json = {{"type", get_typename()},
@@ -46,23 +49,25 @@ namespace bot_adapter {
         }
 
         std::shared_ptr<Sender> sender_ptr;
-        MessageChainPtrList message_chain;
+        std::shared_ptr<MessageChainPtrList> message_chain_ptr;
         message_id_t message_id;
         std::chrono::system_clock::time_point send_time;
     };
 
     struct FriendMessageEvent final : public MessageEvent {
         FriendMessageEvent(message_id_t message_id, std::shared_ptr<Sender> sender_ptr,
-                           MessageChainPtrList message_chain, std::chrono::system_clock::time_point send_time)
-            : MessageEvent(message_id, sender_ptr, std::move(message_chain), std::move(send_time)) {}
+                           std::shared_ptr<MessageChainPtrList> message_chain_ptr,
+                           std::chrono::system_clock::time_point send_time)
+            : MessageEvent(message_id, sender_ptr, message_chain_ptr, std::move(send_time)) {}
 
         std::string_view get_typename() const override { return "FriendMessageEvent"; }
     };
 
     struct GroupMessageEvent final : public MessageEvent {
         GroupMessageEvent(message_id_t message_id, std::shared_ptr<GroupSender> sender_ptr,
-                          MessageChainPtrList message_chain, std::chrono::system_clock::time_point send_time)
-            : MessageEvent(message_id, sender_ptr, std::move(message_chain), std::move(send_time)) {}
+                          std::shared_ptr<MessageChainPtrList> message_chain_ptr_ptr,
+                          std::chrono::system_clock::time_point send_time)
+            : MessageEvent(message_id, sender_ptr, message_chain_ptr_ptr, std::move(send_time)) {}
 
         std::string_view get_typename() const override { return "GroupMessageEvent"; }
 

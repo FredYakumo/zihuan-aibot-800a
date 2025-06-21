@@ -147,7 +147,7 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
     g_group_message_storage.add_message(event->get_group_sender().group.id, event->message_id,
                                         MessageStorageEntry{event->message_id, event->sender_ptr->name,
                                                             event->sender_ptr->id, event->send_time,
-                                                            std::make_shared<MessageProperties>(msg_prop)});
+                                                            event->message_chain_ptr});
 
     store_msg(msg_prop, event, event->send_time);
 
@@ -180,7 +180,7 @@ void on_friend_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_a
     g_friend_message_storage.add_message(event->sender_ptr->id, event->message_id,
                                          MessageStorageEntry{event->message_id, event->sender_ptr->name,
                                                              event->sender_ptr->id, event->send_time,
-                                                             std::make_shared<MessageProperties>(msg_prop)});
+                                                             event->message_chain_ptr});
 
     store_msg(msg_prop, event, event->send_time);
 
