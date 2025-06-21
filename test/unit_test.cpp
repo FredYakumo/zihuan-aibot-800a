@@ -230,7 +230,7 @@ TEST(UnitTest, TestCosineSimilarityOnnx) {
     auto res = coreml_model.inference(target_embedding, batch_embedding);
     auto end = std::chrono::high_resolution_clock::now();
     auto coreml_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-
+    
     // spdlog::info("Similarity (ONNX):");
     // for (const auto r : res) {
     //     spdlog::info(r);

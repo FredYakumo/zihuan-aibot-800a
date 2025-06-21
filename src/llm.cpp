@@ -440,23 +440,6 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
 
     spdlog::info("Prepare to send msg response");
 
-    // spdlog::info("Check if need optim reply message");
-    // bool is_long = replay_content.length() > MAX_OUTPUT_LENGTH;
-    // bool is_table = contains_markdown_table(replay_content);
-    // bool is_rich_text = contains_rich_text_features(replay_content);
-    // spdlog::info("Is long: {}, Is table: {}, Is rich text: {}", is_long, is_table, is_rich_text);
-    // if (is_long || is_table || is_rich_text) {
-    //     // spdlog::info("Optimizing reply message");
-    //     // auto opt_result = optimize_message_query(context.adapter.get_bot_profile(), context.event->sender_ptr->name,
-    //     //                                          context.event->sender_ptr->id, context.msg_prop);
-    //     // if (opt_result.has_value()) {
-    //     //     replay_content = opt_result->optimized_content;
-    //     //     spdlog::info("Optimized content: {}", replay_content);
-    //     // } else {
-    //     //     spdlog::warn("Optimize message query failed, using original content");
-    //     // }
-    // }
-
     context.adapter.send_long_plain_text_reply(*context.event->sender_ptr, replay_content);
     if (const auto &group_sender = bot_adapter::try_group_sender(*context.event->sender_ptr)) {
         database::get_global_db_connection().insert_message(
@@ -605,49 +588,3 @@ std::optional<OptimMessageResult> optimize_message_query(const bot_adapter::Prof
     }
     return std::nullopt;
 }
-
-// std::vector<ReplayContentNode> optimize_reply_content(std::string content) {
-//     nlohmann::json msg_json;
-//     msg_json.push_back({{"role", "system"}, {"content", R"(
-// 分割并转换文本为JSON数组，并且对于代码，表格等富文本信息，保存为html格式。对于代码，使用monokai的显示风格。你的返回是json数组，对于富文本和包含任何markdown信息的块，放到"rich"字段，否则放到"normal"字段。生成的结果需要保持原有文本的顺序，每一个块限定最多500个字，并且在保持信息完整的情况下尽量放入更多内容。
-// 返回示例:
-// [
-// {
-// "rich": "<!DOCTYPE html>\n<html>\n<head>\n    <style>\n    pre {\n        background: #272822;\n        color: #f8f8f2;\n        padding: 10px;\n        border-radius: 5px;\n    }\n    .keyword { color: #f92672; font-style: italic; }\n    .type { color: #66d9ef; }\n    .number { color: #ae81ff; }\n    </style>\n</head>\n<body>\n<pre><span class=\"type\">int</span> <span class=\"keyword\">main</span>() {\n   <span class=\"keyword\">return</span> <span class=\"number\">0</span>;\n}</pre>\n</body>\n</html>"
-// },
-// {
-// "normal": "这是一段普通文本"
-// },
-// {
-// "normal": "你好啊"
-// },
-// ...
-// ]
-// )"}});
-//     msg_json.push_back({{"role", "user"}, {"content", std::move(content)}});
-//     nlohmann::json body = {
-//         {"model", config.llm_model_name}, {"messages", msg_json}, {"stream", false}, {"temperature", 0.0}};
-//     cpr::Response response =
-//         cpr::Post(cpr::Url{fmt::format("{}:{}/{}", config.llm_api_url, config.llm_api_port, LLM_API_SUFFIX)},
-//                   cpr::Body{body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace)},
-//                   cpr::Header{{"Content-Type", "application/json"}});
-//     spdlog::info("optimize_reply_content LLM response: {}", response.text);
-//     std::vector<ReplayContentNode> replay_content_list;
-
-//     try {
-//         auto json = nlohmann::json::parse(response.text);
-//         for (const auto &e : json) {
-//             if (auto rich = get_optional(e, "rich"); rich.has_value()) {
-//                 replay_content_list.emplace_back(*rich);
-//             } else if (auto normal = get_optional(e, "normal"); normal.has_value()) {
-//                 replay_content_list.emplace_back(*normal);
-//             } else {
-//                 spdlog::warn("optimize_reply_content: JSON 解析失败, 没有 rich 或 normal 字段, 原始json为: {}",
-//                              e.dump());
-//             }
-//         }
-//     } catch (const std::exception &e) {
-//         spdlog::error("optimize_reply_content: JSON 解析失败: {}", e.what());
-//     }
-//     return replay_content_list;
-// }

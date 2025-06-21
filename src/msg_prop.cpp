@@ -6,6 +6,7 @@
 #include "database.h"
 #include "global_data.h"
 #include "utils.h"
+#include "time_utils.h"
 #include <chrono>
 #include <cstdint>
 #include <regex>
@@ -34,8 +35,57 @@ MessageProperties get_msg_prop_from_event(const bot_adapter::MessageEvent &e, co
             }
         } else if (auto quote_msg = bot_adapter::try_quote_message(*msg)) {
             spdlog::info("引用信息: {}", quote_msg->get().to_json().dump());
-            std::string s = fmt::format("引用了一段消息文本: \"{}\"", quote_msg->get().get_quote_text());
-            spdlog::debug("文本: {}", quote_msg->get().get_quote_text());
+            
+            std::string quoted_text;
+            std::optional<std::string> sender_info;
+            std::optional<std::chrono::system_clock::time_point> send_time;
+            
+            // Try to find the original message in storage
+            if (quote_msg->get().ref_group_id_opt) {
+                // Try group message storage first
+                if (auto found_msg = g_group_message_storage.find_message_id(*quote_msg->get().ref_group_id_opt, 
+                                                                           quote_msg->get().ref_msg_id)) {
+                    // Combine all message texts in the chain
+                    if (found_msg->get().message_chain_list) {
+                        for (const auto& chain_msg : *found_msg->get().message_chain_list) {
+                            if (chain_msg) {
+                                quoted_text += chain_msg->display_text();
+                            }
+                        }
+                    }
+                    sender_info = found_msg->get().sender_name;
+                    send_time = found_msg->get().send_time;
+                }
+            } else if (quote_msg->get().ref_friend_id_opt) {
+                // Try friend message storage
+                if (auto found_msg = g_friend_message_storage.find_message_id(*quote_msg->get().ref_friend_id_opt,
+                                                                            quote_msg->get().ref_msg_id)) {
+                    // Combine all message texts in the chain
+                    if (found_msg->get().message_chain_list) {
+                        for (const auto& chain_msg : *found_msg->get().message_chain_list) {
+                            if (chain_msg) {
+                                quoted_text += chain_msg->display_text();
+                            }
+                        }
+                    }
+                    sender_info = found_msg->get().sender_name;
+                    send_time = found_msg->get().send_time;
+                }
+            }
+            
+            // If we couldn't find the original message, fall back to the quote text
+            if (quoted_text.empty()) {
+                quoted_text = quote_msg->get().text;
+            }
+
+            std::string s;
+            if (sender_info && send_time) {
+                s = fmt::format("引用了 {} 在 {} 发送的消息: \"{}\"", *sender_info, system_clock_to_string(*send_time), quoted_text);
+            } else {
+                s = fmt::format("引用了一段消息文本: \"{}\"", quoted_text);
+            }
+            
+            spdlog::debug("引用消息文本: {}", quoted_text);
             if (ret.ref_msg_content == nullptr) {
                 ret.ref_msg_content = std::make_unique<std::string>(s);
             } else {

@@ -8,6 +8,7 @@
 #include "constants.hpp"
 #include "easywsclient.hpp"
 #include "get_optional.hpp"
+#include "global_data.h"
 #include "nlohmann/json_fwd.hpp"
 #include "time_utils.h"
 #include "utils.h"
@@ -121,10 +122,7 @@ namespace bot_adapter {
                 spdlog::debug("quote text: {}, json: {}", quote_text, msg.dump());
                 const auto id = get_optional<uint64_t>(msg, "id");
                 const auto group_id = get_optional<uint64_t>(msg, "group_id");
-                if (id && group_id) {
-                    // TODO: 获取原始message
-                }
-                ret.push_back(std::make_shared<QuoteMessage>(quote_text, id.value_or(0)));
+                ret.push_back(std::make_shared<QuoteMessage>(quote_text, id.value_or(0), group_id));
             } else if (*type == "Forward") {
                 const nlohmann::json display_option = get_optional(msg, "display");
                 std::vector<ForwardMessageNode> node_vec;

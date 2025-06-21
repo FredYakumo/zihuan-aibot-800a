@@ -1,10 +1,12 @@
 #ifndef ADAPTER_MSG_H
 #define ADAPTER_MSG_H
 
+#include "constant_types.hpp"
 #include "nlohmann/json.hpp"
 #include "nlohmann/json_fwd.hpp"
 #include "time_utils.h"
 #include <chrono>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -14,9 +16,18 @@ namespace bot_adapter {
     struct MessageBase {
         virtual std::string_view get_type() const = 0;
         virtual nlohmann::json to_json() const = 0;
+        virtual const std::string &display_text() const = 0;
     };
 
     using MessageChainPtrList = std::vector<std::shared_ptr<MessageBase>>;
+
+    struct MessageStorageEntry {
+        uint64_t message_id;
+        std::string sender_name;
+        uint64_t sender_id;
+        std::chrono::system_clock::time_point send_time;
+        std::shared_ptr<MessageChainPtrList> message_chain_list;
+    };
 
     struct PlainTextMessage : public MessageBase {
         PlainTextMessage(const std::string_view text) : text(text) {}
@@ -24,6 +35,8 @@ namespace bot_adapter {
         inline std::string_view get_type() const override { return "Plain"; }
 
         inline nlohmann::json to_json() const override { return {{"type", get_type()}, {"text", text}}; }
+
+        inline const std::string &display_text() const override { return text; }
 
         std::string text;
     };
@@ -40,36 +53,30 @@ namespace bot_adapter {
     }
 
     struct QuoteMessage : public MessageBase {
-        QuoteMessage(const std::string_view text, uint64_t message_id,
-                     std::shared_ptr<MessageBase> origin_message_ptr = nullptr)
-            : text(text), message_id(message_id), origin_message_ptr(origin_message_ptr) {}
+        QuoteMessage(std::string quoted_text, message_id_t ref_msg_id, std::optional<qq_id_t> ref_group_id_opt,
+                     std::optional<qq_id_t> ref_friend_id_opt)
+            : text(std::move(quoted_text)), ref_msg_id(ref_msg_id), ref_group_id_opt(ref_group_id_opt),
+              ref_friend_id_opt(ref_friend_id_opt) {}
 
         inline std::string_view get_type() const override { return "Quote"; }
 
-        inline std::string get_quote_text() const {
-            // std::string ret = "";
-            // if (origin_message_ptr == nullptr) {
-            //     return ret;
-            // }
-            // if (const auto plain_text = try_plain_text_message(*origin_message_ptr)) {
-            //     ret = plain_text->get().text;
-            // }
-            return text;
-        }
+        inline const std::string &display_text() const override { return text; }
 
         nlohmann::json to_json() const override {
-            nlohmann::json json_obj = {{"type", get_type()}, {"text", text}, {"messageId", message_id}};
-
-            if (origin_message_ptr) {
-                json_obj["origin"] = origin_message_ptr->to_json();
+            nlohmann::json json_obj = {{"type", get_type()}, {"text", text}, {"messageId", ref_msg_id}};
+            if (ref_group_id_opt) {
+                json_obj["groupId"] = *ref_group_id_opt;
             }
-
+            if (ref_friend_id_opt) {
+                json_obj["friendId"] = *ref_friend_id_opt;
+            }
             return json_obj;
         }
 
         std::string text;
-        uint64_t message_id;
-        std::shared_ptr<MessageBase> origin_message_ptr = nullptr;
+        message_id_t ref_msg_id;
+        std::optional<qq_id_t> ref_group_id_opt;
+        std::optional<qq_id_t> ref_friend_id_opt;
     };
 
     struct ForwardMessageNode {
@@ -112,6 +119,8 @@ namespace bot_adapter {
             return node_json;
         }
 
+        
+
         uint64_t sender_id = 0;
         std::chrono::system_clock::time_point time;
         std::string sender_name;
@@ -124,7 +133,8 @@ namespace bot_adapter {
         std::string title;
         std::optional<std::string> summary;
 
-        DisplayNode(std::string title, std::optional<std::string> summary = std::nullopt) : title(std::move(title)), summary(std::move(summary)) {}
+        DisplayNode(std::string title, std::optional<std::string> summary = std::nullopt)
+            : title(std::move(title)), summary(std::move(summary)) {}
 
         DisplayNode(const nlohmann::json &json) {
             title = json.at("title").get<std::string>();
@@ -134,7 +144,7 @@ namespace bot_adapter {
         }
 
         nlohmann::json to_json() const {
-            nlohmann::json ret_json {{"title", title}};
+            nlohmann::json ret_json{{"title", title}};
             if (summary) {
                 ret_json["summary"] = *summary;
             }
@@ -147,6 +157,29 @@ namespace bot_adapter {
             : node_list(std::move(nodes)), display(display) {}
 
         std::string_view get_type() const override { return "Forward"; }
+
+        const std::string &display_text() const override {
+            static std::string cached_text;
+            cached_text.clear();
+            cached_text = "[Forward Message]\n";
+            
+            for (const auto &node : node_list) {
+                cached_text += "From " + node.sender_name + " (" + std::to_string(node.sender_id) + "):\n";
+                for (const auto &msg : node.message_chain) {
+                    if (msg) {
+                        cached_text += msg->display_text();
+                        cached_text += "\n";
+                    }
+                }
+                cached_text += "---\n";
+            }
+            
+            if (display && display->summary) {
+                cached_text += "Summary: " + *display->summary + "\n";
+            }
+            
+            return cached_text;
+        }
 
         nlohmann::json to_json() const override {
             nlohmann::json json_msg = {{"type", get_type()}, {"nodeList", nlohmann::json::array()}};
@@ -165,23 +198,59 @@ namespace bot_adapter {
     };
 
     struct ImageMessage : public MessageBase {
-        ImageMessage(const std::string_view url) : url(url) {}
+        ImageMessage(const std::string_view url, std::optional<std::string> describe_text = std::nullopt)
+            : url(url), describe_text(std::move(describe_text)) {}
 
         std::string_view get_type() const override { return "Image"; }
 
-        nlohmann::json to_json() const override { return nlohmann::json{{"type", get_type()}, {"url", url}}; }
+        nlohmann::json to_json() const override {
+            nlohmann::json json_obj{{"type", get_type()}, {"url", url}};
+            if (describe_text) {
+                json_obj["description"] = *describe_text;
+            }
+            return json_obj;
+        }
+
+        inline const std::string &display_text() const override {
+            static std::string cached_text;
+            if (describe_text) {
+                cached_text = "[图片描述: " + *describe_text + " (网址: " + url + ")]";
+            } else {
+                cached_text = "[图片网址: " + url + "]";
+            }
+            return cached_text;
+        }
 
         std::string url;
+        std::optional<std::string> describe_text;
     };
 
     struct LocalImageMessage : public MessageBase {
-        LocalImageMessage(const std::string_view path) : path(path) {}
+        LocalImageMessage(const std::string_view path, std::optional<std::string> describe_text = std::nullopt)
+            : path(path), describe_text(std::move(describe_text)) {}
 
         std::string_view get_type() const override { return "Image"; }
 
-        nlohmann::json to_json() const override { return nlohmann::json{{"type", get_type()}, {"path", path}}; }
+        nlohmann::json to_json() const override {
+            nlohmann::json json_obj{{"type", get_type()}, {"path", path}};
+            if (describe_text) {
+                json_obj["description"] = *describe_text;
+            }
+            return json_obj;
+        }
+
+        inline const std::string &display_text() const override {
+            static std::string cached_text;
+            if (describe_text) {
+                cached_text = "[图片描述: " + *describe_text + " (路径: " + path + ")]";
+            } else {
+                cached_text = "[图片路径: " + path + "]";
+            }
+            return cached_text;
+        }
 
         std::string path;
+        std::optional<std::string> describe_text;
     };
 
     struct AtTargetMessage : public MessageBase {
@@ -190,6 +259,12 @@ namespace bot_adapter {
         inline std::string_view get_type() const override { return "At"; }
 
         inline nlohmann::json to_json() const override { return {{"type", get_type()}, {"target", target}}; }
+
+        inline const std::string &display_text() const override {
+            static std::string cached_text;
+            cached_text = "[提到了 " + std::to_string(target) + "]";
+            return cached_text;
+        }
 
         uint64_t target;
     };

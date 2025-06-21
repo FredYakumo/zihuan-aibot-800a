@@ -144,8 +144,6 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
     spdlog::debug("Event: {}", event->to_json().dump());
     spdlog::debug("Sender: {}", event->sender_ptr->to_json().dump());
 
-
-
     g_group_message_storage.add_message(event->get_group_sender().group.id, event->message_id,
                                         MessageStorageEntry{event->message_id, event->sender_ptr->name,
                                                             event->sender_ptr->id, event->send_time,
@@ -179,8 +177,12 @@ void on_friend_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_a
     spdlog::debug("Event: {}", event->to_json().dump());
     spdlog::debug("Sender: {}", event->sender_ptr->to_json().dump());
 
-    const auto send_time = std::chrono::system_clock::now();
-    store_msg(msg_prop, event, send_time);
+    g_friend_message_storage.add_message(event->sender_ptr->id, event->message_id,
+                                         MessageStorageEntry{event->message_id, event->sender_ptr->name,
+                                                             event->sender_ptr->id, event->send_time,
+                                                             std::make_shared<MessageProperties>(msg_prop)});
+
+    store_msg(msg_prop, event, event->send_time);
 
     if (is_banned_id(sender_id)) {
         return;

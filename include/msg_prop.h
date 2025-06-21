@@ -25,6 +25,38 @@ struct MessageProperties {
           at_id_set(std::move(at_id_set)) {}
 };
 
+/**
+ * @brief Extracts and processes message properties from a bot adapter message event for LLM consumption
+ *
+ * This function parses a message event and extracts key properties that are relevant for
+ * LLM (Language Learning Model) processing. It handles various message types including
+ * plain text, quote messages, and @mentions, creating a structured representation that
+ * the LLM can use to understand the context and intent of the user's message.
+ *
+ * The function processes the following message components:
+ * - Plain text content (cleaned and trimmed)
+ * - Quote/reference messages (formatted as "引用了一段消息文本: \"...\"")
+ * - @mentions (both by name and QQ ID/QQ号)
+ * - Bot-specific @mentions (detects when the bot is being addressed)
+ *
+ * For @mentions, the function:
+ * - Removes @mentions from plain text content
+ * - Tracks all mentioned user IDs/用户ID in at_id_set
+ * - Sets is_at_me flag when the bot is mentioned
+ * - Handles both name-based (@botname) and ID-based (@123456) mentions
+ *
+ * @param e The message event containing the raw message data
+ * @param bot_name The name of the bot (used to detect @mentions)
+ * @param bot_id The QQ ID/QQ号 of the bot (used to detect @mentions)
+ * @return MessageProperties A structured representation of the message suitable for LLM processing
+ *
+ * @note Empty messages are tagged with EMPTY_MSG_TAG for consistent processing
+ * @note The function ensures thread safety and handles null message components gracefully
+ * @see MessageProperties
+ * @see bot_adapter::MessageEvent
+ */
+
+
 MessageProperties get_msg_prop_from_event(const bot_adapter::MessageEvent &e, const std::string_view bot_name,
                                           uint64_t bot_id);
 

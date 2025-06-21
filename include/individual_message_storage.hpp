@@ -1,18 +1,13 @@
 #pragma once
 
-#include "msg_prop.h"
+#include "adapter_message.h"
 #include <cstdint>
 #include <general-wheel-cpp/collection/concurrent_unordered_map.hpp>
 #include <general-wheel-cpp/collection/concurrent_vector.hpp>
 #include <memory>
 
-struct MessageStorageEntry {
-    uint64_t message_id;
-    std::string sender_name;
-    uint64_t sender_id;
-    std::chrono::system_clock::time_point send_time;
-    std::shared_ptr<MessageProperties> msg_prop;
-};
+using bot_adapter::MessageStorageEntry;
+using MessageIdView = wheel::concurrent_unordered_map<uint64_t, std::shared_ptr<MessageStorageEntry>>;
 
 /**
  * @brief Concurrent map for storing message entries indexed by message ID
@@ -25,8 +20,6 @@ struct MessageStorageEntry {
  *       shared_ptr to ensure data consistency. The same physical message
  *       may be accessed through either structure.
  */
-using MessageIdView = wheel::concurrent_unordered_map<uint64_t, std::shared_ptr<MessageStorageEntry>>;
-
 class IndividualMessageStorage {
   public:
     void add_message(uint64_t individual_id, uint64_t message_id, std::shared_ptr<MessageStorageEntry> msg_entry_ptr) {
