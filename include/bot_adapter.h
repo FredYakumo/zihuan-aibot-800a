@@ -52,20 +52,34 @@ namespace bot_adapter {
             });
         }
 
+        /**
+         * @brief Send a message to a specific friend
+         * 
+         * This is the fundamental function for bot message sending to friends. All other bot friend message sending 
+         * functions should ultimately call this function to complete the final transmission.
+         * 
+         * @param sender The target friend to send the message to
+         * @param message_chain The message chain containing the content to send
+         * @param sync_id_option Optional sync ID for tracking the message
+         * @param out_message_id_option Optional callback function to receive the sent message ID
+         */
+
         void
         send_message(const Sender &sender, const MessageChainPtrList &message_chain,
                      std::optional<std::string_view> sync_id_option = std::nullopt,
                      std::optional<std::function<void(uint64_t &out_message_id)>> out_message_id_option = std::nullopt);
 
-        // /**
-        // Send message to friend (async version)
-        // with timeout retry
-        //  */
-        // void
-        // send_message_async(const Sender &sender, const MessageChainPtrList &message_chain,
-        //     size_t max_retry_count = 3,
-        //     std::chrono::milliseconds timeout = std::chrono::milliseconds(10000));
-        
+        /**
+         * @brief Send a message to a specific group
+         * 
+         * This is the fundamental function for bot message sending to groups. All other bot group message sending 
+         * functions should ultimately call this function to complete the final transmission.
+         * 
+         * @param group The target group to send the message to
+         * @param message_chain The message chain containing the content to send
+         * @param sync_id_option Optional sync ID for tracking the message
+         * @param out_message_id_option Optional callback function to receive the sent message ID
+         */
 
         void send_group_message(
             const Group &group, const MessageChainPtrList &message_chain,

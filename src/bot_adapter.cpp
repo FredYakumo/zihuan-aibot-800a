@@ -16,7 +16,6 @@
 #include <chrono>
 #include <cpr/cpr.h>
 #include <cstdint>
-#include <fstream>
 #include <future>
 #include <general-wheel-cpp/markdown_utils.h>
 #include <general-wheel-cpp/string_utils.hpp>
@@ -318,8 +317,31 @@ namespace bot_adapter {
         spdlog::info("Send message to sender: {}, sync id: {}", to_string(sender), sync_id);
         // const auto message_json = to_json(message_chain);
 
-        send_command(AdapterCommand(sync_id, "sendFriendMessage",
-                                    std::make_shared<bot_adapter::SendMsgContent>(sender.id, message_chain)));
+        send_command(
+            AdapterCommand(sync_id, "sendFriendMessage",
+                           std::make_shared<bot_adapter::SendMsgContent>(sender.id, message_chain)),
+            [this, sender, message_chain = message_chain, out_message_id_option](const nlohmann::json &res) mutable {
+                const auto message_id_opt = get_optional<uint64_t>(res, "messageId");
+
+                if (!message_id_opt.has_value()) {
+                    spdlog::warn("sendFriendMessage response does not contain messageId. Response: {}", res.dump());
+                    return;
+                }
+                auto message_id = *message_id_opt;
+
+                MessageStorageEntry entry{
+                    .message_id = message_id,
+                    .sender_name = bot_profile.name,
+                    .sender_id = bot_profile.id,
+                    .send_time = std::chrono::system_clock::now(),
+                    .message_chain_list = std::make_shared<MessageChainPtrList>(std::move(message_chain))};
+                g_friend_message_storage.add_message(sender.id, message_id, entry);
+                g_bot_send_group_message_storage.add_message(sender.id, message_id, std::move(entry));
+
+                if (out_message_id_option) {
+                    (*out_message_id_option)(message_id);
+                }
+            });
     }
 
     void
@@ -330,8 +352,30 @@ namespace bot_adapter {
         spdlog::info("Send message to group: {}, sync id: {}", to_string(group), sync_id);
         // const auto message_json = to_json(message_chain);
 
-        send_command(AdapterCommand(sync_id, "sendGroupMessage",
-                                    std::make_shared<bot_adapter::SendMsgContent>(group.id, message_chain)));
+        send_command(
+            AdapterCommand(sync_id, "sendGroupMessage",
+                           std::make_shared<bot_adapter::SendMsgContent>(group.id, message_chain)),
+            [this, group, message_chain = message_chain, out_message_id_option](const nlohmann::json &res) mutable {
+                const auto message_id_opt = get_optional<uint64_t>(res, "messageId");
+
+                if (!message_id_opt.has_value()) {
+                    spdlog::warn("sendGroupMessage response does not contain messageId. Response: {}", res.dump());
+                    return;
+                }
+                auto message_id = *message_id_opt;
+
+                MessageStorageEntry entry{
+                    .message_id = message_id,
+                    .sender_name = bot_profile.name,
+                    .sender_id = bot_profile.id,
+                    .send_time = std::chrono::system_clock::now(),
+                    .message_chain_list = std::make_shared<MessageChainPtrList>(std::move(message_chain))};
+                g_group_message_storage.add_message(group.id, message_id, entry);
+                g_bot_send_group_message_storage.add_message(group.id, message_id, std::move(entry));
+                if (out_message_id_option) {
+                    (*out_message_id_option)(message_id);
+                }
+            });
     }
 
     void

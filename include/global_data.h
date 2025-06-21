@@ -30,11 +30,11 @@ extern wheel::concurrent_vector<DBKnowledge> g_wait_add_knowledge_list;
 
 
 
-/// 群聊/group chat msg storage
+/// 群聊/group chat msg storage, individual id = group id/群号
 extern IndividualMessageStorage g_group_message_storage;
-/// 私聊/friend chat msg storage
+/// 私聊/friend chat msg storage, individual id = friend id/好友QQ号
 extern IndividualMessageStorage g_friend_message_storage;
-/// bot send message to group storage.
+/// bot send message to group storage. individual id = send to groupID/群号 or friend id/好友QQ号
 extern IndividualMessageStorage g_bot_send_group_message_storage;
 
 #endif
