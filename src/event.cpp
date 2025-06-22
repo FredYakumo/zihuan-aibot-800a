@@ -20,6 +20,7 @@
 #include <string_view>
 #include <thread>
 #include <utility>
+#include "time_utils.h"
 
 using namespace wheel;
 
@@ -32,8 +33,8 @@ struct ParseRunCmdRes {
  * @brief Parse command in user chat text
  */
 ParseRunCmdRes parse_and_run_chat_command(bot_adapter::BotAdapter &adapter,
-                                          std::shared_ptr<bot_adapter::MessageEvent> event,
-                                          const MessageProperties &msg_prop, qq_id_t sender_id) {
+                                          std::shared_ptr<bot_adapter::MessageEvent> event, MessageProperties &msg_prop,
+                                          qq_id_t sender_id) {
     bool is_deep_think = false;
 
     spdlog::info("开始处理指令信息");
@@ -109,7 +110,7 @@ ParseRunCmdRes parse_and_run_chat_command(bot_adapter::BotAdapter &adapter,
 }
 
 ParseRunCmdRes message_preprocessing(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_adapter::MessageEvent> event,
-                                     const MessageProperties &msg_prop, qq_id_t sender_id) {
+                                     MessageProperties &msg_prop, qq_id_t sender_id) {
     auto ret = parse_and_run_chat_command(adapter, event, msg_prop, sender_id);
     // Processing empty messagem
     if ((msg_prop.plain_content == nullptr || ltrim(rtrim(*msg_prop.plain_content)).empty()) &&
@@ -136,10 +137,43 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
     auto bot_profile = adapter.get_bot_profile();
     std::string_view bot_name = bot_profile.name;
     auto bot_id = bot_profile.id;
-    const auto msg_prop = get_msg_prop_from_event(*event, bot_name, bot_id);
+    auto msg_prop = get_msg_prop_from_event(*event, bot_name, bot_id);
 
     spdlog::debug("At list: {}", join_str(std::cbegin(msg_prop.at_id_set), std::cend(msg_prop.at_id_set), ",",
                                           [](const auto i) { return std::to_string(i); }));
+
+    // process at id set
+    const auto &group_member_info =
+        adapter.fetch_group_member_info(event->get_group_sender().group.id)->get().member_info_list;
+    if (!msg_prop.at_id_set.empty()) {
+        std::string mention_str = "提到了群友:";
+
+        for (const auto &at_id : msg_prop.at_id_set) {
+            if (auto member_info_opt = group_member_info->find(at_id); member_info_opt.has_value()) {
+                auto &member_info = member_info_opt->get();
+
+                mention_str += fmt::format("\n- {}", member_info.member_name);
+
+                mention_str += fmt::format("\n  身份: {}", bot_adapter::get_permission_chs(member_info.permission));
+
+                if (member_info.join_time.has_value()) {
+                    mention_str +=
+                        fmt::format("\n  入群时间: {}", system_clock_to_string(member_info.join_time.value()));
+                }
+
+                if (member_info.mute_time_remaining > 0) {
+                    mention_str +=
+                        fmt::format("\n  禁言剩余时间: {:.2f}分钟", member_info.mute_time_remaining / 60);
+                }
+            }
+        }
+
+        if (msg_prop.plain_content == nullptr) {
+            msg_prop.plain_content = std::make_shared<std::string>(mention_str);
+        } else {
+            *msg_prop.plain_content += "\n" + mention_str;
+        }
+    }
 
     spdlog::debug("Event: {}", event->to_json().dump());
     spdlog::debug("Sender: {}", event->sender_ptr->to_json().dump());
@@ -172,7 +206,7 @@ void on_friend_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_a
     auto bot_profile = adapter.get_bot_profile();
     std::string_view bot_name = bot_profile.name;
     auto bot_id = bot_profile.id;
-    const auto msg_prop = get_msg_prop_from_event(*event, bot_name, bot_id);
+    auto msg_prop = get_msg_prop_from_event(*event, bot_name, bot_id);
 
     spdlog::debug("Event: {}", event->to_json().dump());
     spdlog::debug("Sender: {}", event->sender_ptr->to_json().dump());

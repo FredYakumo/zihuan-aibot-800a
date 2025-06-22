@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "accelerate>=1.8.1",
     "fastapi>=0.115.12",
     "httpx>=0.28.1",
     "jieba>=0.42.1",
@@ -23,4 +24,6 @@ dependencies = [
     "transformers>=4.52.3",
     "uvicorn>=0.34.2",
     "weaviate-client>=4.14.4",
+    "accelerate",
+    "ipython>=9.3.0",
 ]

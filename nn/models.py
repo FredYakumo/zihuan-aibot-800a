@@ -259,3 +259,18 @@ class ChatSessionToQueryStrModel(nn.Module):
             query_text_logits = query_text_tokens
         
         return function_onehot, time_score, query_text_logits
+    
+from transformers import AutoModelForSequenceClassification,AutoTokenizer
+from transformers.pipelines import pipeline
+
+class TextClassificationModel(nn.Module):
+    def __init__(self, model_name='uer/roberta-base-finetuned-chinanews-chinese', device=None):
+        super().__init__()
+        self.device = device if device is not None else get_device()
+        self.model = AutoModelForSequenceClassification.from_pretrained(model_name)
+        self.model = self.model.to(self.device)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.text_classification = pipeline('sentiment-analysis', model=self.model, tokenizer=self.tokenizer, device=self.device)
+
+    def forward(self, text):
+        return self.text_classification(text)
