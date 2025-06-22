@@ -145,7 +145,7 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
     // process at id set
     const auto &group_member_info =
         adapter.fetch_group_member_info(event->get_group_sender().group.id)->get().member_info_list;
-    if (!msg_prop.at_id_set.empty()) {
+    if (!msg_prop.at_id_set.empty() && msg_prop.at_id_set.size() > 1 && msg_prop.at_id_set.find(bot_id) == msg_prop.at_id_set.cend()) {
         std::string mention_str = "提到了群友:";
 
         for (const auto &at_id : msg_prop.at_id_set) {
