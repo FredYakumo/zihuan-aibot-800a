@@ -630,7 +630,7 @@ namespace bot_adapter {
                 group_info.group_id,
                 std::move(member_name),
                 get_optional(member, "specialTitle"),
-                get_group_permission(get_optional<std::string>("member", "permission").value_or(UNKNOWN_VALUE)),
+                get_group_permission(get_optional<std::string>(member, "permission").value_or(UNKNOWN_VALUE)),
                 map_optional(get_optional<uint64_t>(member, "joinTimestamp"),
                              [](auto val) { return timestamp_to_timepoint(val); }),
                 map_optional(get_optional<uint64_t>(member, "lastSpeakTimestamp"),
