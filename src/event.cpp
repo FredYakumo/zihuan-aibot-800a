@@ -175,6 +175,10 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
 
                 mention_str += fmt::format("\n- {}", member_info.member_name);
 
+                if (member_info.special_title.has_value() && !member_info.special_title->empty()) {
+                    mention_str += fmt::format("\n  头衔: {}", *member_info.special_title);
+                }
+
                 mention_str += fmt::format("\n  身份: {}", bot_adapter::get_permission_chs(member_info.permission));
 
                 if (member_info.join_time.has_value()) {
