@@ -7,6 +7,7 @@
 #include "individual_message_storage.hpp"
 #include "llm.h"
 #include "msg_prop.h"
+#include "time_utils.h"
 #include "utils.h"
 #include <chrono>
 #include <cpr/cpr.h>
@@ -20,7 +21,6 @@
 #include <string_view>
 #include <thread>
 #include <utility>
-#include "time_utils.h"
 
 using namespace wheel;
 
@@ -139,13 +139,31 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
     auto bot_id = bot_profile.id;
     auto msg_prop = get_msg_prop_from_event(*event, bot_name, bot_id);
 
+    spdlog::debug("Event: {}", event->to_json().dump());
+    spdlog::debug("Sender: {}", event->sender_ptr->to_json().dump());
+
+    g_group_message_storage.add_message(event->get_group_sender().group.id, event->message_id,
+                                        MessageStorageEntry{event->message_id, event->sender_ptr->name,
+                                                            event->sender_ptr->id, event->send_time,
+                                                            event->message_chain_ptr});
+
+    store_msg(msg_prop, event, event->send_time);
+
+    if (is_banned_id(sender_id)) {
+        return;
+    }
+
+    if (!msg_prop.is_at_me) {
+        return;
+    }
+
     spdlog::debug("At list: {}", join_str(std::cbegin(msg_prop.at_id_set), std::cend(msg_prop.at_id_set), ",",
                                           [](const auto i) { return std::to_string(i); }));
 
     // process at id set
     const auto &group_member_info =
         adapter.fetch_group_member_info(event->get_group_sender().group.id)->get().member_info_list;
-    if (!msg_prop.at_id_set.empty() && msg_prop.at_id_set.size() > 1 && msg_prop.at_id_set.find(bot_id) == msg_prop.at_id_set.cend()) {
+    if (!msg_prop.at_id_set.empty() && msg_prop.at_id_set.size() > 1) {
         std::string mention_str = "提到了群友:";
 
         for (const auto &at_id : msg_prop.at_id_set) {
@@ -165,8 +183,7 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
                 }
 
                 if (member_info.mute_time_remaining > 0) {
-                    mention_str +=
-                        fmt::format("\n  禁言剩余时间: {:.2f}分钟", member_info.mute_time_remaining / 60);
+                    mention_str += fmt::format("\n  禁言剩余时间: {:.2f}分钟", member_info.mute_time_remaining / 60);
                 }
             }
         }
@@ -176,24 +193,6 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
         } else {
             *msg_prop.plain_content += "\n" + mention_str;
         }
-    }
-
-    spdlog::debug("Event: {}", event->to_json().dump());
-    spdlog::debug("Sender: {}", event->sender_ptr->to_json().dump());
-
-    g_group_message_storage.add_message(event->get_group_sender().group.id, event->message_id,
-                                        MessageStorageEntry{event->message_id, event->sender_ptr->name,
-                                                            event->sender_ptr->id, event->send_time,
-                                                            event->message_chain_ptr});
-
-    store_msg(msg_prop, event, event->send_time);
-
-    if (is_banned_id(sender_id)) {
-        return;
-    }
-
-    if (!msg_prop.is_at_me) {
-        return;
     }
 
     auto process_res = message_preprocessing(adapter, event, msg_prop, sender_id);
