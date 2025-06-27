@@ -265,3 +265,47 @@ struct MessageProperties {
 -   `ref_msg_content`: A shared pointer to a string containing the content of a quoted message. It is `nullptr` if no message was quoted.
 -   `plain_content`: A shared pointer to a string containing the plain text content of the message (cleaned of information like `@` mentions).
 -   `at_id_set`: A set containing the QQ IDs (QQ号) of all users `@`'d in the message. 
+
+## ChatMessage Model (`chat_session.hpp`)
+
+This model represents a single message within a chat session, typically between a user and the llm. It's designed to be compatible with the message format expected by large language models.
+
+### `ChatMessage`
+
+Represents a single message in a chat history.
+
+```cpp
+struct ChatMessage {
+    std::string role{};
+    std::string content{};
+    std::optional<std::string> tool_call_id = std::nullopt;
+    std::chrono::system_clock::time_point timestamp{std::chrono::system_clock::now()};
+    std::optional<std::vector<ToolCall>> tool_calls;
+};
+```
+
+- `role`: The role of the message sender (e.g., `"user"`, `"assistant"`, `"system"`).
+- `content`: The text content of the message.
+- `tool_call_id`: If this message is a response from a tool, this field holds the ID of the tool call it corresponds to.
+- `timestamp`: The time the message was created.
+- `tool_calls`: An optional list of tool calls requested by the model.
+
+### `ToolCall`
+
+Represents a function call requested by the language model.
+
+```cpp
+struct ToolCall {
+    std::string id;
+    std::string arguments;
+    std::string name;
+    std::string type;
+    int64_t index;
+};
+```
+
+- `id`: A unique identifier for the tool call.
+- `arguments`: A JSON string containing the arguments for the function.
+- `name`: The name of the function to be called.
+- `type`: The type of the tool, typically `"function"`.
+- `index`: The index of the tool call.
