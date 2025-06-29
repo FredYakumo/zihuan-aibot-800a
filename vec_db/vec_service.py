@@ -1,5 +1,6 @@
+import datetime
 import time
-from typing import List
+from typing import List, cast
 from utils.logging_config import logger
 from nn.models import get_device
 
@@ -20,7 +21,7 @@ from pydantic import BaseModel
 import weaviate
 from weaviate.classes.query import Filter
 from utils.config_loader import config
-from vec_db.model import Knowledge
+from vec_db.schema_collection import VecDBKnowledge
 
 
 app = FastAPI()
@@ -57,7 +58,7 @@ def get_embedding(text):
 class QueryKnowledgeRequest(BaseModel):
     query: str
 
-def query_knowledge(query: str) -> List[Knowledge]:
+def query_knowledge(query: str) -> List[VecDBKnowledge]:
     logger.info(f"从向量数据库中查询: {query}")
     start_time = time.time()
     vector = get_embedding(query)
@@ -66,18 +67,19 @@ def query_knowledge(query: str) -> List[Knowledge]:
         # limit=5,
         certainty=0.75,
         return_metadata=["certainty"],
-        return_properties=["class_name_list", "content", "create_time", "creator_name"],
+        return_properties=["key", "value", "create_time", "creator_name"],
     )
     end_time = time.time()
     knowledge_result = []
     for e in res.objects:
-        logger.info(f"{e.properties.get('class_name_list')}: {e.properties.get('content')} - 创建者: {e.properties.get('creator_name')} - 时间: {e.properties.get('create_time')}, 置信度: {e.metadata.certainty}")
-        knowledge_result.append(Knowledge(
-            class_name_list=e.properties.get("class_name_list"),
-            content=e.properties.get("content"),
-            create_time=e.properties.get("create_time"),
-            creator_name=e.properties.get("creator_name"),
-            certainty=e.metadata.certainty
+        logger.info(f"{e.properties.get('key')}: {e.properties.get('value')} - 创建者: {e.properties.get('creator_name')} - 时间: {e.properties.get('create_time')}, 置信度: {e.metadata.certainty}")
+        create_time_val = e.properties.get("create_time")
+        knowledge_result.append(VecDBKnowledge(
+            key=str(e.properties.get("key")),
+            value=str(e.properties.get("value")),
+            create_time=cast(datetime.datetime, create_time_val) if create_time_val else None,
+            creator_name=str(e.properties.get("creator_name")),
+            certainty=e.metadata.certainty or 0.0
         ))
     logger.info(f"查询耗时: {end_time - start_time:.2f}秒")
     return knowledge_result
@@ -93,42 +95,22 @@ def find_class_name_match(request: QueryKnowledgeRequest):
     start_time = time.time()
     res = g_vec_db_collection.query.fetch_objects(
         filters=Filter.by_property("class_name_list").contains_any([request.query]),
-        return_properties=["class_name_list", "content", "create_time", "creator_name"]
+        return_properties=["key", "value", "create_time", "creator_name"]
     )
     end_time = time.time()
     knowledge_result = []
     for e in res.objects:
-        logger.info(f"{e.properties.get('class_name_list')}: {e.properties.get('content')} - 创建者: {e.properties.get('creator_name')} - 时间: {e.properties.get('create_time')}, 置信度: {e.metadata.certainty}")
-
-        knowledge_result.append(Knowledge(
-            class_name_list=e.properties.get("class_name_list"),
-            content=e.properties.get("content"),
-            create_time=e.properties.get("create_time"),
-            creator_name=e.properties.get("creator_name"),
+        logger.info(f"{e.properties.get('key')}: {e.properties.get('value')} - 创建者: {e.properties.get('creator_name')} - 时间: {e.properties.get('create_time')}")
+        create_time_val = e.properties.get("create_time")
+        knowledge_result.append(VecDBKnowledge(
+            key=str(e.properties.get("key")),
+            value=str(e.properties.get("value")),
+            create_time=cast(datetime.datetime, create_time_val) if create_time_val else None,
+            creator_name=str(e.properties.get("creator_name")),
             certainty=1.0
         ))
     logger.info(f"查询耗时: {end_time - start_time:.2f}秒")
     return knowledge_result
-
-class CalculateSimilarityRequest(BaseModel):
-    target: str
-    value_list: List[str]
-
-@app.post("/calculate_similarity")
-def calculate_similarity(request: CalculateSimilarityRequest):
-    logger.info(f"计算相似度, 目标文本: {request.target_text}, 候选文本: {request.value_list}")
-    start_time = time.time()
-    target_vector = get_embedding(request.target_text)
-    value_vectors = [get_embedding(value) for value in request.value_list]
-    
-    similarities = []
-    for i, value_vector in enumerate(value_vectors):
-        similarity = torch.nn.functional.cosine_similarity(torch.tensor(target_vector), torch.tensor(value_vector), dim=0).item()
-        similarities.append((request.value_list[i], similarity))
-    
-    end_time = time.time()
-    logger.info(f"计算相似度耗时: {end_time - start_time:.2f}秒")
-    return {"similarities": similarities}
 
 def run():
     # Run the FastAPI application using Uvicorn server

@@ -14,10 +14,14 @@ def get_vec_db_client() -> WeaviateClient:
 class Knowledge(BaseModel):
     key: str
     value: str
-    create_time: datetime.datetime
+    create_time: datetime.datetime | None
     creator_name: str
     
-class VecDBKnowledge(Knowledge):
+class VecDBKnowledge(BaseModel):
+    key: str
+    value: str
+    create_time: datetime.datetime | None
+    creator_name: str
     certainty: float
 
 default_knowledge_schema_name = "AIBotKnowledge"
