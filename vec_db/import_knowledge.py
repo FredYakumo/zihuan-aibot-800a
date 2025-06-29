@@ -11,6 +11,8 @@ import datetime
 from utils.config_loader import config
 from utils.logging_config import logger
 from utils.string import convert_to_rfc3339
+import utils.data_loader as data_loader
+from vec_db.schema_collection import get_knowledge_collection, get_vec_db_client
 from vec_db.nn_model import text_embedder
 
 
@@ -101,6 +103,24 @@ def insert_knowledge_to_vec_collection(collection: Collection, knowledge_df: pd.
     else:
         logger.info("Import complete.")
     
+def main():
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "--import-knowledge":
+        if len(sys.argv) > 2:
+            data_path = sys.argv[2]
+        else:
+            print("Usage: python import_knowledge.py --import-knowledge <data_path>")
+            return
+        knowledge_df = data_loader.load_knowledge_from_path(data_path)
+        if knowledge_df is not None:
+            with get_vec_db_client() as client:
+                insert_knowledge_to_vec_collection(get_knowledge_collection(client), knowledge_df)
+            logger.info("Knowledge imported successfully")
+        else:
+            logger.error("Failed to load knowledge from path: %s", data_path)
+    else:
+        print("Usage: python import_knowledge.py --import-knowledge <data_path>")
+
 
 if __name__ == "__main__":
-    pass
+    main()

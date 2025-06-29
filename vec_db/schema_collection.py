@@ -1,5 +1,6 @@
 from weaviate.collections.collection import Collection
 from utils.config_loader import config
+from utils.logging_config import logger
 import weaviate
 from weaviate.client import WeaviateClient
 import datetime
@@ -70,3 +71,15 @@ def create_knowledge_schema(client: WeaviateClient, schema_name: str = config.kn
 
 def get_knowledge_collection(client: WeaviateClient, schema_name: str = config.knowledge_collection_name or default_knowledge_schema_name) -> Collection:
     return client.collections.get(schema_name)
+
+def main():
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "--create-knowledge-schema":
+        with get_vec_db_client() as client:
+            create_knowledge_schema(client)
+        logger.info("Knowledge schema created successfully")
+    else:
+        print("Usage: python schema_collection.py -create-knowledge-schema")
+
+if __name__ == "__main__":
+    main()
