@@ -1,4 +1,4 @@
-from utils.config_loaderconfig_loader import config
+from utils.config_loader import config
 import weaviate
 import pandas as pd
 

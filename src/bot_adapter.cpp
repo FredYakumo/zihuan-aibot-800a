@@ -436,8 +436,6 @@ namespace bot_adapter {
                 std::string file_name = fmt::format("{}{}_markdown_render_block_{}", config.temp_res_path, sync_id_base,
                                                     render_html_count++);
 
-                // ofs << "<html>\n" << node.render_html_text.value() <<"</html>\n";
-                // spdlog::info("Render HTML text to path: {}.html", file_name);
                 float font_size = 15;
                 // Calculate HTML content width and height based on content
                 float max_size = 20.f;

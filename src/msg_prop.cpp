@@ -13,6 +13,7 @@
 #include <string>
 #include <general-wheel-cpp/string_utils.hpp>
 
+
 std::regex at_target_pattern("@(\\d+)");
 
 using namespace wheel;
@@ -46,11 +47,7 @@ MessageProperties get_msg_prop_from_event(const bot_adapter::MessageEvent &event
                                                                            quote_msg->get().ref_msg_id)) {
                     // Combine all message texts in the chain
                     if (found_msg->get().message_chain_list) {
-                        for (const auto& chain_msg : *found_msg->get().message_chain_list) {
-                            if (chain_msg) {
-                                quoted_text += chain_msg->display_text();
-                            }
-                        }
+                        quoted_text += get_text_from_message_chain(*found_msg->get().message_chain_list);
                     }
                     sender_info = found_msg->get().sender_name;
                     send_time = found_msg->get().send_time;
@@ -61,11 +58,7 @@ MessageProperties get_msg_prop_from_event(const bot_adapter::MessageEvent &event
                                                                             quote_msg->get().ref_msg_id)) {
                     // Combine all message texts in the chain
                     if (found_msg->get().message_chain_list) {
-                        for (const auto& chain_msg : *found_msg->get().message_chain_list) {
-                            if (chain_msg) {
-                                quoted_text += chain_msg->display_text();
-                            }
-                        }
+                        quoted_text += get_text_from_message_chain(*found_msg->get().message_chain_list);
                     }
                     sender_info = found_msg->get().sender_name;
                     send_time = found_msg->get().send_time;

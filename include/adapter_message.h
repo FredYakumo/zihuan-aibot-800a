@@ -23,6 +23,19 @@ namespace bot_adapter {
 
     using MessageChainPtrList = std::vector<std::shared_ptr<MessageBase>>;
 
+    /**
+     * @brief Concatenates the displayable text from all messages in a message chain.
+     */
+    inline std::string get_text_from_message_chain(const bot_adapter::MessageChainPtrList &chain) {
+        std::string text;
+        for (const auto &msg : chain) {
+            if (msg) {
+                text += msg->display_text();
+            }
+        }
+        return text;
+    }
+
     struct MessageStorageEntry {
         uint64_t message_id;
         std::string sender_name;
@@ -121,8 +134,6 @@ namespace bot_adapter {
             return node_json;
         }
 
-        
-
         uint64_t sender_id = 0;
         std::chrono::system_clock::time_point time;
         std::string sender_name;
@@ -162,7 +173,7 @@ namespace bot_adapter {
             static std::string cached_text;
             cached_text.clear();
             cached_text = "[Forward Message]\n";
-            
+
             for (const auto &node : node_list) {
                 cached_text += "From " + node.sender_name + " (" + std::to_string(node.sender_id) + "):\n";
                 for (const auto &msg : node.message_chain) {
@@ -173,11 +184,11 @@ namespace bot_adapter {
                 }
                 cached_text += "---\n";
             }
-            
+
             if (display && display->summary) {
                 cached_text += "Summary: " + *display->summary + "\n";
             }
-            
+
             return cached_text;
         }
 

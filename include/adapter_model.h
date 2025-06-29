@@ -343,10 +343,46 @@ namespace bot_adapter {
         GroupMemberInfo(qq_id_t id, qq_id_t group_id, std::string member_name, std::optional<std::string> special_title,
                         GroupPermission permission, std::optional<std::chrono::system_clock::time_point> join_time,
                         std::optional<std::chrono::system_clock::time_point> last_speak_time, float mute_time_remaining)
-            : id(id), group_id(group_id), member_name(std::move(member_name)), special_title(std::move(special_title)),
-              permission(permission), join_time(std::move(join_time)), last_speak_time(std::move(last_speak_time)),
-              mute_time_remaining(mute_time_remaining) {}
+            : id(id), group_id(group_id), member_name(std::move(member_name)),
+              special_title(std::move(special_title)), permission(permission), join_time(join_time),
+              last_speak_time(last_speak_time), mute_time_remaining(mute_time_remaining) {}
     };
+
+    /**
+     * @brief Represents a group announcement.
+     *
+     * This structure holds all the relevant information about a single announcement
+     * within a group, such as its content, author, and timing details.
+     */
+    struct GroupAnnouncement {
+        Group group;
+        std::string content;
+        qq_id_t sender_id;
+        std::string fid;
+        bool all_confirmed;
+        int confirmed_members_count;
+        std::chrono::system_clock::time_point publication_time;
+
+        GroupAnnouncement(Group group, std::string content, qq_id_t sender_id, std::string fid, bool all_confirmed,
+                          int confirmed_members_count, std::chrono::system_clock::time_point publication_time)
+            : group(std::move(group)), content(std::move(content)), sender_id(sender_id), fid(std::move(fid)),
+              all_confirmed(all_confirmed), confirmed_members_count(confirmed_members_count),
+              publication_time(publication_time) {}
+
+        /**
+         * @brief Constructs a GroupAnnouncement from a JSON object.
+         * @param anno_json The JSON object representing an announcement.
+         */
+        GroupAnnouncement(const nlohmann::json &anno_json)
+            : group(anno_json["group"]), content(get_optional<std::string>(anno_json, "content").value_or("")),
+              sender_id(get_optional<qq_id_t>(anno_json, "senderId").value_or(0)),
+              fid(get_optional<std::string>(anno_json, "fid").value_or("")),
+              all_confirmed(get_optional<bool>(anno_json, "allConfirmed").value_or(false)),
+              confirmed_members_count(get_optional<int>(anno_json, "confirmedMembersCount").value_or(0)),
+              publication_time(std::chrono::system_clock::from_time_t(
+                  get_optional<time_t>(anno_json, "publicationTime").value_or(0))) {}
+    };
+
     struct GroupWrapper {
         GroupInfo group_info;
         std::unique_ptr<wheel::concurrent_unordered_map<qq_id_t, GroupMemberInfo>> member_info_list;

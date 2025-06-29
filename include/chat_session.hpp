@@ -63,21 +63,18 @@ struct ChatMessage {
     std::chrono::system_clock::time_point timestamp{std::chrono::system_clock::now()};
     std::optional<std::vector<ToolCall>> tool_calls;
 
+    /// Specify a tool call's context
+    /// Use to judge if this tool call request message and tool call role content
+    /// is send to llm in current chat context env(at present, Group).
+    /// This will not send to llm.
+    std::optional<std::string> tool_call_context_env;
+
     ChatMessage() = default;
     ChatMessage(const std::string_view role, const std::string_view content)
         : role(role), content(content), timestamp(std::chrono::system_clock::now()) {}
-    ChatMessage(const std::string_view role, const std::string_view content,
-                const std::chrono::system_clock::time_point &timestamp)
-        : role(role), content(content), timestamp(timestamp) {}
     ChatMessage(const std::string_view role, const std::string_view content, const std::string_view tool_id)
         : role(role), content(content), tool_call_id(std::string(tool_id)),
           timestamp(std::chrono::system_clock::now()) {}
-    ChatMessage(const std::string_view role, const std::string_view content, const std::string_view tool_id,
-                const std::chrono::system_clock::time_point &timestamp)
-        : role(role), content(content), tool_call_id(std::string(tool_id)), timestamp(timestamp) {}
-    ChatMessage(const std::string_view role, const std::string_view content, std::vector<ToolCall> tool_calls)
-        : role(role), content(content), tool_calls(std::move(tool_calls)), timestamp(std::chrono::system_clock::now()) {
-    }
 
     std::string get_formatted_timestamp() const {
         auto in_time_t = std::chrono::system_clock::to_time_t(timestamp);

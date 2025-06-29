@@ -21,6 +21,7 @@
 
 namespace bot_adapter {
     using CommandResHandleFunc = std::function<void(const nlohmann::json &command_res_json)>;
+    using GroupAnnouncementResHandleFunc = std::function<void(const std::vector<GroupAnnouncement> &)>;
     class BotAdapter {
       public:
         BotAdapter(const std::string_view url, std::optional<uint64_t> bot_id_option = std::nullopt) {
@@ -54,10 +55,10 @@ namespace bot_adapter {
 
         /**
          * @brief Send a message to a specific friend
-         * 
-         * This is the fundamental function for bot message sending to friends. All other bot friend message sending 
+         *
+         * This is the fundamental function for bot message sending to friends. All other bot friend message sending
          * functions should ultimately call this function to complete the final transmission.
-         * 
+         *
          * @param sender The target friend to send the message to
          * @param message_chain The message chain containing the content to send
          * @param sync_id_option Optional sync ID for tracking the message
@@ -71,10 +72,10 @@ namespace bot_adapter {
 
         /**
          * @brief Send a message to a specific group
-         * 
-         * This is the fundamental function for bot message sending to groups. All other bot group message sending 
+         *
+         * This is the fundamental function for bot message sending to groups. All other bot group message sending
          * functions should ultimately call this function to complete the final transmission.
-         * 
+         *
          * @param group The target group to send the message to
          * @param message_chain The message chain containing the content to send
          * @param sync_id_option Optional sync ID for tracking the message
@@ -91,7 +92,7 @@ namespace bot_adapter {
             std::optional<std::function<void(uint64_t &out_message_id)>> out_message_id_option = std::nullopt);
 
         void send_long_plain_text_reply(const Sender &sender, std::string text, bool at_target = true,
-                                         uint64_t msg_length_limit = MAX_OUTPUT_LENGTH);
+                                        uint64_t msg_length_limit = MAX_OUTPUT_LENGTH);
 
         void update_bot_profile();
 
@@ -115,8 +116,71 @@ namespace bot_adapter {
 
         const Profile &get_bot_profile() const { return bot_profile; }
 
-        inline const GroupWrapper &get_group(qq_id_t group_id) const {
-            return group_info_map.find(group_id)->get();
+        inline const GroupWrapper &get_group(qq_id_t group_id) const { return group_info_map.find(group_id)->get(); }
+
+        /**
+         * @brief Get the group announcement object
+         *
+         * @param group_id
+         * @param out_func
+         * @param offset
+         * @param size
+         */
+        inline void get_group_announcement(qq_id_t group_id, GroupAnnouncementResHandleFunc out_func, int offset = 0,
+                                           int size = 10) {
+            const std::string sync_id = fmt::format("get_group_announcement_{}_{}", group_id,
+                                                    std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                                        std::chrono::system_clock::now().time_since_epoch())
+                                                        .count());
+            send_command(AdapterCommand(sync_id, "anno_list",
+                                        std::make_shared<CommandJsonContent>(CommandJsonContent(
+                                            {{"id", group_id}, {"offset", offset}, {"size", size}}))),
+                         [out_func](const nlohmann::json &command_res_json) {
+                             std::vector<GroupAnnouncement> announcements;
+                             if (command_res_json.contains("data")) {
+                                 for (const auto &item : command_res_json["data"]) {
+                                     announcements.emplace_back(item);
+                                 }
+                             }
+                             out_func(announcements);
+                         });
+        }
+
+        /**
+         * @brief Get group announcements synchronously.
+         *
+         * This function blocks until a response is received or a timeout occurs.
+         *
+         * @param group_id
+         * @param offset
+         * @param size
+         * @param timeout The maximum time to wait for a response.
+         * @return A list of group announcements, or std::nullopt if the request fails or times out.
+         */
+        inline std::optional<std::vector<GroupAnnouncement>>
+        get_group_announcement_sync(qq_id_t group_id, int offset = 0, int size = 10,
+                                    std::chrono::milliseconds timeout = std::chrono::milliseconds(20000)) {
+            const std::string sync_id = fmt::format("get_group_announcement_sync_{}_{}", group_id,
+                                                    std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                                        std::chrono::system_clock::now().time_since_epoch())
+                                                        .count());
+            auto res_json_option =
+                send_command_sync(AdapterCommand(sync_id, "anno_list",
+                                                 std::make_shared<CommandJsonContent>(CommandJsonContent(
+                                                     {{"id", group_id}, {"offset", offset}, {"size", size}}))),
+                                  timeout);
+
+            if (!res_json_option.has_value()) {
+                return std::nullopt;
+            }
+
+            std::vector<GroupAnnouncement> announcements;
+            if (res_json_option->contains("data")) {
+                for (const auto &item : (*res_json_option)["data"]) {
+                    announcements.emplace_back(item);
+                }
+            }
+            return announcements;
         }
 
       private:
@@ -130,10 +194,10 @@ namespace bot_adapter {
         wheel::concurrent_unordered_map<qq_id_t, GroupWrapper> group_info_map;
 
         /**
-         * @brief 
-         * 
-         * @param sync_id 
-         * @param data_json 
+         * @brief
+         *
+         * @param sync_id
+         * @param data_json
          * @return true A command handle function match a called.
          * @return false not any match handle function found.
          */

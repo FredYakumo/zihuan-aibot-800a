@@ -121,16 +121,13 @@ namespace rag {
             auto knowledge_json = nlohmann::json::parse(r.text);
 
             for (auto &json : knowledge_json) {
-                DBKnowledge knowledge{get_optional<std::string_view>(json, "content").value_or(""),
+                DBKnowledge knowledge{get_optional<std::string_view>(json, "key").value_or(""),
+                                      get_optional<std::string_view>(json, "value").value_or(""),
                                       get_optional<std::string_view>(json, "creator_name").value_or(""),
-                                      get_optional<std::string_view>(json, "create_time").value_or(""),
-                                      get_optional<std::vector<std::string>>(json, "class_name_list")
-                                          .value_or(std::vector<std::string>()),
+                                      get_optional<std::string_view>(json, "create_dt").value_or(""),
                                       get_optional<float>(json, "certainty").value_or(0.0f)};
-                spdlog::info(
-                    "{}: {}, 创建者: {}, 日期: {}, 置信度: {}",
-                    knowledge.class_name_list.empty()? "No Class" : join_str(std::cbegin(knowledge.class_name_list), std::cend(knowledge.class_name_list), "|"),
-                    knowledge.content, knowledge.creator_name, knowledge.create_dt, knowledge.certainty);
+                spdlog::info("key: {}, value: {}, 创建者: {}, 日期: {}, 置信度: {}", knowledge.key, knowledge.value,
+                             knowledge.creator_name, knowledge.create_dt, knowledge.certainty);
                 result.push_back(knowledge);
             }
         } catch (const nlohmann::json::exception &e) {
@@ -180,7 +177,8 @@ namespace rag {
                                                                       {"properties",
                                                                        {{"creator_name", knowledge.creator_name},
                                                                         {"create_time", knowledge.create_dt},
-                                                                        {"content", knowledge.content}}}}})}};
+                                                                        {"key", knowledge.key},
+                                                                        {"value", knowledge.value}}}}})}};
         spdlog::info("{}", request.dump());
 
         cpr::Response response =
