@@ -50,8 +50,8 @@ namespace bot_cmd {
             return CommandRes{true};
         }
         for (const auto &e : query_msg) {
-            res.append(fmt::format("\n{}。创建者: {}, 时间: {},   置信度: {:.4f}", e.content, e.creator_name,
-                                   e.create_dt, e.certainty));
+            res.append(fmt::format("\nkey: \"{}\", value: \"{}\"。创建者: {}, 时间: {},   置信度: {:.4f}", e.key,
+                                   e.value, e.creator_name, e.create_dt, e.certainty));
         }
         context.adapter.send_long_plain_text_reply(*context.event->sender_ptr, res);
         return CommandRes{true};
@@ -141,7 +141,7 @@ namespace bot_cmd {
             if (const auto &knowledge = g_wait_add_knowledge_list[index]; knowledge.has_value()) {
                 const auto &k = knowledge->get();
                 wait_add_list_str.append(
-                    fmt::format("\n{} - {} - {}: {}", index, k.creator_name, k.create_dt, k.content));
+                    fmt::format("\n{}: {} - {} - {}: {}", index, k.creator_name, k.create_dt, k.key, k.value));
             }
         }
         auto size = g_wait_add_knowledge_list.size();
