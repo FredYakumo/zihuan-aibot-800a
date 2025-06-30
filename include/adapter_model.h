@@ -4,7 +4,9 @@
 #include "constant_types.hpp"
 #include "constants.hpp"
 #include "get_optional.hpp"
+#include "neural_network/text_model.h"
 #include <chrono>
+#include <collection/concurrent_vector.hpp>
 #include <cstdint>
 #include <fmt/format.h>
 #include <general-wheel-cpp/collection/concurrent_unordered_map.hpp>
@@ -13,6 +15,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <utility>
 
 namespace bot_adapter {
     /**
@@ -343,9 +346,9 @@ namespace bot_adapter {
         GroupMemberInfo(qq_id_t id, qq_id_t group_id, std::string member_name, std::optional<std::string> special_title,
                         GroupPermission permission, std::optional<std::chrono::system_clock::time_point> join_time,
                         std::optional<std::chrono::system_clock::time_point> last_speak_time, float mute_time_remaining)
-            : id(id), group_id(group_id), member_name(std::move(member_name)),
-              special_title(std::move(special_title)), permission(permission), join_time(join_time),
-              last_speak_time(last_speak_time), mute_time_remaining(mute_time_remaining) {}
+            : id(id), group_id(group_id), member_name(std::move(member_name)), special_title(std::move(special_title)),
+              permission(permission), join_time(join_time), last_speak_time(last_speak_time),
+              mute_time_remaining(mute_time_remaining) {}
     };
 
     /**
@@ -387,8 +390,14 @@ namespace bot_adapter {
         GroupInfo group_info;
         std::unique_ptr<wheel::concurrent_unordered_map<qq_id_t, GroupMemberInfo>> member_info_list;
 
+        // Save group member name embedding vector and group id
+        std::unique_ptr<wheel::concurrent_vector<std::pair<neural_network::emb_vec_t, qq_id_t>>>
+            member_name_emb_vec_list;
+
         GroupWrapper(GroupInfo group_info) : group_info(std::move(group_info)) {
             member_info_list = std::make_unique<wheel::concurrent_unordered_map<qq_id_t, GroupMemberInfo>>();
+            member_name_emb_vec_list =
+                std::make_unique<wheel::concurrent_vector<std::pair<neural_network::emb_vec_t, qq_id_t>>>();
         }
     };
 } // namespace bot_adapter

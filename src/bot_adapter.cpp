@@ -9,6 +9,7 @@
 #include "easywsclient.hpp"
 #include "get_optional.hpp"
 #include "global_data.h"
+#include "neural_network/text_model.h"
 #include "nlohmann/json_fwd.hpp"
 #include "time_utils.h"
 #include "utils.h"
@@ -211,7 +212,7 @@ namespace bot_adapter {
             auto parse_result = parse_message_chain(*msg_chain_json, group_sender_ptr->group.id, std::nullopt);
             process_event(
                 group_sender_ptr,
-                [](auto sender,  ParseMessageChainResult parse_result) {
+                [](auto sender, ParseMessageChainResult parse_result) {
                     return GroupMessageEvent(parse_result.message_id, sender,
                                              std::make_shared<MessageChainPtrList>(parse_result.message_chain),
                                              parse_result.send_time);
@@ -329,12 +330,12 @@ namespace bot_adapter {
                 }
                 auto message_id = *message_id_opt;
 
-                MessageStorageEntry entry{
-                    .message_id = message_id,
-                    .sender_name = bot_profile.name,
-                    .sender_id = bot_profile.id,
-                    .send_time = std::chrono::system_clock::now(),
-                    .message_chain_list = std::make_shared<MessageChainPtrList>(std::move(message_chain))};
+                MessageStorageEntry entry{.message_id = message_id,
+                                          .sender_name = bot_profile.name,
+                                          .sender_id = bot_profile.id,
+                                          .send_time = std::chrono::system_clock::now(),
+                                          .message_chain_list =
+                                              std::make_shared<MessageChainPtrList>(std::move(message_chain))};
                 g_friend_message_storage.add_message(sender.id, message_id, entry);
                 g_bot_send_group_message_storage.add_message(sender.id, message_id, std::move(entry));
 
@@ -364,12 +365,12 @@ namespace bot_adapter {
                 }
                 auto message_id = *message_id_opt;
 
-                MessageStorageEntry entry{
-                    .message_id = message_id,
-                    .sender_name = bot_profile.name,
-                    .sender_id = bot_profile.id,
-                    .send_time = std::chrono::system_clock::now(),
-                    .message_chain_list = std::make_shared<MessageChainPtrList>(std::move(message_chain))};
+                MessageStorageEntry entry{.message_id = message_id,
+                                          .sender_name = bot_profile.name,
+                                          .sender_id = bot_profile.id,
+                                          .send_time = std::chrono::system_clock::now(),
+                                          .message_chain_list =
+                                              std::make_shared<MessageChainPtrList>(std::move(message_chain))};
                 g_group_message_storage.add_message(group.id, message_id, entry);
                 g_bot_send_group_message_storage.add_message(group.id, message_id, std::move(entry));
                 if (out_message_id_option) {
@@ -583,6 +584,23 @@ namespace bot_adapter {
                                                        [](const GroupMemberInfo &member) { return member.id; });
             spdlog::info("Fetch members info for group: {}({}): member count: {}", group_info.name, group_info.group_id,
                          group_wrapper.member_info_list->size());
+
+            std::vector<std::string> member_name_list;
+            for (const auto &member : group_wrapper.member_info_list->iter()) {
+                member_name_list.push_back(member.second.member_name);
+            }
+            neural_network::emb_mat_t member_name_embedding;
+            if (member_name_list.size() > 0) {
+                member_name_embedding = neural_network::get_text_embedding_model().embed(member_name_list);
+            }
+            size_t i = 0;
+            group_wrapper.member_name_emb_vec_list->clear();
+            for (const auto &member : group_wrapper.member_info_list->iter()) {
+                group_wrapper.member_name_emb_vec_list->push_back(
+                    std::make_pair(member_name_embedding[i], member.second.id));
+                ++i;
+            }
+
             group_wrapper_map.insert(std::make_pair(group_info.group_id, std::move(group_wrapper)));
         }
         spdlog::info("Fetch group info list successed.");

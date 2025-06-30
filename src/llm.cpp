@@ -16,8 +16,9 @@
 #include <cpr/cpr.h>
 #include <cstdint>
 #include <deque>
-#include <general-wheel-cpp/string_utils.hpp>
+#include <fstream>
 #include <general-wheel-cpp/markdown_utils.h>
+#include <general-wheel-cpp/string_utils.hpp>
 #include <iterator>
 #include <nlohmann/json.hpp>
 #include <optional>
@@ -25,7 +26,6 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
-#include <fstream>
 
 #include "llm_function_tools.hpp"
 
@@ -105,7 +105,7 @@ std::optional<ChatMessage> get_llm_response(const nlohmann::json &msg_json, bool
     cpr::Response response =
         cpr::Post(cpr::Url{fmt::format("{}:{}/{}", config.llm_api_url, config.llm_api_port, LLM_API_SUFFIX)},
                   cpr::Body{json_str}, cpr::Header{{"Content-Type", "application/json"}});
-    spdlog::info("Error msg: {}, status code: {}", response.error.message, response.status_code);
+    spdlog::info("llm response: {}, status code: {}", response.error.message, response.status_code);
 
     try {
         spdlog::info("LLM response: {}", response.text);
@@ -145,22 +145,11 @@ std::string query_chat_session_knowledge(const bot_cmd::CommandContext &context,
     }
     auto session_knowledge_set{g_chat_session_knowledge_list_map.find(context.event->sender_ptr->id).value()};
     for (const auto &knowledge : msg_knowledge_list) {
-        if (knowledge.content.empty()) {
+        if (knowledge.value.empty()) {
             continue;
         }
-        // if (user_set_iter->second.size() >= MAX_KNOWLEDGE_LENGTH) {
-        //     spdlog::info("{}({})的对话session知识数量超过限制, 删除最旧的知识", context.e->sender_ptr->name,
-        //                  context.e->sender_ptr->id);
-        //     user_set_iter->second.erase(user_set_iter->second.cbegin());
-        // }
-        if (knowledge.class_name_list.empty()) {
-            session_knowledge_set->insert(fmt::format("{}", knowledge.content));
 
-        } else {
-            session_knowledge_set->insert(fmt::format(
-                "{}:{}", join_str(std::cbegin(knowledge.class_name_list), std::cend(knowledge.class_name_list), "|"),
-                knowledge.content));
-        }
+        session_knowledge_set->insert(fmt::format("{}", knowledge.value));
     }
 
     size_t total_len = 0;
@@ -238,8 +227,6 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
     auto system_prompt =
         gen_common_prompt(bot_profile, context.adapter, *context.event->sender_ptr, context.is_deep_think);
 
-
-
     system_prompt += "\n" + query_chat_session_knowledge(context, msg_content_str);
 
     if (additional_system_prompt_option.has_value()) {
@@ -286,11 +273,7 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
                 std::string content;
                 const auto knowledge_list = rag::query_knowledge(*query);
                 for (const auto &knowledge : knowledge_list)
-                    content += fmt::format("{}:{}\n",
-                                           join_str(std::cbegin(knowledge.class_name_list),
-                                                    std::cend(knowledge.class_name_list), "|"),
-                                           knowledge.content) +
-                               ".";
+                    content += fmt::format("{}\n", knowledge.value);
 
                 const auto net_search_list = rag::net_search_content(
                     include_date ? fmt::format("{} {}", get_current_time_formatted(), *query) : *query);
@@ -354,6 +337,190 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
                 } else {
                     tool_call_msg = ChatMessage(ROLE_TOOL, content, func_calls.id);
                 }
+            } else if (func_calls.name == "view_model_info") {
+                tool_call_msg = ChatMessage(ROLE_TOOL,
+                                            nlohmann::json{{{"model_name", "ZiHuanChat"},
+                                                            {"system_prompt", "紫幻的名字是紫幻,是一个神秘的群友"}}}
+                                                .dump(),
+                                            func_calls.id);
+            } else if (func_calls.name == "view_chat_history") {
+                const auto arguments = nlohmann::json::parse(func_calls.arguments);
+                const std::optional<qq_id_t> target_id_opt = get_optional<qq_id_t>(arguments, "target");
+                std::string content = "啥记录都没有";
+
+                if (const auto &group_sender = bot_adapter::try_group_sender(*context.event->sender_ptr);
+                    group_sender.has_value()) {
+                    // Group Chat
+                    if (target_id_opt.has_value()) {
+                        // Target is specified in group chat
+                        spdlog::info("查询群 '{}' 内目标 '{}' 的聊天记录", group_sender->get().group.name,
+                                     *target_id_opt);
+
+                        std::string target_name = std::to_string(*target_id_opt); // Default name is ID
+                        const auto &member_list = context.adapter.fetch_group_member_info(group_sender->get().group.id)
+                                                      ->get()
+                                                      .member_info_list;
+                        if (auto member_info = member_list->find(*target_id_opt); member_info.has_value()) {
+                            target_name = member_info->get().member_name;
+                        }
+
+                        // Fetch recent messages from the group and filter by target user
+                        const auto &group_msg_list =
+                            g_group_message_storage.get_individual_last_msg_list(group_sender->get().group.id, 100);
+
+                        std::vector<std::string> target_msgs;
+                        target_msgs.reserve(10);
+                        for (auto it = group_msg_list.crbegin(); it != group_msg_list.crend(); ++it) {
+                            const auto &msg = it->get();
+                            if (msg.sender_id == *target_id_opt) {
+                                target_msgs.insert(
+                                    target_msgs.begin(),
+                                    fmt::format("'{}': '{}'", msg.sender_name,
+                                                bot_adapter::get_text_from_message_chain(*msg.message_chain_list)));
+                                if (target_msgs.size() >= 10) {
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (target_msgs.empty()) {
+                            content = fmt::format("在'{}'群里没有找到 '{}' 的聊天记录", group_sender->get().group.name,
+                                                  target_name);
+                        } else {
+                            content =
+                                fmt::format("'{}'群内 '{}' 的最近消息:\n{}", group_sender->get().group.name,
+                                            target_name, join_str(target_msgs.cbegin(), target_msgs.cend(), "\n"));
+                        }
+
+                    } else {
+                        // No target, get group's history
+                        const auto &msg_list =
+                            g_group_message_storage.get_individual_last_msg_list(group_sender->get().group.id, 10);
+                        if (msg_list.empty()) {
+                            content = fmt::format("在'{}'群里还没有聊天记录哦", group_sender->get().group.name);
+                        } else {
+                            content =
+                                fmt::format("'{}'群的最近消息:\n{}", group_sender->get().group.name,
+                                            join_str(msg_list.cbegin(), msg_list.cend(), "\n", [](const auto &msg) {
+                                                return fmt::format("'{}': '{}'", msg.get().sender_name,
+                                                                   bot_adapter::get_text_from_message_chain(
+                                                                       *msg.get().message_chain_list));
+                                            }));
+                        }
+                    }
+                } else {
+                    // Friend chat, ignore target
+                    const auto &msg_list =
+                        g_friend_message_storage.get_individual_last_msg_list(context.event->sender_ptr->id, 10);
+                    if (msg_list.empty()) {
+                        content = "我们之间还没有聊天记录哦";
+                    } else {
+                        content = fmt::format("与'{}'的最近聊天记录:\n{}", context.event->sender_ptr->name,
+                                              join_str(msg_list.cbegin(), msg_list.cend(), "\n", [](const auto &msg) {
+                                                  return fmt::format("'{}': '{}'", msg.get().sender_name,
+                                                                     bot_adapter::get_text_from_message_chain(
+                                                                         *msg.get().message_chain_list));
+                                              }));
+                    }
+                }
+                tool_call_msg = ChatMessage(ROLE_TOOL, content, func_calls.id);
+            } else if (func_calls.name == "query_group") {
+                const auto arguments = nlohmann::json::parse(func_calls.arguments);
+                const std::string item = get_optional(arguments, "item").value_or("");
+                spdlog::info("Function call id {}: query_group(item={})", func_calls.id, item);
+                auto group_sender = try_group_sender(*context.event->sender_ptr);
+                std::string content;
+                if (!group_sender.has_value()) {
+                    content = "你得告诉我是哪个群";
+                } else {
+                    if (item == "OWNER") {
+                        const auto &member_list = context.adapter.fetch_group_member_info(group_sender->get().group.id)
+                                                      ->get()
+                                                      .member_info_list;
+                        for (const auto &[key, value] : member_list->iter()) {
+                            if (value.permission == bot_adapter::GroupPermission::OWNER) {
+                                content += fmt::format("'{}'群的群主是: '{}'(QQ号为:{})",
+                                                       group_sender->get().group.name, value.member_name, value.id);
+                                if (value.special_title.has_value()) {
+                                    content += fmt::format("(特殊头衔: {})", value.special_title.value());
+                                }
+                                if (value.last_speak_time.has_value()) {
+                                    content += fmt::format("(最后发言时间: {})",
+                                                           system_clock_to_string(value.last_speak_time.value()));
+                                }
+                                break;
+                            }
+                        }
+                    } else if (item == "ADMIN") {
+
+                        const auto &member_list = context.adapter.fetch_group_member_info(group_sender->get().group.id)
+                                                      ->get()
+                                                      .member_info_list;
+                        std::vector<std::string> admin_info_list;
+                        for (const auto &[key, value] : member_list->iter()) {
+                            if (value.permission == bot_adapter::GroupPermission::ADMINISTRATOR) {
+                                std::string admin_info = fmt::format("'{}'(QQ号为:{})", value.member_name, value.id);
+                                if (value.special_title.has_value()) {
+                                    admin_info += fmt::format("(特殊头衔: {})", value.special_title.value());
+                                }
+                                if (value.last_speak_time.has_value()) {
+                                    admin_info += fmt::format("(最后发言时间: {})",
+                                                              system_clock_to_string(value.last_speak_time.value()));
+                                }
+                                admin_info_list.push_back(admin_info);
+                            }
+                        }
+                        if (admin_info_list.empty()) {
+                            content = fmt::format("'{}'群里没有管理员", group_sender->get().group.name);
+                        } else {
+                            content =
+                                fmt::format("'{}'群的管理员有:\n{}", group_sender->get().group.name,
+                                            join_str(std::cbegin(admin_info_list), std::cend(admin_info_list), "\n"));
+                        }
+                    } else if (item == "PROFILE") {
+                        content = "暂未实现";
+                    } else if (item == "NOTICE") {
+                        auto announcements_opt =
+                            context.adapter.get_group_announcement_sync(group_sender->get().group.id);
+                        if (!announcements_opt.has_value()) {
+                            content = "获取群公告失败,可能是网络波动或没有权限";
+                        } else {
+                            if (announcements_opt->empty()) {
+                                content = "本群没有群公告";
+                            } else {
+                                const auto &member_list =
+                                    context.adapter.fetch_group_member_info(group_sender->get().group.id)
+                                        ->get()
+                                        .member_info_list;
+                                std::vector<std::string> announcements_str_list;
+                                for (const auto &anno : *announcements_opt) {
+                                    std::string sender_info;
+                                    if (auto member_info_opt = member_list->find(anno.sender_id);
+                                        member_info_opt.has_value()) {
+                                        const auto &member_info = member_info_opt->get();
+                                        sender_info = fmt::format("{}({})", member_info.member_name,
+                                                                  get_permission_chs(member_info.permission));
+                                    } else {
+                                        sender_info = std::to_string(anno.sender_id);
+                                    }
+                                    std::string anno_str = fmt::format(
+                                        "内容: {}\n发送者: {}\n发送时间: {}\n已确认人数: {}", anno.content, sender_info,
+                                        system_clock_to_string(anno.publication_time), anno.confirmed_members_count);
+                                    announcements_str_list.push_back(anno_str);
+                                }
+
+                                content = fmt::format("群'{}'的公告:\n", group_sender->get().group.name);
+                                content += join_str(std::cbegin(announcements_str_list),
+                                                    std::cend(announcements_str_list), "\n---\n");
+                            }
+                        }
+                        spdlog::info("获取群公告: {}", content);
+                    } else {
+                        content = "暂未实现";
+                    }
+                }
+
+                tool_call_msg = ChatMessage(ROLE_TOOL, content, func_calls.id);
             } else {
                 spdlog::error("Function {} is not impl.", func_calls.name);
                 tool_call_msg = ChatMessage(ROLE_TOOL,
@@ -425,8 +592,8 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
             // Use below method to erase, purpose for purpose for Remove all message which should be removed also
             // message_list.erase(message_list.begin(), sess_it.base());
 
-            // Construct a new message_list that contains remain message(purpose for Remove all message which should be
-            // removed)
+            // Construct a new message_list that contains remain message(purpose for Remove all message which should
+            // be removed)
             std::deque<ChatMessage> new_message_list;
             for (auto it = sess_it.base(); it != message_list.end(); ++it) {
                 if (it->tool_call_id.has_value() && related_tool_call_ids.contains(*it->tool_call_id)) {
@@ -482,7 +649,8 @@ void process_llm(const bot_cmd::CommandContext &context,
         msg_content_str.append(
             fmt::format("\"{}\":\"{}\"", context.event->sender_ptr->name, *context.msg_prop.plain_content));
     }
-    spdlog::info(msg_content_str);
+
+    spdlog::info("作为用户输入给llm的content: {}", msg_content_str);
 
     auto llm_thread = std::thread([context, msg_content_str, additional_system_prompt_option] {
         on_llm_thread(context, msg_content_str, additional_system_prompt_option);
@@ -513,12 +681,12 @@ std::optional<OptimMessageResult> optimize_message_query(const bot_adapter::Prof
                          R"(请执行下列任务
 1. 分析用户提供的聊天记录（格式为 \"用户名\": \"内容\", \"用户名\": \"内容\"），按顺序排列，并整合整个对话历史的相关信息，但须以最下方（最新消息）为核心。
 2. 用户信息如下：
-- “你”的对象：名字“{}”，QQ号“{}”；
-- “我”（用户）：名字“{}”，QQ号“{}”。
+- \"你\"的对象：名字"{}"，QQ号"{}"；
+- \"我\"（用户）：名字"{}"，QQ号"{}"。
 3. 将最新一条聊天内容转换为搜索查询，其中：
 - 查询字符串需包含最新消息中需查询的信息，并整合整个对话历史中的相关细节；
 - 如查询信息涉及时效性，例如新闻，版本号，训练数据中未出现过的库或者技术，设置queryDate的值为接进1.0，时效性越强越接近1.0，否则0.0。
-4. 以最新消息为核心，分析总结现在用户对话中的意图并记录于 JSON 结果中的 \"summary\" 字段。例如：当用户输入 “一脚踢飞你” 时，由于上下文已知对象“紫幻”，则应转换为sumarry: "紫幻被一脚踢飞"；输入“掀裙子时”，则应转换为summary: "紫幻被掀裙子"
+4. 以最新消息为核心，分析总结现在用户对话中的意图并记录于 JSON 结果中的 \"summary\" 字段。例如：当用户输入 "一脚踢飞你" 时，由于上下文已知对象"紫幻"，则应转换为sumarry: "紫幻被一脚踢飞"；输入"掀裙子时"，则应转换为summary: "紫幻被掀裙子"
 5. 分析聊天中你所缺乏的数据和信息，如何缺乏数据或者信息，存入\"fetchData\": [{{\"function\": \"获取信息的方式\", \"query\": \"查询字符串\"}}]，支持的获取信息的\"function\"如下
 - 查询用户头像（查询字符串须为 QQ 号）
 - 查询用户聊天记录（查询字符串须为 QQ 号）

@@ -5,7 +5,9 @@
 #include "adapter_event.h"
 #include "adapter_message.h"
 #include "adapter_model.h"
+#include "constant_types.hpp"
 #include "constants.hpp"
+#include "neural_network/text_model.h"
 #include <cstdint>
 #include <easywsclient.hpp>
 #include <functional>
