@@ -92,7 +92,7 @@ TEST(UnitTest, GetMessageIdTest) {
 TEST(UnitTest, TestTokenizer) {
     neural_network::init_onnx_runtime();
 
-    neural_network::ONNXEmbedder embedder("embedding.onnx");
+    neural_network::TextEmbeddingModel embedder("embedding.onnx");
     const auto tokenizer = neural_network::load_tokenizers("tokenizer/tokenizer.json");
     const auto tokenizer_wrapper = neural_network::TokenizerWrapper(tokenizer, neural_network::TokenizerConfig());
 
@@ -107,7 +107,7 @@ TEST(UnitTest, TestTokenizer) {
                               [](auto i) { return std::to_string(i); }),
                      join_str(std::cbegin(token_mask.second), std::cend(token_mask.second), ",",
                               [](auto i) { return std::to_string(i); }));
-        auto embedding = embedder.embed(token_mask.first, token_mask.second);
+        auto embedding = embedder.embed_with_mean_pooling(token_mask.first, token_mask.second);
         batch_token.emplace_back(std::move(token_mask));
         spdlog::info("Embedding dim: {}", embedding.size());
         spdlog::info("embedding:\n[{}]...", join_str(std::cbegin(embedding), std::cbegin(embedding) + 100, ",",
@@ -122,7 +122,7 @@ TEST(UnitTest, TestTokenizer) {
 TEST(UnitTest, TestCosineSimilarity) {
     neural_network::init_onnx_runtime();
 
-    neural_network::ONNXEmbedder embedder("embedding.onnx");
+    neural_network::TextEmbeddingModel embedder("embedding.onnx");
     const auto tokenizer = neural_network::load_tokenizers("tokenizer/tokenizer.json");
     const auto tokenizer_wrapper = neural_network::TokenizerWrapper(tokenizer, neural_network::TokenizerConfig());
 
@@ -136,7 +136,7 @@ TEST(UnitTest, TestCosineSimilarity) {
                               [](auto i) { return std::to_string(i); }),
                      join_str(std::cbegin(token_mask.second), std::cend(token_mask.second), ",",
                               [](auto i) { return std::to_string(i); }));
-        auto embedding = embedder.embed(token_mask.first, token_mask.second);
+        auto embedding = embedder.embed_with_mean_pooling(token_mask.first, token_mask.second);
         batch_token.emplace_back(std::move(token_mask));
         spdlog::info("Embedding dim: {}", embedding.size());
         spdlog::info("embedding:\n[{}]...", join_str(std::cbegin(embedding), std::cbegin(embedding) + 100, ",",
@@ -145,7 +145,7 @@ TEST(UnitTest, TestCosineSimilarity) {
     }
 
     neural_network::token_id_vec_with_mask_t target_token = tokenizer_wrapper.encode_with_mask("杀猪盘");
-    auto target_embedding = embedder.embed(target_token.first, target_token.second);
+    auto target_embedding = embedder.embed_with_mean_pooling(target_token.first, target_token.second);
 
     ncnn::Net cos_similarity_net;
     cos_similarity_net.load_param("cosine_sim.ncnn.param");
@@ -191,7 +191,7 @@ TEST(UnitTest, TestCosineSimilarity) {
 TEST(UnitTest, TestCosineSimilarityOnnx) {
     neural_network::init_onnx_runtime();
 
-    neural_network::ONNXEmbedder embedder("embedding.onnx");
+    neural_network::TextEmbeddingModel embedder("embedding.onnx");
     const auto tokenizer = neural_network::load_tokenizers("tokenizer/tokenizer.json");
     const auto tokenizer_wrapper = neural_network::TokenizerWrapper(tokenizer, neural_network::TokenizerConfig());
 
@@ -205,7 +205,7 @@ TEST(UnitTest, TestCosineSimilarityOnnx) {
         //                       [](auto i) { return std::to_string(i); }),
         //              join_str(std::cbegin(token_mask.second), std::cend(token_mask.second), ",",
         //                       [](auto i) { return std::to_string(i); }));
-        auto embedding = embedder.embed(token_mask.first, token_mask.second);
+        auto embedding = embedder.embed_with_mean_pooling(token_mask.first, token_mask.second);
         batch_token.emplace_back(std::move(token_mask));
         // spdlog::info("Embedding dim: {}", embedding.size());
         // spdlog::info("embedding:\n[{}]...", join_str(std::cbegin(embedding), std::cbegin(embedding) + 100, ",",
@@ -222,7 +222,7 @@ TEST(UnitTest, TestCosineSimilarityOnnx) {
     spdlog::info("开始进行推理");
 
     neural_network::token_id_vec_with_mask_t target_token = tokenizer_wrapper.encode_with_mask("杀猪盘");
-    auto target_embedding = embedder.embed(target_token.first, target_token.second);
+    auto target_embedding = embedder.embed_with_mean_pooling(target_token.first, target_token.second);
 
     neural_network::CosineSimilarityONNXModel coreml_model{"cosine_sim.onnx", neural_network::get_onnx_session_opts_core_ml()};
 
