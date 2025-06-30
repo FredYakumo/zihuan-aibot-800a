@@ -590,8 +590,16 @@ namespace bot_adapter {
                 member_name_list.push_back(member.second.member_name);
             }
             neural_network::emb_mat_t member_name_embedding;
+            
             if (member_name_list.size() > 0) {
+                spdlog::info("Calculate group '{}' member name embedding, size: {}", group_info.name,
+                             member_name_list.size());
+                auto start_time = std::chrono::high_resolution_clock::now();
                 member_name_embedding = neural_network::get_text_embedding_model().embed(member_name_list);
+                auto end_time = std::chrono::high_resolution_clock::now();
+                auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+                spdlog::info("Calculate group '{}' member name embedding, size: {}, cost: {}ms", group_info.name,
+                             member_name_list.size(), duration.count());
             }
             size_t i = 0;
             group_wrapper.member_name_emb_vec_list->clear();
