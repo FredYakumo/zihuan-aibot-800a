@@ -64,7 +64,7 @@ def query_knowledge(query: str) -> List[VecDBKnowledge]:
     vector = get_embedding(query)
     res = g_vec_db_collection.query.near_vector(
         near_vector=vector,
-        # limit=5,
+        limit=6,
         certainty=0.75,
         return_metadata=["certainty"],
         return_properties=["key", "value", "create_time", "creator_name"],
