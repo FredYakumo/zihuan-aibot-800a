@@ -83,3 +83,21 @@ std::vector<GroupMessageRecord> DBConnection::query_group_user_message(uint64_t 
     }
     return result;
 }
+
+void DBConnection::insert_user_preferences(
+    const std::vector<std::pair<qq_id_t, UserPreference>> &user_preferences) {
+    if (user_preferences.empty()) {
+        return;
+    }
+
+    try {
+        auto insert = get_user_preference_table().insert("user_id", "render_markdown_output", "text_output");
+        for (const auto &pref_pair : user_preferences) {
+            insert.values(pref_pair.first, pref_pair.second.render_markdown_output, pref_pair.second.text_output);
+        }
+        insert.execute();
+        spdlog::info("Batch insert of {} user preferences succeeded.", user_preferences.size());
+    } catch (const mysqlx::Error &e) {
+        spdlog::error("Batch insert user preferences error at MySQL X DevAPI Error: {}", e.what());
+    }
+}

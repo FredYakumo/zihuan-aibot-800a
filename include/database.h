@@ -2,6 +2,7 @@
 #define DATABASE_H
 
 #include "adapter_model.h"
+#include "constant_types.hpp"
 #include "constants.hpp"
 #include "utils.h"
 #include <chrono>
@@ -20,6 +21,7 @@ namespace database {
     constexpr std::string DEFAULT_TOOLS_CALL_RECORD_TABLE = "tool_calls_record";
     constexpr std::string DEFAULT_USER_CHAT_PROMPT_TABLE_NAME = "user_chat_prompt";
     constexpr std::string DEFAULT_USER_PORTAIT_TABLE_NAME = "user_protait";
+    constexpr std::string DEFAULT_USER_PREFERENCE_TABLE_NAME = "user_preference";
 
     struct GroupMessageRecord {
         std::string content;
@@ -40,7 +42,10 @@ namespace database {
         std::string tool_calls_content;
     };
 
-    
+    struct UserPreference {
+        bool render_markdown_output = true;
+        bool text_output = false;
+    };
 
     class DBConnection {
       public:
@@ -67,6 +72,17 @@ namespace database {
             spdlog::info("Table '{}' created successfully.", table_name);
         }
 
+        void create_user_preference_table(const std::string &table_name = DEFAULT_USER_PREFERENCE_TABLE_NAME) {
+            session
+                .sql(fmt::format("CREATE TABLE IF NOT EXISTS {} ("
+                                 " user_id int NOT NULL,"
+                                 " render_markdown_output tinyint(4) NOT NULL DEFAULT 1,"
+                                 " text_output tinyint(4) NOT NULL DEFAULT 0"
+                                 ")",
+                                 table_name))
+                .execute();
+        }
+
         void create_tools_call_record_table(const std::string &table_name = DEFAULT_TOOLS_CALL_RECORD_TABLE) {
             session
                 .sql(fmt::format(R"(
@@ -83,6 +99,23 @@ namespace database {
                 .execute();
             spdlog::info("Table '{}' created successfully.", table_name);
         }
+
+        std::optional<UserPreference> get_user_preference(qq_id_t id) {
+            auto &table = get_user_preference_table();
+            auto result = table.select("render_markdown_output", "text_output")
+                              .where("user_id = :user_id")
+                              .bind("user_id", id)
+                              .execute();
+
+            if (auto row = result.fetchOne()) {
+                // The C++ connector returns tinyint as integer.
+                return UserPreference{static_cast<bool>(row[0].get<int>()), static_cast<bool>(row[1].get<int>())};
+            }
+            return std::nullopt;
+        }
+
+        void insert_user_preferences(
+            const std::vector<std::pair<qq_id_t, UserPreference>> &user_preferences);
 
         void insert_message(const std::string &content, const bot_adapter::Sender &sender,
                             const std::chrono::system_clock::time_point send_time,
@@ -102,6 +135,7 @@ namespace database {
         mysqlx::Schema schema;
         std::optional<mysqlx::Table> message_record_table = std::nullopt;
         std::optional<mysqlx::Table> tool_calls_record_table = std::nullopt;
+        std::optional<mysqlx::Table> user_preference_table = std::nullopt;
 
         mysqlx::Table &get_message_record_table() {
             if (!message_record_table) {
@@ -115,6 +149,13 @@ namespace database {
                 tool_calls_record_table = schema.getTable(std::string(DEFAULT_TOOLS_CALL_RECORD_TABLE), true);
             }
             return *tool_calls_record_table;
+        }
+
+        mysqlx::Table &get_user_preference_table() {
+            if (!user_preference_table) {
+                user_preference_table = schema.getTable(std::string(DEFAULT_USER_PREFERENCE_TABLE_NAME), true);
+            }
+            return *user_preference_table;
         }
     };
 
