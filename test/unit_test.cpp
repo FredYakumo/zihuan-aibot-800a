@@ -1,11 +1,12 @@
 #include "adapter_message.h"
 #include "net.h"
+#include "neural_network/text_model.h"
 #include "utils.h"
+#include <general-wheel-cpp/string_utils.hpp>
 #include <gtest/gtest.h>
 #include <iterator>
 #include <neural_network/nn.h>
 #include <string>
-#include <general-wheel-cpp/string_utils.hpp>
 // #include <onnxruntime/core/session/onnxruntime_cxx_api.
 
 using namespace wheel;
@@ -230,7 +231,7 @@ TEST(UnitTest, TestCosineSimilarityOnnx) {
     auto res = coreml_model.inference(target_embedding, batch_embedding);
     auto end = std::chrono::high_resolution_clock::now();
     auto coreml_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-    
+
     // spdlog::info("Similarity (ONNX):");
     // for (const auto r : res) {
     //     spdlog::info(r);
