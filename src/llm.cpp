@@ -14,7 +14,7 @@
 #include "rag.h"
 #include "user_protait.h"
 #include "utils.h"
-#include <_strings.h>
+#include <strings.h>
 #include <chrono>
 #include <cpr/cpr.h>
 #include <cstdint>
