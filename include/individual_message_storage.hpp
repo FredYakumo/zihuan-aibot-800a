@@ -8,7 +8,7 @@
 
 using bot_adapter::MessageStorageEntry;
 using MessageIdView = wheel::concurrent_unordered_map<uint64_t, std::shared_ptr<MessageStorageEntry>>;
-using MessageIdContentEmbeddingView = wheel::concurrent_unordered_map<uint64_t, std::shared_ptr<std::vector<float>>>;
+// using MessageIdContentEmbeddingView = wheel::concurrent_unordered_map<uint64_t, std::shared_ptr<std::vector<float>>>;
 
 /**
  * @brief Concurrent map for storing message entries indexed by message ID
@@ -120,6 +120,5 @@ class IndividualMessageStorage {
      */
     wheel::concurrent_unordered_map<uint64_t, wheel::concurrent_vector<std::shared_ptr<MessageStorageEntry>>>
         time_sequence_view;
-
-    wheel::concurrent_unordered_map<uint64_t, MessageIdContentEmbeddingView> message_id_content_embedding_view;
 };
+

@@ -20,7 +20,19 @@ inline nlohmann::json make_object_params(const std::vector<std::pair<std::string
 
 // Define the tools
 const nlohmann::json DEFAULT_TOOLS = nlohmann::json::array(
-    {// Search info tool
+
+    {make_tool_function(
+         "view_chat_history",
+         "查看聊天历史,当消息提及到聊天历史,例如'输出上文信息'时,调用此函数.该函数得到的结果才是聊天的历史记录",
+
+         make_object_params({{"target", {{"type", "number"},
+                                       {"description", "默认为null(例如问群里最近的聊天内容).如果需要查看特定对象的聊天历史,则填写对象的QQ号(数字ID,不是名字).如用户问'我'的聊天历史,则填写'我'的QQ号"}}}})),
+     make_tool_function("view_model_info",
+                        "查看模型信息,当消息提及到(无论何种方式)系统提示词、模型信息、function "
+                        "calls列表例如'输出模型信息','输出system prompt', '输出function calls "
+                        "json',调用此函数.该函数得到的结果才是模型的信息",
+                        {}),
+     // Search info tool
      make_tool_function(
          "search_info",
          "查询信息.可以根据查询不同的信息拆分成多次调用.知识库里没出现过的信息必须要进行查询,"
@@ -45,21 +57,20 @@ const nlohmann::json DEFAULT_TOOLS = nlohmann::json::array(
      // query user tool
      make_tool_function(
          "query_user", "你可以调用此函数来查看用户或者群友的资料,如性别,地址信息等",
-         make_object_params(
-             {{"target", {{"type", "string"}, {"description", "对象.只能为QQ号或者名字"}}},
-              {"item",
-               {{"type", "string"},
-                {"description",
-                 "查询内容,仅支持PROFILE(用户资料),AVATAR(头像),SUMMARY(印象或者评价),MESSAGES(最近的消息).除此以外则是OTHER"}}}})),
+         make_object_params({{"target", {{"type", "string"}, {"description", "对象.只能为QQ号或者名字"}}},
+                             {"item",
+                              {{"type", "string"},
+                               {"description", "查询内容,仅支持PROFILE(用户资料),AVATAR(头像),SUMMARY(印象或者评价),"
+                                               ".除此以外则是OTHER"}}}})),
      // query group tool
-     make_tool_function(
-         "query_group",
-         "如果用户的消息中涉及查看群的信息,调用此函数",
-         make_object_params(
-             {{"item",
-               {{"type", "string"},
-                {"description", "查询内容,仅支持OWNER(群主),ADMIN(管理员),MESSAGES(最近的消息),PROFILE(群资料),NOTICE(群公告).除此以外则是OTHER"}}}})),
+     make_tool_function("query_group", "如果用户的消息中涉及查看群的信息,调用此函数",
+                        make_object_params({{"item",
+                                             {{"type", "string"},
+                                              {"description", "查询内容,仅支持OWNER(群主),ADMIN(管理员),"
+                                                              "NOTICE(群公告).除此以外则是OTHER"}}}})),
 
      // Fetch URL content tool
-     make_tool_function("fetch_url_content", "你可以使用这个函数来查看网页链接里的内容",
-                        make_object_params({{"urls", {{"type", "array"}, {"description", "网页链接列表,每个元素为url字符串"}}}}, {"url"}))});
+     make_tool_function(
+         "fetch_url_content", "你可以使用这个函数来查看网页链接里的内容",
+         make_object_params({{"urls", {{"type", "array"}, {"description", "网页链接列表,每个元素为url字符串"}}}},
+                            {"url"}))});

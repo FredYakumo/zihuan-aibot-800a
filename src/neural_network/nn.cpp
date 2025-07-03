@@ -1,6 +1,7 @@
 #include "neural_network/nn.h"
 #include <cinttypes>
 #include <memory>
+#include <onnxruntime_c_api.h>
 #include <onnxruntime_cxx_api.h>
 #include <stdexcept>
 
@@ -20,7 +21,7 @@ Ort::Env &neural_network::get_onnx_runtime() {
 Ort::SessionOptions neural_network::get_onnx_session_opts() {
     Ort::SessionOptions opts;
     opts.SetIntraOpNumThreads(8);
-    opts.SetLogSeverityLevel(0);
+    opts.SetLogSeverityLevel(ORT_LOGGING_LEVEL_FATAL);
 
     return opts;
 }
@@ -33,7 +34,7 @@ Ort::SessionOptions neural_network::get_onnx_session_opts_core_ml() {
     provider_options["EnableOnSubgraphs"] = "0";
     provider_options["MLComputeUnits"] = "ALL";
     opts.SetIntraOpNumThreads(8);
-    opts.SetLogSeverityLevel(0);
+    opts.SetLogSeverityLevel(ORT_LOGGING_LEVEL_FATAL);
     
     // 添加 CoreML 执行提供程序
     opts.AppendExecutionProvider("CoreML", provider_options);

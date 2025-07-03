@@ -4,6 +4,7 @@
 #include "bot_cmd.h"
 #include "config.h"
 #include "constants.hpp"
+#include "database.h"
 #include "individual_message_storage.hpp"
 #include "llm.h"
 #include "msg_prop.h"
@@ -155,6 +156,31 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
 
     if (!msg_prop.is_at_me) {
         return;
+    }
+
+    // Get User preference
+    auto user_preference = database::get_global_db_connection().get_user_preference(event->sender_ptr->id);
+    if (!user_preference.has_value()) {
+        spdlog::warn("用户'{}'没有偏好设置，创建默认偏好设置", event->sender_ptr->id);
+        user_preference = database::UserPreference{};
+        database::get_global_db_connection().insert_or_update_user_preferences(
+            std::vector<std::pair<qq_id_t, database::UserPreference>>{
+                std::make_pair(event->sender_ptr->id, database::UserPreference{})});
+    }
+    spdlog::info("用户'{}'的偏好设置: {}", event->sender_ptr->id, user_preference.value().to_string());
+
+
+    if (user_preference->auto_new_chat_session_sec.has_value() && user_preference->auto_new_chat_session_sec.value() > 0) {
+        auto last_msg_list = g_group_message_storage.get_individual_last_msg_list(event->get_group_sender().group.id, 1);
+        if (last_msg_list.size() > 0) {
+            auto last_msg_time = last_msg_list[0].get().send_time;
+            auto event_time = event->send_time;
+            if (event_time - last_msg_time > std::chrono::seconds(user_preference->auto_new_chat_session_sec.value())) {
+                spdlog::info("用户对话超过{}秒，创建新的对话", user_preference->auto_new_chat_session_sec.value());
+                g_chat_session_map.erase(event->get_group_sender().id);
+                g_chat_session_knowledge_list_map.erase(event->get_group_sender().id);
+            }
+        }
     }
 
     spdlog::debug("At list: {}", join_str(std::cbegin(msg_prop.at_id_set), std::cend(msg_prop.at_id_set), ",",

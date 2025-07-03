@@ -84,20 +84,67 @@ std::vector<GroupMessageRecord> DBConnection::query_group_user_message(uint64_t 
     return result;
 }
 
-void DBConnection::insert_user_preferences(
+void DBConnection::insert_or_update_user_preferences(
     const std::vector<std::pair<qq_id_t, UserPreference>> &user_preferences) {
     if (user_preferences.empty()) {
         return;
     }
 
     try {
-        auto insert = get_user_preference_table().insert("user_id", "render_markdown_output", "text_output");
+        auto table = get_user_preference_table();
+
+        std::vector<qq_id_t> user_ids;
+        user_ids.reserve(user_preferences.size());
+        for (const auto &pref_pair : user_preferences) {
+            user_ids.push_back(pref_pair.first);
+        }
+
+        std::string user_ids_list_str =
+            wheel::join_str(user_ids.cbegin(), user_ids.cend(), ",", [](const qq_id_t id) { return std::to_string(id); });
+        auto delete_result = table.remove().where("user_id IN (" + user_ids_list_str + ")").execute();
+        auto deleted_count = delete_result.getAffectedItemsCount();
+
+        auto insert = table.insert("user_id", "render_markdown_output", "text_output");
         for (const auto &pref_pair : user_preferences) {
             insert.values(pref_pair.first, pref_pair.second.render_markdown_output, pref_pair.second.text_output);
         }
-        insert.execute();
-        spdlog::info("Batch insert of {} user preferences succeeded.", user_preferences.size());
+        auto insert_result = insert.execute();
+        auto inserted_count = insert_result.getAffectedItemsCount();
+
+        spdlog::info("Batch insert or update of user preferences succeeded. Deleted: {}, Inserted: {}, Delta: {}",
+                     deleted_count, inserted_count, (long long)inserted_count - (long long)deleted_count);
     } catch (const mysqlx::Error &e) {
-        spdlog::error("Batch insert user preferences error at MySQL X DevAPI Error: {}", e.what());
+        spdlog::error("Batch insert or update user preferences error at MySQL X DevAPI Error: {}", e.what());
+    }
+}
+
+void DBConnection::insert_user_protait(qq_id_t id, const std::string &protait,
+                                       const std::chrono::system_clock::time_point &create_time) {
+    try {
+        get_user_protait_table().insert("user_id", "protait", "create_time").values(id, protait, time_point_to_db_str(create_time)).execute();
+        spdlog::info("Insert user protait successed.");
+    } catch (const mysqlx::Error &e) {
+        spdlog::error("Insert user protait error at MySQL X DevAPI Error: {}", e.what());
+    }
+}
+
+void DBConnection::insert_user_protait(const std::vector<std::pair<qq_id_t, UserProtait>> &user_protaits) {
+    if (user_protaits.empty()) {
+        return;
+    }
+
+    try {
+        auto table = get_user_protait_table();
+        auto insert = table.insert("user_id", "protait", "create_time");
+        for (const auto &protait_pair : user_protaits) {
+            insert.values(protait_pair.first, protait_pair.second.protait,
+                          time_point_to_db_str(protait_pair.second.create_time));
+        }
+        auto insert_result = insert.execute();
+        auto inserted_count = insert_result.getAffectedItemsCount();
+
+        spdlog::info("Batch insert of user protaits succeeded. Inserted: {}", inserted_count);
+    } catch (const mysqlx::Error &e) {
+        spdlog::error("Batch insert user protaits error at MySQL X DevAPI Error: {}", e.what());
     }
 }

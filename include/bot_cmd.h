@@ -92,6 +92,20 @@ namespace bot_cmd {
      */
     CommandRes url_search_command(bot_cmd::CommandContext context);
 
+    /**
+     * @brief Retrieves and processes user preference settings.
+     *
+     * This function handles the command to get user preferences, including settings like markdown rendering,
+     * text output format, and auto chat session timing.
+     *
+     * @param context The command context containing message properties and sender information.
+     * @return bot_cmd::CommandRes Returns a bot_cmd::CommandRes object indicating the success of the command handling.
+     */
+
+    CommandRes get_user_preference_command(bot_cmd::CommandContext context);
+
+    CommandRes set_user_preference_command(bot_cmd::CommandContext context);
+
     extern std::vector<std::pair<std::string, bot_cmd::CommandProperty>> keyword_command_map;
 
     inline void init_command_map() {
@@ -113,6 +127,10 @@ namespace bot_cmd {
             std::make_pair("#联网", bot_cmd::CommandProperty{false, false, bot_cmd::net_search_command}));
         keyword_command_map.push_back(
             std::make_pair("#url", bot_cmd::CommandProperty{false, true, bot_cmd::url_search_command}));
+        keyword_command_map.push_back(
+            std::make_pair("#查看设置", bot_cmd::CommandProperty{false, false, bot_cmd::get_user_preference_command}));
+        keyword_command_map.push_back(
+            std::make_pair("#设置", bot_cmd::CommandProperty{false, true, bot_cmd::set_user_preference_command}));
     }
 
 } // namespace bot_cmd

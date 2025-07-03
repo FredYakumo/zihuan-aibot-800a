@@ -66,26 +66,26 @@ class TextEmbeddingModel(nn.Module):
     def __init__(self, model_name='GanymedeNil/text2vec-large-chinese', mean_pooling=True):
         super().__init__()
         self.model = AutoModel.from_pretrained(model_name)  # This should be your Hugging Face model that accepts tokenized inputs.
+        self.config = AutoConfig.from_pretrained(model_name)
+        print(f"Max position embedding: {self.config.max_position_embeddings}")
         self.mean_pooling = mean_pooling
 
-    def forward(self, input_ids):
-        outputs = self.model(input_ids=input_ids)
+    def forward(self, input_ids, attention_mask):
+        outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
         # Assume you want to mean-pool the output embeddings.
         if self.mean_pooling:
             embeddings = outputs.last_hidden_state.mean(dim=1)
+            return embeddings
         else:
-            embeddings = outputs.last_hidden_state
-        return embeddings
+            return outputs
 
 class TextEmbedder:
     """Generate text embeddings using a pre-trained model."""
-    def __init__(self, model_name='GanymedeNil/text2vec-large-chinese', device=torch.device('cpu')):
+    def __init__(self, model_name='GanymedeNil/text2vec-large-chinese', device=torch.device('cpu'),mean_pooling=True):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        config = AutoConfig.from_pretrained(model_name)
-        print(f"Max position embedding: {config.max_position_embeddings}")
-        self.model = AutoModel.from_pretrained(model_name).to(device)
+        self.model = TextEmbeddingModel(model_name, mean_pooling).to(device)
         
-    def embed(self, texts, mean_pooling=True):
+    def embed(self, texts):
         """Generate text embedding vectors.
 
         Args:
@@ -105,10 +105,12 @@ class TextEmbedder:
         ).to(self.model.device)
         with torch.no_grad():
             outputs = self.model(**inputs)
-        last_hidden_state = outputs.last_hidden_state
-        if mean_pooling:
-            return last_hidden_state.mean(dim=1)
-        return last_hidden_state
+        
+        if self.model.mean_pooling:
+            return outputs
+        else:
+            last_hidden_state = outputs.last_hidden_state
+            return last_hidden_state
     
 def load_reply_intent_classifier_model(model_path):
     """Load the trained model"""

@@ -2,7 +2,7 @@ import datetime
 import time
 from typing import List, cast
 from utils.logging_config import logger
-from nn.models import get_device
+from nn.models import get_device, TextEmbedder
 
 logger.info("正在加载embedding模型...")
 start_time = time.time()
@@ -11,10 +11,7 @@ import torch
 
 device = get_device()
 
-tokenizer = AutoTokenizer.from_pretrained("GanymedeNil/text2vec-large-chinese")
-model = AutoModel.from_pretrained("GanymedeNil/text2vec-large-chinese").to(device)
-end_time = time.time()
-logger.info(f"加载embedding模型完成, 加载耗时: {end_time - start_time:.2f}秒")
+text_embeder = TextEmbedder(device=device, mean_pooling=True)
 
 from fastapi import FastAPI, Header
 from pydantic import BaseModel
@@ -29,39 +26,13 @@ app = FastAPI()
 g_vec_db_client = weaviate.connect_to_local(port=config.vector_db_port)
 g_vec_db_collection = g_vec_db_client.collections.get(config.knowledge_collection_name)
 
-
-def mean_pooling(model_output, attention_mask):
-    token_embeddings = model_output[0]
-    input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-    return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
-
-def get_embedding(text):
-    # Encode the input text
-    encoded_input = tokenizer(text, padding=True, truncation=True, return_tensors='pt')
-    
-    # Move input tensors to the same device as model
-    encoded_input = {k: v.to(device) for k, v in encoded_input.items()}
-    
-    # Calculate token embeddings
-    with torch.no_grad():
-        model_output = model(**encoded_input)
-    
-    # Apply mean pooling
-    sentence_embeddings = mean_pooling(model_output, encoded_input['attention_mask'])
-    
-    # Normalize the embeddings
-    sentence_embeddings = torch.nn.functional.normalize(sentence_embeddings, p=2, dim=1)
-    
-    return sentence_embeddings[0].tolist()
-
-
 class QueryKnowledgeRequest(BaseModel):
     query: str
 
 def query_knowledge(query: str) -> List[VecDBKnowledge]:
     logger.info(f"从向量数据库中查询: {query}")
     start_time = time.time()
-    vector = get_embedding(query)
+    vector = text_embeder.embed(query)
     res = g_vec_db_collection.query.near_vector(
         near_vector=vector,
         limit=6,
@@ -71,6 +42,7 @@ def query_knowledge(query: str) -> List[VecDBKnowledge]:
     )
     end_time = time.time()
     knowledge_result = []
+    
     for e in res.objects:
         logger.info(f"{e.properties.get('key')}: {e.properties.get('value')} - 创建者: {e.properties.get('creator_name')} - 时间: {e.properties.get('create_time')}, 置信度: {e.metadata.certainty}")
         create_time_val = e.properties.get("create_time")

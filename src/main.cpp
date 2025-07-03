@@ -11,6 +11,10 @@
 
 int main(int argc, char *argv[]) {
     const auto log_level = std::getenv("LOG_LEVEL");
+
+    neural_network::init_onnx_runtime();
+    neural_network::init_text_embedding_model();
+
     if (log_level != nullptr) {
         try {
             // Convert string to lowercase for case-insensitive comparison

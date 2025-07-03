@@ -1,6 +1,6 @@
 import torch
 import pnnx
-from models import load_reply_intent_classifier_model, TextEmbeddingModel, TextEmbedder, get_device, CosineSimilarityModel
+from nn.models import load_reply_intent_classifier_model, TextEmbeddingModel, TextEmbedder, get_device, CosineSimilarityModel
 
 
 if __name__ == "__main__":
@@ -9,7 +9,7 @@ if __name__ == "__main__":
     net = load_reply_intent_classifier_model("model.pth")[0]
     x = torch.rand(1024)
     mod = torch.jit.trace(net, x)
-    mod.save("model.pt")
+    mod.save("exported_model/model.pt")
     
     # emb = TextEmbeddingModel()
     # embedder = TextEmbedder();
@@ -17,19 +17,30 @@ if __name__ == "__main__":
     # dummy_input = embedder.tokenizer("233", return_tensors="pt", padding=True, truncation=True, max_length=1024)
     # # opt_model = pnnx.export(emb, "embedding.pt", (dummy_input["input_ids"], dummy_input["attention_mask"]))
     # opt_model = pnnx.export(emb, "embedding.pt", (dummy_input["input_ids"]))
-    embedder = TextEmbedder()
+    embedder = TextEmbedder(mean_pooling=False)
     token = embedder.tokenizer("0" * 1024, return_tensors='pt', padding=True, truncation=True)
     print(token)
     torch.onnx.export(embedder.model, (token["input_ids"], token["attention_mask"])
-                      , "embedding.onnx" , opset_version=14, input_names=["input_ids", "attention_mask"],
+                      , "exported_model/text_embedding.onnx" , opset_version=14, input_names=["input_ids", "attention_mask"],
                       output_names=["output"],
                       dynamic_axes={
         "input_ids": {0: "batch_size", 1: "seq_len"},
         "attention_mask": {0: "batch_size", 1: "seq_len"},
         "output": {0: "batch_size", 1: "seq_len"}
     })
-
     embedder.tokenizer.save_pretrained("tokenizer")
+    
+    embedder = TextEmbedder(mean_pooling=True)
+    token = embedder.tokenizer("0" * 1024, return_tensors='pt', padding=True, truncation=True)
+    print(token)
+    torch.onnx.export(embedder.model, (token["input_ids"], token["attention_mask"])
+                      , "exported_model/text_embedding_mean_pooling.onnx" , opset_version=14, input_names=["input_ids", "attention_mask"],
+                      output_names=["output"],
+                      dynamic_axes={
+        "input_ids": {0: "batch_size", 1: "seq_len"},
+        "attention_mask": {0: "batch_size", 1: "seq_len"},
+        "output": {0: "batch_size", 1: "seq_len"}
+    })
     
 
 
@@ -45,7 +56,7 @@ if __name__ == "__main__":
     torch.onnx.export(
   model,
         (input_target, input_value_list),
-        "cosine_sim.onnx",
+        "exported_model/cosine_sim.onnx",
         input_names=["target", "value_list"],
         output_names=["output"],
         dynamic_axes=dynamic_axes,
@@ -53,4 +64,4 @@ if __name__ == "__main__":
         do_constant_folding=True
     )
     
-    pnnx.export(model, "cosine_sim.pt", (input_target, input_value_list))
+    pnnx.export(model, "exported_model/cosine_sim.pt", (input_target, input_value_list))

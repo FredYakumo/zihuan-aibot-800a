@@ -114,16 +114,6 @@ inline void set_thread_name(const std::string &name) {
 #endif
 }
 
-
-
-
-
-
-
-
-
-
-
 template <typename T, typename KEY_GENERATOR>
 inline auto group_by(const std::vector<T> &collection, KEY_GENERATOR key_generator)
     -> std::unordered_map<decltype(key_generator(std::declval<T>())), T> {
@@ -134,5 +124,11 @@ inline auto group_by(const std::vector<T> &collection, KEY_GENERATOR key_generat
     }
     return std::move(ret);
 }
+
+inline bool is_positive_value(const std::string_view s) { return s == "true" || s == "1" || s == "yes" || s == "y" || s == "是"; }
+
+inline bool is_negative_value(const std::string_view s) { return s == "false" || s == "0" || s == "no" || s == "n" || s == "否"; }
+
+constexpr const char *AVAILABLE_VALUE_STRINGS[] = {"true", "1", "yes", "y", "是", "否"};
 
 #endif

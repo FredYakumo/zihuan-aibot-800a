@@ -11,6 +11,7 @@
 #include <mysqlx/xdevapi.h>
 #include <optional>
 #include <spdlog/spdlog.h>
+#include <string>
 #include <vector>
 
 namespace database {
@@ -42,9 +43,27 @@ namespace database {
         std::string tool_calls_content;
     };
 
+    struct UserProtait {
+        std::string protait;
+        std::chrono::system_clock::time_point create_time;
+    };
+
     struct UserPreference {
         bool render_markdown_output = true;
         bool text_output = false;
+        std::optional<int64_t> auto_new_chat_session_sec = 600;
+
+        /**
+         * @brief Returns a string representation of the UserPreference object.
+         *
+         * @return std::string
+         */
+        std::string to_string() const {
+            return fmt::format("偏好:\n- 输出渲染: {}\n- 输出文本: {}\n- 自动新对话: {}",
+                               render_markdown_output, text_output,
+                               auto_new_chat_session_sec.has_value() ? std::to_string(auto_new_chat_session_sec.value())
+                                                                   : "null");
+        }
     };
 
     class DBConnection {
@@ -72,12 +91,24 @@ namespace database {
             spdlog::info("Table '{}' created successfully.", table_name);
         }
 
-        void create_user_preference_table(const std::string &table_name = DEFAULT_USER_PREFERENCE_TABLE_NAME) {
+        void create_user_protait_table(const std::string &table_name = DEFAULT_USER_PORTAIT_TABLE_NAME) {
             session
                 .sql(fmt::format("CREATE TABLE IF NOT EXISTS {} ("
                                  " user_id int NOT NULL,"
+                                 " protait TEXT NOT NULL,"
+                                 " create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"
+                                 ")",
+                                 table_name))
+                .execute();
+        }
+
+        void create_user_preference_table(const std::string &table_name = DEFAULT_USER_PREFERENCE_TABLE_NAME) {
+            session
+                .sql(fmt::format("CREATE TABLE IF NOT EXISTS {} ("
+                                 " user_id int NOT NULL PRIMARY KEY,"
                                  " render_markdown_output tinyint(4) NOT NULL DEFAULT 1,"
-                                 " text_output tinyint(4) NOT NULL DEFAULT 0"
+                                 " text_output tinyint(4) NOT NULL DEFAULT 0,"
+                                 " auto_new_chat_session int default null"
                                  ")",
                                  table_name))
                 .execute();
@@ -114,8 +145,23 @@ namespace database {
             return std::nullopt;
         }
 
-        void insert_user_preferences(
-            const std::vector<std::pair<qq_id_t, UserPreference>> &user_preferences);
+        std::optional<UserProtait> get_user_protait(qq_id_t id) {
+            auto &table = get_user_protait_table();
+            auto result =
+                table.select("protait", "create_time").where("user_id = :user_id").bind("user_id", id).execute();
+
+            if (auto row = result.fetchOne()) {
+                return UserProtait{row[0].get<std::string>(), row[1].get<std::chrono::system_clock::time_point>()};
+            }
+            return std::nullopt;
+        }
+
+        void insert_user_protait(qq_id_t id, const std::string &protait,
+                                 const std::chrono::system_clock::time_point &create_time);
+
+        void insert_user_protait(const std::vector<std::pair<qq_id_t, UserProtait>> &user_protaits);
+
+        void insert_or_update_user_preferences(const std::vector<std::pair<qq_id_t, UserPreference>> &user_preferences);
 
         void insert_message(const std::string &content, const bot_adapter::Sender &sender,
                             const std::chrono::system_clock::time_point send_time,
@@ -136,26 +182,34 @@ namespace database {
         std::optional<mysqlx::Table> message_record_table = std::nullopt;
         std::optional<mysqlx::Table> tool_calls_record_table = std::nullopt;
         std::optional<mysqlx::Table> user_preference_table = std::nullopt;
+        std::optional<mysqlx::Table> user_protait_table = std::nullopt;
 
-        mysqlx::Table &get_message_record_table() {
+        inline mysqlx::Table &get_message_record_table() {
             if (!message_record_table) {
                 message_record_table = schema.getTable(std::string(DEFAULT_MESSAGE_RECORD_TABLE_NAME), true);
             }
             return *message_record_table;
         }
 
-        mysqlx::Table &get_tool_calls_record_table() {
+        inline mysqlx::Table &get_tool_calls_record_table() {
             if (!tool_calls_record_table) {
                 tool_calls_record_table = schema.getTable(std::string(DEFAULT_TOOLS_CALL_RECORD_TABLE), true);
             }
             return *tool_calls_record_table;
         }
 
-        mysqlx::Table &get_user_preference_table() {
+        inline mysqlx::Table &get_user_preference_table() {
             if (!user_preference_table) {
                 user_preference_table = schema.getTable(std::string(DEFAULT_USER_PREFERENCE_TABLE_NAME), true);
             }
             return *user_preference_table;
+        }
+
+        inline mysqlx::Table &get_user_protait_table() {
+            if (!user_protait_table) {
+                user_protait_table = schema.getTable(std::string(DEFAULT_USER_PORTAIT_TABLE_NAME), true);
+            }
+            return *user_protait_table;
         }
     };
 

@@ -209,6 +209,7 @@ namespace neural_network {
         TokenizerConfig m_config;
     };
 
+    void init_text_embedding_model();
     const neural_network::TokenizerWrapper &get_tokenizer();
     neural_network::TextEmbeddingWithMeanPoolingModel &get_text_embedding_model();
 
