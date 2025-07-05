@@ -17,6 +17,7 @@ Ort::Env &neural_network::get_onnx_runtime() {
     }
     return *g_onnx_runtime_ptr;
 }
+neural_network::CosineSimilarityONNXModel cosine_similarity_onnx_model{"models/cosine_similarity.onnx", neural_network::get_onnx_session_opts()};
 
 Ort::SessionOptions neural_network::get_onnx_session_opts() {
     Ort::SessionOptions opts;

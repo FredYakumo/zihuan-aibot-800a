@@ -148,6 +148,8 @@ namespace bot_adapter {
                          });
         }
 
+        std::optional<GroupMemberInfo> get_similar_group_member_info(qq_id_t group_id, std::string_view member_name);
+
         /**
          * @brief Get group announcements synchronously.
          *

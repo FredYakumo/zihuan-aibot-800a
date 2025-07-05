@@ -263,5 +263,6 @@ namespace neural_network {
         return cosine_similarity(padded_emb1.data(), padded_emb2.data(), max_dim);
     }
 
+    CosineSimilarityONNXModel &get_cosine_similarity_onnx_model();
 } // namespace neural_network
 #endif

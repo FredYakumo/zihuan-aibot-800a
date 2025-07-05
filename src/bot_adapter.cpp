@@ -665,6 +665,15 @@ namespace bot_adapter {
         return std::move(ret);
     }
 
+    std::optional<GroupMemberInfo> BotAdapter::get_similar_group_member_info(qq_id_t group_id, std::string_view member_name) {
+        if (const auto &group_wrapper = group_info_map.find(group_id); group_wrapper.has_value()) {
+            const auto &member_name_emb = neural_network::get_text_embedding_model().embed(std::string(member_name));
+            const auto &member_name_emb_vec_list = group_wrapper->second.member_name_emb_vec_list;
+            
+        }
+        return std::nullopt;
+    }
+
     // void BotAdapter::send_message_async(const Sender &sender, const MessageChainPtrList &message_chain,
     //                                     size_t max_retry_count, std::chrono::milliseconds timeout) {
     //     std::promise<nlohmann::json> promise;
