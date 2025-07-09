@@ -45,9 +45,9 @@ class IndividualMessageStorage {
         return std::nullopt;
     }
 
-    std::vector<std::reference_wrapper<const MessageStorageEntry>> get_individual_last_msg_list(uint64_t individual_id,
+    std::vector<MessageStorageEntry> get_individual_last_msg_list(uint64_t individual_id,
                                                                                                 size_t limit = 5) {
-        std::vector<std::reference_wrapper<const MessageStorageEntry>> ret;
+        std::vector<MessageStorageEntry> ret;
         auto time_sequence_group = time_sequence_view.find(individual_id);
         if (time_sequence_group.has_value()) {
             auto &messages = time_sequence_group->get();
