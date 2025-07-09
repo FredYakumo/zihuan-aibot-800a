@@ -63,12 +63,13 @@ class ReplyIntentClassifierModel(nn.Module):
         return self.net(x).squeeze()
     
 class TextEmbeddingModel(nn.Module):
-    def __init__(self, model_name='GanymedeNil/text2vec-large-chinese', mean_pooling=True):
+    def __init__(self, model_name='GanymedeNil/text2vec-large-chinese', mean_pooling=True, device=torch.device('cpu')):
         super().__init__()
-        self.model = AutoModel.from_pretrained(model_name)  # This should be your Hugging Face model that accepts tokenized inputs.
+        self.model = AutoModel.from_pretrained(model_name).to(device)  # This should be your Hugging Face model that accepts tokenized inputs.
         self.config = AutoConfig.from_pretrained(model_name)
         print(f"Max position embedding: {self.config.max_position_embeddings}")
         self.mean_pooling = mean_pooling
+        self.device = device
 
     def forward(self, input_ids, attention_mask):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
@@ -83,7 +84,7 @@ class TextEmbedder:
     """Generate text embeddings using a pre-trained model."""
     def __init__(self, model_name='GanymedeNil/text2vec-large-chinese', device=torch.device('cpu'),mean_pooling=True):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = TextEmbeddingModel(model_name, mean_pooling).to(device)
+        self.model = TextEmbeddingModel(model_name, mean_pooling, device)
         
     def embed(self, texts):
         """Generate text embedding vectors.
@@ -104,7 +105,7 @@ class TextEmbedder:
             return_tensors="pt"
         ).to(self.model.device)
         with torch.no_grad():
-            outputs = self.model(**inputs)
+            outputs = self.model(inputs['input_ids'], inputs['attention_mask'])
         
         if self.model.mean_pooling:
             return outputs

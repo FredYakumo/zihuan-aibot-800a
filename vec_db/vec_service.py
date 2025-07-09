@@ -32,7 +32,8 @@ class QueryKnowledgeRequest(BaseModel):
 def query_knowledge(query: str) -> List[VecDBKnowledge]:
     logger.info(f"从向量数据库中查询: {query}")
     start_time = time.time()
-    vector = text_embeder.embed(query)
+    vector = text_embeder.embed(query).cpu().numpy().squeeze()
+    print(vector)
     res = g_vec_db_collection.query.near_vector(
         near_vector=vector,
         limit=6,

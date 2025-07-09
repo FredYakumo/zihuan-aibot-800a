@@ -1,6 +1,6 @@
 import torch
 import pnnx
-from nn.models import load_reply_intent_classifier_model, TextEmbeddingModel, TextEmbedder, get_device, CosineSimilarityModel
+from nn.models import load_reply_intent_classifier_model, TextEmbeddingModel, TextEmbedder, CosineSimilarityModel
 
 
 if __name__ == "__main__":
@@ -17,7 +17,7 @@ if __name__ == "__main__":
     # dummy_input = embedder.tokenizer("233", return_tensors="pt", padding=True, truncation=True, max_length=1024)
     # # opt_model = pnnx.export(emb, "embedding.pt", (dummy_input["input_ids"], dummy_input["attention_mask"]))
     # opt_model = pnnx.export(emb, "embedding.pt", (dummy_input["input_ids"]))
-    embedder = TextEmbedder(mean_pooling=False)
+    embedder = TextEmbedder(mean_pooling=False, device="cpu")
     token = embedder.tokenizer("0" * 1024, return_tensors='pt', padding=True, truncation=True)
     print(token)
     torch.onnx.export(embedder.model, (token["input_ids"], token["attention_mask"])
