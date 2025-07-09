@@ -54,7 +54,7 @@ class IndividualMessageStorage {
             size_t size = messages.size();
             size_t start = size > limit ? size - limit : 0;
             for (size_t i = start; i < size; i++) {
-                ret.push_back(std::cref(*messages[i]->get()));
+                ret.push_back(*messages[i]->get());
             }
         }
         return ret;
