@@ -12,18 +12,19 @@
 #include <optional>
 #include <spdlog/spdlog.h>
 #include <string>
+#include <string_view>
 #include <vector>
 #include "user_protait.h"
 
 namespace database {
     using mysqlx::SessionOption;
 
-    constexpr std::string DEFAULT_MYSQL_SCHEMA_NAME = "aibot_800a";
-    constexpr std::string DEFAULT_MESSAGE_RECORD_TABLE_NAME = "message_record";
-    constexpr std::string DEFAULT_TOOLS_CALL_RECORD_TABLE = "tool_calls_record";
-    constexpr std::string DEFAULT_USER_CHAT_PROMPT_TABLE_NAME = "user_chat_prompt";
-    constexpr std::string DEFAULT_USER_PORTAIT_TABLE_NAME = "user_protait";
-    constexpr std::string DEFAULT_USER_PREFERENCE_TABLE_NAME = "user_preference";
+    constexpr std::string_view DEFAULT_MYSQL_SCHEMA_NAME = "aibot_800a";
+    constexpr std::string_view DEFAULT_MESSAGE_RECORD_TABLE_NAME = "message_record";
+    constexpr std::string_view DEFAULT_TOOLS_CALL_RECORD_TABLE = "tool_calls_record";
+    constexpr std::string_view DEFAULT_USER_CHAT_PROMPT_TABLE_NAME = "user_chat_prompt";
+    constexpr std::string_view DEFAULT_USER_PORTAIT_TABLE_NAME = "user_protait";
+    constexpr std::string_view DEFAULT_USER_PREFERENCE_TABLE_NAME = "user_preference";
 
     struct GroupMessageRecord {
         std::string content;
@@ -55,22 +56,21 @@ namespace database {
          * @return std::string
          */
         std::string to_string() const {
-            return fmt::format("偏好:\n- 输出渲染: {}\n- 输出文本: {}\n- 自动新对话: {}",
-                               render_markdown_output, text_output,
-                               auto_new_chat_session_sec.has_value() ? std::to_string(auto_new_chat_session_sec.value())
-                                                                   : "null");
+            return fmt::format(
+                "偏好:\n- 输出渲染: {}\n- 输出文本: {}\n- 自动新对话: {}", render_markdown_output, text_output,
+                auto_new_chat_session_sec.has_value() ? std::to_string(auto_new_chat_session_sec.value()) : "null");
         }
     };
 
     class DBConnection {
       public:
         DBConnection(const std::string &host, unsigned port, const std::string &user, const std::string &password,
-                     const std::string &schema = DEFAULT_MYSQL_SCHEMA_NAME)
+                     const std::string_view schema = DEFAULT_MYSQL_SCHEMA_NAME)
             : session(SessionOption::HOST, host, SessionOption::PORT, port, SessionOption::USER, user,
                       SessionOption::PWD, password, SessionOption::DB, schema),
               schema(session.getSchema(std::string(schema), true)) {}
 
-        void create_message_record_table(const std::string &table_name = DEFAULT_MESSAGE_RECORD_TABLE_NAME) {
+        void create_message_record_table(const std::string_view table_name = DEFAULT_MESSAGE_RECORD_TABLE_NAME) {
             session
                 .sql(fmt::format("CREATE TABLE IF NOT EXISTS {} ("
                                  "  sender_name VARCHAR(255) NOT NULL, "
@@ -87,7 +87,7 @@ namespace database {
             spdlog::info("Table '{}' created successfully.", table_name);
         }
 
-        void create_user_protait_table(const std::string &table_name = DEFAULT_USER_PORTAIT_TABLE_NAME) {
+        void create_user_protait_table(const std::string_view table_name = DEFAULT_USER_PORTAIT_TABLE_NAME) {
             session
                 .sql(fmt::format("CREATE TABLE IF NOT EXISTS {} ("
                                  " user_id int NOT NULL,"
@@ -99,7 +99,7 @@ namespace database {
                 .execute();
         }
 
-        void create_user_preference_table(const std::string &table_name = DEFAULT_USER_PREFERENCE_TABLE_NAME) {
+        void create_user_preference_table(const std::string_view table_name = DEFAULT_USER_PREFERENCE_TABLE_NAME) {
             session
                 .sql(fmt::format("CREATE TABLE IF NOT EXISTS {} ("
                                  " user_id varchar(255) NOT NULL PRIMARY KEY,"
@@ -111,7 +111,7 @@ namespace database {
                 .execute();
         }
 
-        void create_tools_call_record_table(const std::string &table_name = DEFAULT_TOOLS_CALL_RECORD_TABLE) {
+        void create_tools_call_record_table(const std::string_view table_name = DEFAULT_TOOLS_CALL_RECORD_TABLE) {
             session
                 .sql(fmt::format(R"(
                 CREATE TABLE IF NOT EXISTS {} (

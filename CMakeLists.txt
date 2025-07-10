@@ -21,13 +21,23 @@ find_package(cpr REQUIRED)
 find_package(fmt REQUIRED)
 find_package(Boost REQUIRED COMPONENTS filesystem)
 find_package(spdlog REQUIRED)
-find_package(GTest REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(ncnn REQUIRED)
 find_package(onnxruntime REQUIRED)
 find_package(general-wheel-cpp REQUIRED)
 
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  include(FetchContent)
+  FetchContent_Declare(
+    googletest
+    URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
+  )
+  FetchContent_MakeAvailable(googletest)
+else()
+  find_package(GTest REQUIRED)
+endif()
 
 
 set(TOKENZIER_CPP_PATH ${CMAKE_CURRENT_SOURCE_DIR}/external/tokenizers-cpp)
@@ -39,7 +49,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/)
 # include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/MiraiCP-template/single_include/3rd_include/)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/easywsclient/)
 include_directories(${AIBOT_TARGET_NAME} PRIVATE ${TOKENZIER_CPP_PATH}/include)
-include_directories(/opt/homebrew/include/ncnn)
+# include_directories(/opt/homebrew/include/ncnn)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/base64/include)
 if(APPLE)
     include_directories(/usr/local/include)
@@ -101,6 +111,7 @@ target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE ncnn)
 target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE tokenizers_cpp)
 target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE onnxruntime::onnxruntime)
 target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE general-wheel-cpp::general-wheel-cpp)
+target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE /usr/local/lib64/libmysqlcppconnx.so)
 
 
 if(APPLE)
@@ -120,7 +131,7 @@ add_executable(unit_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/global_data.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/external/easywsclient/easywsclient.cpp
 )
-target_link_libraries(unit_test cpr::cpr GTest::GTest GTest::Main fmt::fmt yaml-cpp::yaml-cpp Boost::filesystem tokenizers_cpp ncnn onnxruntime::onnxruntime 
+target_link_libraries(unit_test cpr::cpr gtest gtest_main fmt::fmt yaml-cpp::yaml-cpp Boost::filesystem tokenizers_cpp ncnn onnxruntime::onnxruntime 
 general-wheel-cpp::general-wheel-cpp)
 
 add_test(NAME unit_test COMMAND unit_test)
