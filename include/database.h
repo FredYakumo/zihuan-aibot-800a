@@ -67,7 +67,7 @@ namespace database {
         DBConnection(const std::string &host, unsigned port, const std::string &user, const std::string &password,
                      const std::string_view schema = DEFAULT_MYSQL_SCHEMA_NAME)
             : session(SessionOption::HOST, host, SessionOption::PORT, port, SessionOption::USER, user,
-                      SessionOption::PWD, password, SessionOption::DB, schema),
+                      SessionOption::PWD, password, SessionOption::DB, std::string(schema)),
               schema(session.getSchema(std::string(schema), true)) {}
 
         void create_message_record_table(const std::string_view table_name = DEFAULT_MESSAGE_RECORD_TABLE_NAME) {
