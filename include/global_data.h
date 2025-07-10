@@ -9,6 +9,7 @@
 #include <nlohmann/json.hpp>
 #include <chat_session.hpp>
 #include <set>
+#include "embedding_message_id_list.hpp"
 #include "individual_message_storage.hpp"
 #include "db_knowledge.hpp"
 #include "constant_types.hpp"
@@ -36,5 +37,15 @@ extern IndividualMessageStorage g_group_message_storage;
 extern IndividualMessageStorage g_friend_message_storage;
 /// bot send message to group storage. individual id = send to groupID/群号 or friend id/好友QQ号
 extern IndividualMessageStorage g_bot_send_group_message_storage;
+
+/// 群聊message content(or any text) embedding related message_id map
+/// key = group id/群号
+extern wheel::concurrent_unordered_map<qq_id_t, embedding_message_id_list> g_group_message_embedding_to_id_list_map;
+
+/// 群聊message content(or any text) embedding related message_id map
+/// key = group id/群号
+/// Bot send only
+extern wheel::concurrent_unordered_map<qq_id_t, embedding_message_id_list> g_bot_send_group_message_embedding_to_id_list_map;
+
 
 #endif

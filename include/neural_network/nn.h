@@ -10,12 +10,18 @@
 #include <vector>
 
 namespace neural_network {
+    using token_id_list_t = std::vector<int32_t>;
+    using attention_mask_list_t = std::vector<int32_t>;
+    using emb_vec_t = std::vector<float>;
+    using emb_mat_t = std::vector<emb_vec_t>;
 
     Ort::Env &get_onnx_runtime();
 
     void init_onnx_runtime();
 
-    Ort::SessionOptions get_onnx_session_opts();
+    Ort::SessionOptions get_onnx_session_opts_cpu();
+
+    Ort::SessionOptions get_onnx_session_opts_cuda();
 
     Ort::SessionOptions get_onnx_session_opts_tensorrt();
 
@@ -27,17 +33,18 @@ namespace neural_network {
      */
     enum class Device { CPU, CUDA, TensorRT, CoreML };
 
+    constexpr Device USE_DEVICE = Device::CPU;
+
     inline Ort::SessionOptions get_session_options(Device device) {
         switch (device) {
         case Device::CUDA:
         case Device::TensorRT:
-            // Assuming TensorRT uses CUDA options as a base
             return get_onnx_session_opts_tensorrt();
         case Device::CoreML:
             return get_onnx_session_opts_core_ml();
         case Device::CPU:
         default:
-            return get_onnx_session_opts();
+            return get_onnx_session_opts_cpu();
         }
     }
 
@@ -57,11 +64,18 @@ namespace neural_network {
     }
 
     constexpr size_t COSINE_SIMILARITY_INPUT_EMB_SIZE = 1024;
+    /**
+     * @brief Cosine similarity ONNX model wrapper
+     */
     class CosineSimilarityONNXModel {
       public:
-        CosineSimilarityONNXModel(const std::string &model_path,
-                                  const Ort::SessionOptions &options = get_onnx_session_opts())
-            : m_session(get_onnx_runtime(), model_path.c_str(), options), m_allocator() {
+        /**
+         * @brief Construct a new CosineSimilarityONNXModel object
+         * @param model_path Path to the ONNX model file
+         * @param device Device type for inference (default: CPU)
+         */
+        CosineSimilarityONNXModel(const std::string &model_path, Device device = Device::CPU)
+            : m_session(get_onnx_runtime(), model_path.c_str(), get_session_options(device)), m_allocator() {
             Ort::AllocatorWithDefaultOptions allocator;
 
             for (size_t i = 0; i < m_session.GetInputCount(); ++i) {
@@ -82,8 +96,8 @@ namespace neural_network {
             }
         }
 
-        std::vector<float> inference(std::vector<float> target, std::vector<std::vector<float>> value_list) {
-            // 展平二维value_list到一维连续数组
+        emb_vec_t inference(emb_vec_t target, emb_mat_t value_list) {
+
             std::vector<float> flattened_values;
             for (const auto &vec : value_list) {
                 // 确保每个子vector都是COSINE_SIMILARITY_INPUT_EMB_SIZE维
@@ -145,124 +159,124 @@ namespace neural_network {
         std::vector<Ort::AllocatedStringPtr> m_output_names_ptr;
     };
 
-    inline float dot_product(const float *a, const float *b, size_t size) {
-        if (size == 0)
-            throw std::invalid_argument("dot_product: size must > 0");
+    namespace cpu {
+        inline float dot_product(const float *a, const float *b, size_t size) {
+            if (size == 0)
+                throw std::invalid_argument("dot_product: size must > 0");
 
-        return std::inner_product(a, a + size, b, 0.0f);
-    }
+            return std::inner_product(a, a + size, b, 0.0f);
+        }
 
-    inline std::vector<float> mean_pooling(const float *token_embeddings, const int32_t *attention_mask, size_t seq_len,
-                                           size_t hidden_size) {
-        std::vector<float> pooled(hidden_size, 0.0f);
-        float sum_mask = 0.0f;
+        inline std::vector<float> mean_pooling(const float *token_embeddings, const int32_t *attention_mask,
+                                               size_t seq_len, size_t hidden_size) {
+            std::vector<float> pooled(hidden_size, 0.0f);
+            float sum_mask = 0.0f;
 
-        for (size_t i = 0; i < seq_len; ++i) {
-            if (attention_mask[i] == 0)
-                continue;
+            for (size_t i = 0; i < seq_len; ++i) {
+                if (attention_mask[i] == 0)
+                    continue;
 
-            const float *emb = token_embeddings + i * hidden_size;
-            sum_mask += 1.0f;
+                const float *emb = token_embeddings + i * hidden_size;
+                sum_mask += 1.0f;
 
-            for (size_t j = 0; j < hidden_size; ++j) {
-                pooled[j] += emb[j];
+                for (size_t j = 0; j < hidden_size; ++j) {
+                    pooled[j] += emb[j];
+                }
             }
-        }
 
-        const float epsilon = 1e-9f;
-        if (sum_mask > epsilon) {
-            for (auto &val : pooled) {
-                val /= sum_mask;
+            const float epsilon = 1e-9f;
+            if (sum_mask > epsilon) {
+                for (auto &val : pooled) {
+                    val /= sum_mask;
+                }
             }
+
+            return pooled;
         }
 
-        return pooled;
-    }
-
-    inline std::vector<float> mean_pooling(const std::vector<std::vector<float>> &token_embeddings,
-                                           const std::vector<int32_t> &attention_mask) {
-        if (token_embeddings.empty()) {
-            return {};
-        }
-        if (token_embeddings.size() != attention_mask.size()) {
-            throw std::invalid_argument("token_embeddings and attention_mask must have the same size.");
-        }
-        size_t hidden_size = token_embeddings[0].size();
-        std::vector<float> pooled(hidden_size, 0.0f);
-        float sum_mask = 0.0f;
-
-        for (size_t i = 0; i < token_embeddings.size(); ++i) {
-            if (attention_mask[i] == 0)
-                continue;
-
-            sum_mask += 1.0f;
-            for (size_t j = 0; j < hidden_size; ++j) {
-                pooled[j] += token_embeddings[i][j];
+        inline std::vector<float> mean_pooling(const std::vector<std::vector<float>> &token_embeddings,
+                                               const std::vector<int32_t> &attention_mask) {
+            if (token_embeddings.empty()) {
+                return {};
             }
-        }
-
-        const float epsilon = 1e-9f;
-        if (sum_mask > epsilon) {
-            for (auto &val : pooled) {
-                val /= sum_mask;
+            if (token_embeddings.size() != attention_mask.size()) {
+                throw std::invalid_argument("token_embeddings and attention_mask must have the same size.");
             }
-        }
-        return pooled;
-    }
+            size_t hidden_size = token_embeddings[0].size();
+            std::vector<float> pooled(hidden_size, 0.0f);
+            float sum_mask = 0.0f;
 
-    inline float vector_norm(const float *vec, size_t size) {
-        if (size == 0)
-            throw std::invalid_argument("vector_norm: size can't be 0");
+            for (size_t i = 0; i < token_embeddings.size(); ++i) {
+                if (attention_mask[i] == 0)
+                    continue;
 
-        float sum = 0.0f;
-        for (size_t i = 0; i < size; ++i) {
-            sum += vec[i] * vec[i];
-        }
-        return std::sqrt(sum);
-    }
+                sum_mask += 1.0f;
+                for (size_t j = 0; j < hidden_size; ++j) {
+                    pooled[j] += token_embeddings[i][j];
+                }
+            }
 
-    inline float cosine_similarity(const float *emb1, const float *emb2, size_t dim) {
-        if (emb1 == nullptr || emb2 == nullptr) {
-            throw std::invalid_argument("consine_similarity: emb can't be nullptr");
-        }
-        if (dim == 0) {
-            throw std::invalid_argument("consine_similarity: vec dim must > 0");
-        }
-
-        const float dot = dot_product(emb1, emb2, dim);
-
-        const float norm1 = vector_norm(emb1, dim);
-        const float norm2 = vector_norm(emb2, dim);
-
-        const float epsilon = 1e-8f;
-        const float denominator = norm1 * norm2;
-        if (denominator < epsilon) {
-            // 处理零向量情况：定义零向量与任何向量相似度为0
-            return 0.0f;
+            const float epsilon = 1e-9f;
+            if (sum_mask > epsilon) {
+                for (auto &val : pooled) {
+                    val /= sum_mask;
+                }
+            }
+            return pooled;
         }
 
-        // normalize
-        return std::max(-1.0f, std::min(1.0f, dot / denominator));
-    }
+        inline float vector_norm(const float *vec, size_t size) {
+            if (size == 0)
+                throw std::invalid_argument("vector_norm: size can't be 0");
 
-    inline float cosine_similarity_with_padding(const std::vector<float> &emb1, const std::vector<float> &emb2) {
-        const size_t dim1 = emb1.size();
-        const size_t dim2 = emb2.size();
-        const size_t max_dim = std::max(dim1, dim2);
-
-        std::vector<float> padded_emb1(max_dim, 0.0f);
-        std::vector<float> padded_emb2(max_dim, 0.0f);
-
-        if (dim1 > 0) {
-            std::copy(emb1.begin(), emb1.end(), padded_emb1.begin());
-        }
-        if (dim2 > 0) {
-            std::copy(emb2.begin(), emb2.end(), padded_emb2.begin());
+            float sum = 0.0f;
+            for (size_t i = 0; i < size; ++i) {
+                sum += vec[i] * vec[i];
+            }
+            return std::sqrt(sum);
         }
 
-        return cosine_similarity(padded_emb1.data(), padded_emb2.data(), max_dim);
-    }
+        inline float cosine_similarity(const float *emb1, const float *emb2, size_t dim) {
+            if (emb1 == nullptr || emb2 == nullptr) {
+                throw std::invalid_argument("consine_similarity: emb can't be nullptr");
+            }
+            if (dim == 0) {
+                throw std::invalid_argument("consine_similarity: vec dim must > 0");
+            }
 
-    CosineSimilarityONNXModel &get_cosine_similarity_onnx_model();
+            const float dot = dot_product(emb1, emb2, dim);
+
+            const float norm1 = vector_norm(emb1, dim);
+            const float norm2 = vector_norm(emb2, dim);
+
+            const float epsilon = 1e-8f;
+            const float denominator = norm1 * norm2;
+            if (denominator < epsilon) {
+                // 处理零向量情况：定义零向量与任何向量相似度为0
+                return 0.0f;
+            }
+
+            // normalize
+            return std::max(-1.0f, std::min(1.0f, dot / denominator));
+        }
+
+        inline float cosine_similarity_with_padding(const std::vector<float> &emb1, const std::vector<float> &emb2) {
+            const size_t dim1 = emb1.size();
+            const size_t dim2 = emb2.size();
+            const size_t max_dim = std::max(dim1, dim2);
+
+            std::vector<float> padded_emb1(max_dim, 0.0f);
+            std::vector<float> padded_emb2(max_dim, 0.0f);
+
+            if (dim1 > 0) {
+                std::copy(emb1.begin(), emb1.end(), padded_emb1.begin());
+            }
+            if (dim2 > 0) {
+                std::copy(emb2.begin(), emb2.end(), padded_emb2.begin());
+            }
+
+            return cosine_similarity(padded_emb1.data(), padded_emb2.data(), max_dim);
+        }
+    } // namespace cpu
 } // namespace neural_network
 #endif

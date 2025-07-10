@@ -4,6 +4,7 @@
 #include "config.h"
 #include "database.h"
 #include "event.h"
+#include "neural_network/model_set.h"
 #include "neural_network/nn.h"
 #include <cstdlib>
 #include <cstring>
@@ -11,9 +12,6 @@
 
 int main(int argc, char *argv[]) {
     const auto log_level = std::getenv("LOG_LEVEL");
-
-    neural_network::init_onnx_runtime();
-    neural_network::init_text_embedding_model();
 
     if (log_level != nullptr) {
         try {
@@ -54,7 +52,6 @@ int main(int argc, char *argv[]) {
     } catch (std::exception &e) {
         spdlog::error("Init database connection error: {}", e.what());
     }
-    neural_network::init_onnx_runtime();
 
     if (argc > 1) {
         if (strcmp(argv[1], "init_message_table") == 0) {
@@ -65,8 +62,25 @@ int main(int argc, char *argv[]) {
             database::get_global_db_connection().create_tools_call_record_table();
             spdlog::info("Init tools call record table successed.");
             return 0;
+        } else if (strcmp(argv[1], "init_user_preference_table") == 0) {
+            database::get_global_db_connection().create_user_preference_table();
+            spdlog::info("Init user preference table successed.");
+            return 0;
+        } else if (strcmp(argv[1], "init_user_protait_table") == 0) {
+            database::get_global_db_connection().create_user_protait_table();
+            spdlog::info("Init user protait table successed.");
+            return 0;
+        } else if (strcmp(argv[1], "init_all_tables") == 0) {
+            database::get_global_db_connection().create_message_record_table();
+            database::get_global_db_connection().create_tools_call_record_table();
+            database::get_global_db_connection().create_user_preference_table();
+            database::get_global_db_connection().create_user_protait_table();
+            spdlog::info("Init all tables successed.");
+            return 0;
         }
     }
+    neural_network::init_onnx_runtime();
+    neural_network::init_model_set();
 
     bot_adapter::BotAdapter adapter("ws://localhost:13378/all", Config::instance().bot_id);
     adapter.update_bot_profile();

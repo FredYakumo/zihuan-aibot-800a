@@ -116,7 +116,7 @@ TEST(UnitTest, TestTokenizer) {
     }
 
     spdlog::info("cosine similarity: {}",
-                 neural_network::cosine_similarity_with_padding(batch_embedding[0], batch_embedding[1]));
+                 neural_network::cpu::cosine_similarity_with_padding(batch_embedding[0], batch_embedding[1]));
 }
 
 TEST(UnitTest, TestCosineSimilarity) {
@@ -224,7 +224,7 @@ TEST(UnitTest, TestCosineSimilarityOnnx) {
     neural_network::token_id_vec_with_mask_t target_token = tokenizer_wrapper.encode_with_mask("杀猪盘");
     auto target_embedding = embedder.embed(target_token.first, target_token.second);
 
-    neural_network::CosineSimilarityONNXModel coreml_model{"cosine_sim.onnx", neural_network::get_onnx_session_opts_core_ml()};
+    neural_network::CosineSimilarityONNXModel coreml_model{"cosine_sim.onnx", neural_network::Device::CPU};
 
     auto start = std::chrono::high_resolution_clock::now();
     auto res = coreml_model.inference(target_embedding, batch_embedding);

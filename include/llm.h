@@ -1,9 +1,11 @@
 #ifndef LLM_H
 #define LLM_H
+#include "adapter_model.h"
 #include "bot_cmd.h"
 #include "chat_session.hpp"
 #include "constant_types.hpp"
 #include "global_data.h"
+#include "user_protait.h"
 
 std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot_adapter::BotAdapter &adapter,
                               const bot_adapter::Sender &sender, bool is_deep_think);
@@ -123,5 +125,21 @@ struct ReplayContentNode {
 
 
 std::vector<ReplayContentNode> optimize_reply_content(std::string content);
+
+
+/**
+ * @brief Generates a user portrait based on the provided profile and message chain list.
+ *
+ * This function analyzes the user's profile and the message chain list to create a user portrait,
+ * which is a summary of the user's characteristics and preferences. It utilizes the provided bot adapter
+ * for any necessary interactions or data retrieval during the portrait generation process.
+ *
+ * @param adapter
+ * @param profile The user's profile containing basic information.
+ * @param message_chain_list A list of message chains representing the user's interactions.
+ * @return UserProtait Returns a UserProtait object containing the generated portrait and creation time.
+ */
+std::optional<UserProtait> generate_user_protait(const bot_adapter::BotAdapter &adapter, const bot_adapter::Profile &profile,
+    const std::vector<bot_adapter::MessageChainPtrList> &message_chain_list);
 
 #endif

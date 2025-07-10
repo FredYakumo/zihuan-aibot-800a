@@ -8,6 +8,7 @@
 #include "constant_types.hpp"
 #include "constants.hpp"
 #include "neural_network/text_model.h"
+#include <collection/concurrent_unordered_map.hpp>
 #include <cstdint>
 #include <easywsclient.hpp>
 #include <functional>
@@ -94,7 +95,8 @@ namespace bot_adapter {
             std::optional<std::function<void(uint64_t &out_message_id)>> out_message_id_option = std::nullopt);
 
         void send_long_plain_text_reply(const Sender &sender, std::string text, bool at_target = true,
-                                        uint64_t msg_length_limit = MAX_OUTPUT_LENGTH);
+                                        uint64_t msg_length_limit = MAX_OUTPUT_LENGTH,
+                                        std::optional<std::function<void(uint64_t &)>> out_message_id_option = std::nullopt);
 
         void update_bot_profile();
 
@@ -148,7 +150,16 @@ namespace bot_adapter {
                          });
         }
 
-        std::optional<GroupMemberInfo> get_similar_group_member_info(qq_id_t group_id, std::string_view member_name);
+        /**
+         * @brief A map storing name embeddings for group members
+         *
+         * This map maintains a mapping between QQ group IDs (qq_id_t) and
+         * their corresponding name embeddings (GroupMemberNameEmbeddngMatrix).
+         *
+         * Key: QQ group ID 群号 (qq_id_t)
+         * Value: Matrix containing name embeddings for the member (GroupMemberNameEmbeddngMatrix)
+         */
+        wheel::concurrent_unordered_map<qq_id_t, GroupMemberNameEmbeddngMatrix> group_member_name_embedding_map;
 
         /**
          * @brief Get group announcements synchronously.

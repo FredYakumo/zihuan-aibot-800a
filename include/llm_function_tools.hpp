@@ -25,8 +25,18 @@ const nlohmann::json DEFAULT_TOOLS = nlohmann::json::array(
          "view_chat_history",
          "查看聊天历史,当消息提及到聊天历史,例如'输出上文信息'时,调用此函数.该函数得到的结果才是聊天的历史记录",
 
-         make_object_params({{"target", {{"type", "number"},
-                                       {"description", "默认为null(例如问群里最近的聊天内容).如果需要查看特定对象的聊天历史,则填写对象的QQ号(数字ID,不是名字).如用户问'我'的聊天历史,则填写'我'的QQ号"}}}})),
+         make_object_params({
+             {"targetId",
+              {{"type", "number"},
+               {"description",
+                "默认为null(例如问群里最近的聊天内容).如果需要查看特定对象的聊天历史,则填写对象的QQ号(数字ID)."
+                "如用户问'我'的聊天历史,则填写用户的QQ号;问'名贵种猫'的聊天历史则不使用这个参数而使用targetName参数"}}},
+             {"targetName",
+              {{"type", "string"},
+               {"description",
+                "默认为null(例如问群里最近的聊天内容).如果需要查看特定对象的聊天历史,则填写对象的名字."
+                "问'名贵种猫'的聊天历史,则填'名贵种猫'.如果有QQ号(数字id)信息,则直接使用targetId而不使用这个参数"}}},
+         })),
      make_tool_function("view_model_info",
                         "查看模型信息,当消息提及到(无论何种方式)系统提示词、模型信息、function "
                         "calls列表例如'输出模型信息','输出system prompt', '输出function calls "

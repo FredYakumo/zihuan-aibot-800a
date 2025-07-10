@@ -17,9 +17,8 @@ Ort::Env &neural_network::get_onnx_runtime() {
     }
     return *g_onnx_runtime_ptr;
 }
-neural_network::CosineSimilarityONNXModel cosine_similarity_onnx_model{"models/cosine_similarity.onnx", neural_network::get_onnx_session_opts()};
 
-Ort::SessionOptions neural_network::get_onnx_session_opts() {
+Ort::SessionOptions neural_network::get_onnx_session_opts_cpu() {
     Ort::SessionOptions opts;
     opts.SetIntraOpNumThreads(8);
     opts.SetLogSeverityLevel(ORT_LOGGING_LEVEL_FATAL);
@@ -36,24 +35,31 @@ Ort::SessionOptions neural_network::get_onnx_session_opts_core_ml() {
     provider_options["MLComputeUnits"] = "ALL";
     opts.SetIntraOpNumThreads(8);
     opts.SetLogSeverityLevel(ORT_LOGGING_LEVEL_FATAL);
-    
+
     // 添加 CoreML 执行提供程序
     opts.AppendExecutionProvider("CoreML", provider_options);
     return opts;
 }
 
+Ort::SessionOptions neural_network::get_onnx_session_opts_cuda() {
+    Ort::SessionOptions opts;
+    OrtCUDAProviderOptions cuda_options;
+    cuda_options.device_id = 0;
+    opts.AppendExecutionProvider_CUDA(cuda_options);
+    return opts;
+}
+
 Ort::SessionOptions neural_network::get_onnx_session_opts_tensorrt() {
     Ort::SessionOptions opts;
-    // OrtCUDAProviderOptionsV2 tensorrt_options;
-    // tensorrt_options.device_id = 0;                      // 指定 GPU 设备编号
-    // tensorrt_options.trt_max_workspace_size = 1 << 30;     // 设置最大工作内存（例如：1GB）
-    // tensorrt_options.trt_fp16_enable = 0;                // 是否启用 FP16 模式, 0：禁用；1：启用
-    // tensorrt_options.trt_int8_enable = 0;                // 是否启用 INT8 模式
-    // tensorrt_options.trt_engine_cache_enable = 0;        // 是否启用引擎缓存
-    // tensorrt_options.trt_context_memory_sharing_enable = 0;// 是否启用上下文内存共享
-    // opts.AppendExecutionProvider_TensorRT_V2(opts, tensorrt_options);
-
-    // opts.AppendExecutionProvider_CUDA_V2()
-    
+    OrtTensorRTProviderOptions tensorrt_options;
+    tensorrt_options.device_id = 0;
+    tensorrt_options.trt_engine_cache_enable = 1;
+    tensorrt_options.trt_engine_cache_path = "models/tensorrt_cache";
+    tensorrt_options.trt_fp16_enable = 1;
+    tensorrt_options.trt_int8_enable = 0;
+    tensorrt_options.trt_int8_calibration_table_name = "";
+    tensorrt_options.trt_max_workspace_size = 1 << 30; // 1GB
+    tensorrt_options.trt_min_subgraph_size = 3; // 最小子图大小
+    opts.AppendExecutionProvider_TensorRT(tensorrt_options);
     return opts;
 }

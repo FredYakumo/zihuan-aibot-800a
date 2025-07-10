@@ -1,14 +1,8 @@
 #include "neural_network/text_model.h"
+#include "neural_network/model_set.h"
+#include "neural_network/nn.h"
 
 namespace neural_network {
-    const auto tokenizer = neural_network::load_tokenizers("tokenizer/tokenizer.json");
-    const auto tokenizer_wrapper = neural_network::TokenizerWrapper(tokenizer, neural_network::TokenizerConfig());
-    auto text_embedding_model =
-        neural_network::TextEmbeddingWithMeanPoolingModel("model/embedding_with_mean_pooling.onnx", Device::CoreML);
-
-    inline const neural_network::TokenizerWrapper &get_tokenizer() { return tokenizer_wrapper; }
-
-    inline neural_network::TextEmbeddingWithMeanPoolingModel &get_text_embedding_model() { return text_embedding_model; }
 
     TextEmbeddingModel::TextEmbeddingModel(const std::string &model_path, Device device)
         : m_session(get_onnx_runtime(), model_path.c_str(), get_session_options(device)) {
@@ -36,13 +30,13 @@ namespace neural_network {
      * @return A matrix representing the embeddings for each token.
      */
     emb_mat_t TextEmbeddingModel::embed(const std::string &text) {
-        auto token_ids = get_tokenizer().encode(text);
+        auto token_ids = get_model_set().tokenizer_wrapper.encode(text);
         attention_mask_list_t attention_mask(token_ids.size(), 1);
         return embed(token_ids, attention_mask);
     }
 
     std::vector<emb_mat_t> TextEmbeddingModel::embed(const std::vector<std::string> &texts) {
-        std::vector<token_id_list_t> token_ids = get_tokenizer().encode_batch(texts);
+        std::vector<token_id_list_t> token_ids = get_model_set().tokenizer_wrapper.encode_batch(texts);
         std::vector<attention_mask_list_t> attention_mask_list;
         attention_mask_list.reserve(token_ids.size());
         for (const auto &ids : token_ids) {
@@ -55,12 +49,17 @@ namespace neural_network {
     emb_mat_t TextEmbeddingModel::embed(const token_id_list_t &token_ids, const attention_mask_list_t &attention_mask) {
         assert(token_ids.size() == attention_mask.size());
 
-        const size_t seq_len = token_ids.size();
+        // Truncate input to maximum length of 512
+        const size_t max_len = 512;
+        auto token_end = token_ids.size() > max_len ? token_ids.begin() + max_len : token_ids.end();
+        auto mask_end = attention_mask.size() > max_len ? attention_mask.begin() + max_len : attention_mask.end();
+
+        const size_t seq_len = std::distance(token_ids.begin(), token_end);
         const std::vector<int64_t> input_shape = {1, static_cast<int64_t>(seq_len)};
 
         std::vector<Ort::Value> input_tensors;
-        std::vector<int64_t> input_ids(token_ids.cbegin(), token_ids.cend());
-        std::vector<int64_t> masks(attention_mask.cbegin(), attention_mask.cend());
+        std::vector<int64_t> input_ids(token_ids.begin(), token_end);
+        std::vector<int64_t> masks(attention_mask.begin(), mask_end);
 
         // Create input_ids, attention_mask tensor
         input_tensors.emplace_back(Ort::Value::CreateTensor<int64_t>(m_memory_info, input_ids.data(), input_ids.size(),
@@ -109,16 +108,18 @@ namespace neural_network {
 
         for (size_t i = 0; i < batch_size; ++i) {
             const auto &current_ids = token_ids[i];
-            for (auto id : current_ids) {
-                input_ids_flat.push_back(id);
+            const size_t trunc_len = std::min(current_ids.size(), static_cast<size_t>(512));
+            for (size_t j = 0; j < trunc_len; ++j) {
+                input_ids_flat.push_back(current_ids[j]);
             }
-            input_ids_flat.insert(input_ids_flat.end(), max_seq_len - current_ids.size(), 0LL);
+            input_ids_flat.insert(input_ids_flat.end(), 512 - trunc_len, 0LL);
 
             const auto &current_mask = attention_mask[i];
-            for (auto mask : current_mask) {
-                masks_flat.push_back(mask);
+            const size_t mask_trunc_len = std::min(current_mask.size(), static_cast<size_t>(512));
+            for (size_t j = 0; j < mask_trunc_len; ++j) {
+                masks_flat.push_back(current_mask[j]);
             }
-            masks_flat.insert(masks_flat.end(), max_seq_len - current_mask.size(), 0LL);
+            masks_flat.insert(masks_flat.end(), 512 - mask_trunc_len, 0LL);
         }
 
         const std::vector<int64_t> input_shape = {static_cast<int64_t>(batch_size), static_cast<int64_t>(max_seq_len)};
@@ -179,13 +180,13 @@ namespace neural_network {
      * @return A matrix representing the embeddings for each token.
      */
     emb_vec_t TextEmbeddingWithMeanPoolingModel::embed(const std::string &text) {
-        auto token_ids = get_tokenizer().encode(text);
+        auto token_ids = get_model_set().tokenizer_wrapper.encode(text);
         attention_mask_list_t attention_mask(token_ids.size(), 1);
         return embed(token_ids, attention_mask);
     }
 
     emb_mat_t TextEmbeddingWithMeanPoolingModel::embed(const std::vector<std::string> &texts) {
-        std::vector<token_id_list_t> token_ids = get_tokenizer().encode_batch(texts);
+        std::vector<token_id_list_t> token_ids = get_model_set().tokenizer_wrapper.encode_batch(texts);
         std::vector<attention_mask_list_t> attention_mask_list;
         attention_mask_list.reserve(token_ids.size());
         for (const auto &ids : token_ids) {
@@ -204,6 +205,7 @@ namespace neural_network {
 
         std::vector<Ort::Value> input_tensors;
         std::vector<int64_t> input_ids(token_ids.cbegin(), token_ids.cend());
+        
         std::vector<int64_t> masks(attention_mask.cbegin(), attention_mask.cend());
 
         // Create input_ids, attention_mask tensor
@@ -226,7 +228,7 @@ namespace neural_network {
     }
 
     emb_mat_t TextEmbeddingWithMeanPoolingModel::embed(const std::vector<token_id_list_t> &token_ids,
-                                                     const std::vector<attention_mask_list_t> &attention_mask) {
+                                                       const std::vector<attention_mask_list_t> &attention_mask) {
         assert(token_ids.size() == attention_mask.size());
         const auto batch_size = token_ids.size();
         if (batch_size == 0) {

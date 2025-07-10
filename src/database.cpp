@@ -1,8 +1,8 @@
 #include "database.h"
 #include "config.h"
+#include <general-wheel-cpp/string_utils.hpp>
 #include <memory>
 #include <stdexcept>
-#include <general-wheel-cpp/string_utils.hpp>
 
 using namespace database;
 
@@ -29,7 +29,7 @@ void DBConnection::insert_message(const std::string &content, const bot_adapter:
     try {
         const auto at_target_value = (at_target_set && !at_target_set->empty())
                                          ? wheel::join_str(std::cbegin(*at_target_set), std::cend(*at_target_set), ",",
-                                                    [](const auto i) { return std::to_string(i); })
+                                                           [](const auto i) { return std::to_string(i); })
                                          : mysqlx::nullvalue;
         if (const auto &group_sender = bot_adapter::try_group_sender(sender)) {
             const auto &g = group_sender->get();
@@ -55,17 +55,18 @@ void DBConnection::insert_tool_calls_record(const std::string &sender_name, qq_i
                                             const std::string &origin_chat_session_view,
                                             const std::chrono::system_clock::time_point &send_time,
                                             const std::string &tool_calls, const std::string &tool_calls_content) {
-                                                try {
-                                                    get_tool_calls_record_table()
-                                                        .insert("sender_name", "sender_id", "origin_chat_session_view", "send_time", "tool_calls", "tool_calls_content")
-                                                        .values(sender_name, sender_id, origin_chat_session_view, time_point_to_db_str(send_time), 
-                                                                tool_calls, tool_calls_content)
-                                                        .execute();
-                                                    spdlog::info("Insert tool calls record successed.");
-                                                } catch (const mysqlx::Error &e) {
-                                                    spdlog::error("Insert tool calls record error at MySQL X DevAPI Error: {}", e.what());
-                                                }
-                                            }
+    try {
+        get_tool_calls_record_table()
+            .insert("sender_name", "sender_id", "origin_chat_session_view", "send_time", "tool_calls",
+                    "tool_calls_content")
+            .values(sender_name, sender_id, origin_chat_session_view, time_point_to_db_str(send_time), tool_calls,
+                    tool_calls_content)
+            .execute();
+        spdlog::info("Insert tool calls record successed.");
+    } catch (const mysqlx::Error &e) {
+        spdlog::error("Insert tool calls record error at MySQL X DevAPI Error: {}", e.what());
+    }
+}
 
 std::vector<GroupMessageRecord> DBConnection::query_group_user_message(uint64_t sender_id, uint64_t group_id,
                                                                        size_t count_limit) {
@@ -93,20 +94,24 @@ void DBConnection::insert_or_update_user_preferences(
     try {
         auto table = get_user_preference_table();
 
-        std::vector<qq_id_t> user_ids;
+        std::vector<std::string> user_ids;
         user_ids.reserve(user_preferences.size());
         for (const auto &pref_pair : user_preferences) {
-            user_ids.push_back(pref_pair.first);
+            user_ids.push_back(std::to_string(pref_pair.first));
         }
 
-        std::string user_ids_list_str =
-            wheel::join_str(user_ids.cbegin(), user_ids.cend(), ",", [](const qq_id_t id) { return std::to_string(id); });
+        std::string user_ids_list_str = wheel::join_str(user_ids.cbegin(), user_ids.cend(), ",",
+                                                        [](const std::string &id) { return "'" + id + "'"; });
         auto delete_result = table.remove().where("user_id IN (" + user_ids_list_str + ")").execute();
         auto deleted_count = delete_result.getAffectedItemsCount();
 
-        auto insert = table.insert("user_id", "render_markdown_output", "text_output");
+        auto insert = table.insert("user_id", "render_markdown_output", "text_output", "auto_new_chat_session");
         for (const auto &pref_pair : user_preferences) {
-            insert.values(pref_pair.first, pref_pair.second.render_markdown_output, pref_pair.second.text_output);
+            insert.values(std::to_string(pref_pair.first), pref_pair.second.render_markdown_output,
+                          pref_pair.second.text_output,
+                          pref_pair.second.auto_new_chat_session_sec.has_value()
+                              ? std::to_string(pref_pair.second.auto_new_chat_session_sec.value())
+                              : mysqlx::nullvalue);
         }
         auto insert_result = insert.execute();
         auto inserted_count = insert_result.getAffectedItemsCount();
@@ -121,7 +126,10 @@ void DBConnection::insert_or_update_user_preferences(
 void DBConnection::insert_user_protait(qq_id_t id, const std::string &protait,
                                        const std::chrono::system_clock::time_point &create_time) {
     try {
-        get_user_protait_table().insert("user_id", "protait", "create_time").values(id, protait, time_point_to_db_str(create_time)).execute();
+        get_user_protait_table()
+            .insert("user_id", "protait", "create_time")
+            .values(id, protait, time_point_to_db_str(create_time))
+            .execute();
         spdlog::info("Insert user protait successed.");
     } catch (const mysqlx::Error &e) {
         spdlog::error("Insert user protait error at MySQL X DevAPI Error: {}", e.what());

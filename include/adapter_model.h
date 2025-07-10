@@ -4,15 +4,19 @@
 #include "constant_types.hpp"
 #include "constants.hpp"
 #include "get_optional.hpp"
+#include "neural_network/model_set.h"
+#include "neural_network/nn.h"
 #include "neural_network/text_model.h"
 #include <chrono>
 #include <collection/concurrent_vector.hpp>
 #include <cstdint>
 #include <fmt/format.h>
+#include <general-wheel-cpp/collection/concurrent_hashset.hpp>
 #include <general-wheel-cpp/collection/concurrent_unordered_map.hpp>
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <optional>
+#include <spdlog/spdlog.h>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -390,15 +394,112 @@ namespace bot_adapter {
         GroupInfo group_info;
         std::unique_ptr<wheel::concurrent_unordered_map<qq_id_t, GroupMemberInfo>> member_info_list;
 
-        // Save group member name embedding vector and group id
-        std::unique_ptr<wheel::concurrent_vector<std::pair<neural_network::emb_vec_t, qq_id_t>>>
-            member_name_emb_vec_list;
-
         GroupWrapper(GroupInfo group_info) : group_info(std::move(group_info)) {
             member_info_list = std::make_unique<wheel::concurrent_unordered_map<qq_id_t, GroupMemberInfo>>();
-            member_name_emb_vec_list =
-                std::make_unique<wheel::concurrent_vector<std::pair<neural_network::emb_vec_t, qq_id_t>>>();
         }
+    };
+
+    class GroupMemberNameEmbeddngMatrix {
+    public:
+        GroupMemberNameEmbeddngMatrix() = default;
+        GroupMemberNameEmbeddngMatrix(const GroupMemberNameEmbeddngMatrix&) = default;
+        GroupMemberNameEmbeddngMatrix& operator=(const GroupMemberNameEmbeddngMatrix&) = default;
+        GroupMemberNameEmbeddngMatrix(GroupMemberNameEmbeddngMatrix&&) noexcept = default;
+        GroupMemberNameEmbeddngMatrix& operator=(GroupMemberNameEmbeddngMatrix&&) noexcept = default;
+
+        /**
+         * @brief Adds a member to the embedding matrix.
+         *
+         * This function checks if the member ID already exists in the set.
+         * If not, it computes the text embedding for the member's name and
+         * adds both the ID and embedding to their respective containers.
+         *
+         * @param member_id The unique identifier of the member.
+         * @param member_name The name of the member to be embedded.
+         */
+        inline void add_member(const qq_id_t member_id, const std::string &member_name) {
+            if (contain_member_ids.contains(member_id)) {
+                return; // Already exists
+            }
+
+            spdlog::info("[GroupMemberNameEmbeddngMatrix] Computing embedding for member name: '{}'", member_name);
+            auto start_time = std::chrono::high_resolution_clock::now();
+
+            auto embedding = neural_network::get_model_set().text_embedding_model.embed(member_name);
+
+            auto end_time = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+            spdlog::info("[GroupMemberNameEmbeddngMatrix] Embedding computation took {} ms", duration.count());
+
+            contain_member_ids.insert(member_id);
+            member_ids.push_back(member_id);
+            member_name_embedding_matrix.push_back(embedding);
+        }
+
+        /**
+         * @brief Retrieves similar member names based on a query string.
+         *
+         * This function uses a text embedding model to find members whose names
+         * are similar to the provided query string, based on cosine similarity.
+         *
+         * @param query The query string to search for similar member names.
+         * @param certainty The minimum cosine similarity score to consider a match (default is 0.7).
+         * @return A vector of qq_id_t representing the IDs of similar members.
+         */
+        inline std::vector<qq_id_t> get_similar_member_names(const std::string &query, float certainty = 0.7f) const {
+            spdlog::info("[GroupMemberNameEmbeddngMatrix] Computing similarity for query: {}", query);
+            auto start_time = std::chrono::high_resolution_clock::now();
+
+            const neural_network::emb_vec_t query_embedding = neural_network::get_model_set().text_embedding_model.embed(query);
+            auto cosine_similarity = neural_network::get_model_set().cosine_similarity_model.inference(
+                query_embedding, member_name_embedding_matrix);
+
+            auto end_time = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+            spdlog::info("[GroupMemberNameEmbeddngMatrix] Similarity computation took {} ms", duration.count());
+
+            // 创建带索引的相似度向量，用于排序
+            std::vector<std::pair<float, size_t>> similarity_with_index;
+            for (size_t i = 0; i < cosine_similarity.size(); ++i) {
+                similarity_with_index.push_back({cosine_similarity[i], i});
+            }
+
+            // 按相似度降序排序
+            std::sort(similarity_with_index.begin(), similarity_with_index.end(),
+                      [](const auto &a, const auto &b) { return a.first > b.first; });
+
+            // 输出前5个最相似的结果
+            size_t top_k = std::min(size_t(5), cosine_similarity.size());
+            for (size_t i = 0; i < top_k; ++i) {
+                auto sim = similarity_with_index[i].first;
+                auto idx = similarity_with_index[i].second;
+                if (auto member_id = member_ids[idx]; member_id.has_value()) {
+                    spdlog::info("[GroupMemberNameEmbeddngMatrix] Top {} similar member: id={}, similarity={:.4f}",
+                                 i + 1, member_id->get().value(), sim);
+                }
+            }
+
+            // 收集超过阈值的结果
+            std::vector<qq_id_t> ret;
+            for (const auto &[sim, idx] : similarity_with_index) {
+                if (sim >= certainty) {
+                    if (auto member_id = member_ids[idx]; member_id.has_value()) {
+                        ret.push_back(member_id->get().value());
+                    }
+                } else {
+                    break;
+                }
+            }
+
+            spdlog::info("[GroupMemberNameEmbeddngMatrix] Found {} members with similarity >= {}", ret.size(),
+                         certainty);
+            return ret;
+        }
+
+    private:
+        wheel::concurrent_hashset<qq_id_t> contain_member_ids;
+        neural_network::emb_mat_t member_name_embedding_matrix;
+        wheel::concurrent_vector<std::optional<qq_id_t>> member_ids;
     };
 } // namespace bot_adapter
 

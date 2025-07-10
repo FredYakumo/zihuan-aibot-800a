@@ -129,6 +129,6 @@ inline bool is_positive_value(const std::string_view s) { return s == "true" || 
 
 inline bool is_negative_value(const std::string_view s) { return s == "false" || s == "0" || s == "no" || s == "n" || s == "否"; }
 
-constexpr const char *AVAILABLE_VALUE_STRINGS[] = {"true", "1", "yes", "y", "是", "否"};
+constexpr std::string_view AVAILABLE_VALUE_STRINGS[] = {"true", "1", "yes", "y", "是", "否"};
 
 #endif

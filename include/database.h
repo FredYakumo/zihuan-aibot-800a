@@ -13,6 +13,7 @@
 #include <spdlog/spdlog.h>
 #include <string>
 #include <vector>
+#include "user_protait.h"
 
 namespace database {
     using mysqlx::SessionOption;
@@ -41,11 +42,6 @@ namespace database {
         std::chrono::system_clock::time_point send_time;
         std::string tool_calls;
         std::string tool_calls_content;
-    };
-
-    struct UserProtait {
-        std::string protait;
-        std::chrono::system_clock::time_point create_time;
     };
 
     struct UserPreference {
@@ -95,6 +91,7 @@ namespace database {
             session
                 .sql(fmt::format("CREATE TABLE IF NOT EXISTS {} ("
                                  " user_id int NOT NULL,"
+                                 " favorability double NOT NULL,"
                                  " protait TEXT NOT NULL,"
                                  " create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"
                                  ")",
@@ -105,7 +102,7 @@ namespace database {
         void create_user_preference_table(const std::string &table_name = DEFAULT_USER_PREFERENCE_TABLE_NAME) {
             session
                 .sql(fmt::format("CREATE TABLE IF NOT EXISTS {} ("
-                                 " user_id int NOT NULL PRIMARY KEY,"
+                                 " user_id varchar(255) NOT NULL PRIMARY KEY,"
                                  " render_markdown_output tinyint(4) NOT NULL DEFAULT 1,"
                                  " text_output tinyint(4) NOT NULL DEFAULT 0,"
                                  " auto_new_chat_session int default null"
@@ -133,14 +130,25 @@ namespace database {
 
         std::optional<UserPreference> get_user_preference(qq_id_t id) {
             auto &table = get_user_preference_table();
-            auto result = table.select("render_markdown_output", "text_output")
+            auto result = table.select("render_markdown_output", "text_output", "auto_new_chat_session")
                               .where("user_id = :user_id")
-                              .bind("user_id", id)
+                              .bind("user_id", std::to_string(id))
                               .execute();
 
             if (auto row = result.fetchOne()) {
                 // The C++ connector returns tinyint as integer.
-                return UserPreference{static_cast<bool>(row[0].get<int>()), static_cast<bool>(row[1].get<int>())};
+                UserPreference pref{
+                    static_cast<bool>(row[0].get<int>()),
+                    static_cast<bool>(row[1].get<int>()),
+                    std::nullopt  // 默认为 nullopt
+                };
+                
+                // 如果 auto_new_chat_session 不为 NULL，则设置具体值
+                if (!row[2].isNull()) {
+                    pref.auto_new_chat_session_sec = row[2].get<int64_t>();
+                }
+                
+                return pref;
             }
             return std::nullopt;
         }
@@ -151,7 +159,7 @@ namespace database {
                 table.select("protait", "create_time").where("user_id = :user_id").bind("user_id", id).execute();
 
             if (auto row = result.fetchOne()) {
-                return UserProtait{row[0].get<std::string>(), row[1].get<std::chrono::system_clock::time_point>()};
+                return UserProtait{row[0].get<std::string>(), 0.0, row[1].get<std::chrono::system_clock::time_point>()};
             }
             return std::nullopt;
         }

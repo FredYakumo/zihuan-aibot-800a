@@ -4,10 +4,7 @@
 #include <vector>
 
 namespace neural_network {
-    using token_id_list_t = std::vector<int32_t>;
-    using attention_mask_list_t = std::vector<int32_t>;
-    using emb_vec_t = std::vector<float>;
-    using emb_mat_t = std::vector<emb_vec_t>;
+
 
     class TextEmbeddingModel {
       public:
@@ -208,9 +205,4 @@ namespace neural_network {
         std::shared_ptr<tokenizers::Tokenizer> m_tokenizer;
         TokenizerConfig m_config;
     };
-
-    void init_text_embedding_model();
-    const neural_network::TokenizerWrapper &get_tokenizer();
-    neural_network::TextEmbeddingWithMeanPoolingModel &get_text_embedding_model();
-
 } // namespace neural_network

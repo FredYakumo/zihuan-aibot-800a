@@ -11,6 +11,7 @@
 #include "time_utils.h"
 #include "utils.h"
 #include <chrono>
+#include <collection/concurrent_hashset.hpp>
 #include <cpr/cpr.h>
 #include <fmt/format.h>
 #include <functional>
@@ -69,7 +70,7 @@ ParseRunCmdRes parse_and_run_chat_command(bot_adapter::BotAdapter &adapter,
                 if (is_strict_format(*msg_prop.plain_content, cmd.first)) {
                     param = "";
                 }
-                run_cmd_list.push_back(std::make_pair(cmd.second.runer, std::string(param)));
+                run_cmd_list.push_back(std::make_pair(cmd.second.runer, p));
 
             } else if (msg_prop.plain_content->find(cmd.first) != std::string::npos) {
                 adapter.send_replay_msg(*event->sender_ptr,
@@ -150,6 +151,11 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
 
     store_msg(msg_prop, event, event->send_time);
 
+    // Calculate user name embedding for speak group member
+    adapter.group_member_name_embedding_map
+        .get_or_emplace_value(event->get_group_sender().group.id, bot_adapter::GroupMemberNameEmbeddngMatrix{})
+        ->add_member(event->sender_ptr->id, event->sender_ptr->name);
+    
     if (is_banned_id(sender_id)) {
         return;
     }
@@ -169,11 +175,12 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
     }
     spdlog::info("用户'{}'的偏好设置: {}", event->sender_ptr->id, user_preference.value().to_string());
 
-
-    if (user_preference->auto_new_chat_session_sec.has_value() && user_preference->auto_new_chat_session_sec.value() > 0) {
-        auto last_msg_list = g_group_message_storage.get_individual_last_msg_list(event->get_group_sender().group.id, 1);
+    if (user_preference->auto_new_chat_session_sec.has_value() &&
+        user_preference->auto_new_chat_session_sec.value() > 0) {
+        auto last_msg_list =
+            g_group_message_storage.get_individual_last_msg_list(event->get_group_sender().group.id, 1);
         if (last_msg_list.size() > 0) {
-            auto last_msg_time = last_msg_list[0].get().send_time;
+            auto last_msg_time = last_msg_list[0].send_time;
             auto event_time = event->send_time;
             if (event_time - last_msg_time > std::chrono::seconds(user_preference->auto_new_chat_session_sec.value())) {
                 spdlog::info("用户对话超过{}秒，创建新的对话", user_preference->auto_new_chat_session_sec.value());

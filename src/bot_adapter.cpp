@@ -401,7 +401,8 @@ namespace bot_adapter {
     }
 
     void BotAdapter::send_long_plain_text_reply(const Sender &sender, std::string text, bool at_target,
-                                                uint64_t msg_length_limit) {
+                                                uint64_t msg_length_limit,
+                                                std::optional<std::function<void(uint64_t &)>> out_message_id_option) {
         const auto sync_id_base = generate_send_replay_sync_id(sender);
 
         // Parse llm reply content
@@ -409,22 +410,22 @@ namespace bot_adapter {
         if (markdown_node.size() == 1 && !markdown_node[0].render_html_text.has_value() &&
             markdown_node[0].text.length() < msg_length_limit) {
             spdlog::info("Markdown text is short and no render HTML.");
-            send_replay_msg(sender, make_message_chain_list(PlainTextMessage(text)), true);
+            send_replay_msg(sender, make_message_chain_list(PlainTextMessage(text)), true, out_message_id_option);
             return;
         }
 
         std::function<void(const std::string_view sync_id, const MessageChainPtrList &msg_chain)> send_func;
         if (const auto group_sender = try_group_sender(sender)) {
-            send_func = [this, group_sender](const std::string_view sync_id, const MessageChainPtrList &msg_chain) {
-                send_group_message(group_sender->get().group, msg_chain, sync_id);
+            send_func = [this, group_sender, out_message_id_option](const std::string_view sync_id, const MessageChainPtrList &msg_chain) {
+                send_group_message(group_sender->get().group, msg_chain, sync_id, out_message_id_option);
             };
             if (at_target) {
                 spdlog::info("输出长文信息: @target");
                 send_func(fmt::format("{}_at", sync_id_base), make_message_chain_list(AtTargetMessage(sender.id)));
             }
         } else {
-            send_func = [this, sender](const std::string_view sync_id, const MessageChainPtrList &msg_chain) {
-                send_message(sender, msg_chain, sync_id);
+            send_func = [this, sender, out_message_id_option](const std::string_view sync_id, const MessageChainPtrList &msg_chain) {
+                send_message(sender, msg_chain, sync_id, out_message_id_option);
             };
         }
 
@@ -589,25 +590,6 @@ namespace bot_adapter {
             for (const auto &member : group_wrapper.member_info_list->iter()) {
                 member_name_list.push_back(member.second.member_name);
             }
-            neural_network::emb_mat_t member_name_embedding;
-            
-            if (member_name_list.size() > 0) {
-                spdlog::info("Calculate group '{}' member name embedding, size: {}", group_info.name,
-                             member_name_list.size());
-                auto start_time = std::chrono::high_resolution_clock::now();
-                member_name_embedding = neural_network::get_text_embedding_model().embed(member_name_list);
-                auto end_time = std::chrono::high_resolution_clock::now();
-                auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-                spdlog::info("Calculate group '{}' member name embedding, size: {}, cost: {}ms", group_info.name,
-                             member_name_list.size(), duration.count());
-            }
-            size_t i = 0;
-            group_wrapper.member_name_emb_vec_list->clear();
-            for (const auto &member : group_wrapper.member_info_list->iter()) {
-                group_wrapper.member_name_emb_vec_list->push_back(
-                    std::make_pair(member_name_embedding[i], member.second.id));
-                ++i;
-            }
 
             group_wrapper_map.insert(std::make_pair(group_info.group_id, std::move(group_wrapper)));
         }
@@ -663,15 +645,6 @@ namespace bot_adapter {
             ret.push_back(std::move(member_info));
         }
         return std::move(ret);
-    }
-
-    std::optional<GroupMemberInfo> BotAdapter::get_similar_group_member_info(qq_id_t group_id, std::string_view member_name) {
-        if (const auto &group_wrapper = group_info_map.find(group_id); group_wrapper.has_value()) {
-            const auto &member_name_emb = neural_network::get_text_embedding_model().embed(std::string(member_name));
-            const auto &member_name_emb_vec_list = group_wrapper->second.member_name_emb_vec_list;
-            
-        }
-        return std::nullopt;
     }
 
     // void BotAdapter::send_message_async(const Sender &sender, const MessageChainPtrList &message_chain,

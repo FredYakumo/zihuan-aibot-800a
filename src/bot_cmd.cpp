@@ -12,6 +12,7 @@
 #include <chrono>
 #include <general-wheel-cpp/string_utils.hpp>
 #include <optional>
+#include <sys/stat.h>
 #include <utility>
 
 namespace bot_cmd {
@@ -275,6 +276,7 @@ namespace bot_cmd {
     }
 
     bot_cmd::CommandRes set_user_preference_command(bot_cmd::CommandContext context) {
+        std::string param = std::string(context.param);
         auto user_preference = database::get_global_db_connection().get_user_preference(context.event->sender_ptr->id);
         if (!user_preference.has_value()) {
             spdlog::warn("用户'{}'没有偏好设置，创建默认偏好设置", context.event->sender_ptr->id);
@@ -289,23 +291,19 @@ namespace bot_cmd {
             return bot_cmd::CommandRes{true, true};
         }
 
-        auto param = context.param;
         auto param_list = SplitString(param, ';');
         for (const auto &p : param_list) {
-            auto [key, value] = SplitString(p, '=');
+            if (ltrim(rtrim(p)).empty()) {
+                continue; // Skip empty parameters
+            }
+            auto [k, v] = SplitString(p, '=');
+            auto key = ltrim(rtrim(k));
+            auto value = ltrim(rtrim(v));
             if (key == "输出渲染") {
                 if (is_positive_value(value)) {
                     user_preference->render_markdown_output = true;
-                    context.adapter.send_replay_msg(*context.event->sender_ptr,
-                                                    bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
-                                                        fmt::format("'{}' 设置成功", key))));
-                    return bot_cmd::CommandRes{true, true};
                 } else if (is_negative_value(value)) {
                     user_preference->render_markdown_output = false;
-                    context.adapter.send_replay_msg(*context.event->sender_ptr,
-                                                    bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
-                                                        fmt::format("'{}' 设置成功", key))));
-                    return bot_cmd::CommandRes{true, true};
                 } else {
                     context.adapter.send_replay_msg(
                         *context.event->sender_ptr,
@@ -318,16 +316,8 @@ namespace bot_cmd {
             } else if (key == "输出文本") {
                 if (is_positive_value(value)) {
                     user_preference->text_output = true;
-                    context.adapter.send_replay_msg(*context.event->sender_ptr,
-                                                    bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
-                                                        fmt::format("'{}' 设置成功", key))));
-                    return bot_cmd::CommandRes{true, true};
                 } else if (is_negative_value(value)) {
                     user_preference->text_output = false;
-                    context.adapter.send_replay_msg(*context.event->sender_ptr,
-                                                    bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
-                                                        fmt::format("'{}' 设置成功", key))));
-                    return bot_cmd::CommandRes{true, true};
                 } else {
                     context.adapter.send_replay_msg(
                         *context.event->sender_ptr,
@@ -340,20 +330,11 @@ namespace bot_cmd {
             } else if (key == "自动新对话") {
                 if (is_negative_value(value)) {
                     user_preference->auto_new_chat_session_sec = std::nullopt;
-                    context.adapter.send_replay_msg(*context.event->sender_ptr,
-                                                    bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
-                                                        fmt::format("'{}' 设置成功", key))));
-                    return bot_cmd::CommandRes{true, true};
                 } else {
                     int seconds;
                     auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), seconds);
                     if (ec == std::errc() && ptr == value.data() + value.size()) {
                         user_preference->auto_new_chat_session_sec = seconds;
-                        context.adapter.send_replay_msg(
-                            *context.event->sender_ptr,
-                            bot_adapter::make_message_chain_list(
-                                bot_adapter::PlainTextMessage(fmt::format("'{}' 设置成功", key))));
-                        return bot_cmd::CommandRes{true, true};
                     } else {
                         context.adapter.send_replay_msg(
                             *context.event->sender_ptr,
@@ -370,6 +351,13 @@ namespace bot_cmd {
                                                     fmt::format("设置的key '{}' 不存在", key))));
                 return bot_cmd::CommandRes{true, true};
             }
+            database::get_global_db_connection().insert_or_update_user_preferences(
+                std::vector<std::pair<qq_id_t, database::UserPreference>>{
+                    std::make_pair(context.event->sender_ptr->id, *user_preference)});
+            context.adapter.send_replay_msg(
+                *context.event->sender_ptr,
+                bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(fmt::format("'{}' 设置成功", key))));
+            return bot_cmd::CommandRes{true, true};
         }
         context.adapter.send_replay_msg(*context.event->sender_ptr,
                                         bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(

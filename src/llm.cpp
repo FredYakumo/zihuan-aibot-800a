@@ -5,11 +5,14 @@
 #include "bot_cmd.h"
 #include "chat_session.hpp"
 #include "config.h"
+#include "constant_types.hpp"
 #include "constants.hpp"
 #include "database.h"
 #include "get_optional.hpp"
 #include "global_data.h"
+#include "neural_network/model_set.h"
 #include "rag.h"
+#include "user_protait.h"
 #include "utils.h"
 #include <_strings.h>
 #include <chrono>
@@ -204,7 +207,40 @@ void insert_tool_call_record_async(const std::string &sender_name, qq_id_t sende
     }).detach();
 }
 
-void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &msg_content_str,
+std::string get_target_group_chat_history(const bot_adapter::BotAdapter &adapter, const qq_id_t group_id,
+                                          qq_id_t target_id) {
+    std::string target_name = std::to_string(target_id); // Default name is ID
+    const auto &member_list = adapter.fetch_group_member_info(group_id)->get().member_info_list;
+    if (auto member_info = member_list->find(target_id); member_info.has_value()) {
+        target_name = member_info->get().member_name;
+    }
+
+    // Fetch recent messages from the group and filter by target user
+    const auto &group_msg_list = g_group_message_storage.get_individual_last_msg_list(group_id, 100);
+
+    std::vector<std::string> target_msgs;
+    target_msgs.reserve(100);
+    for (auto it = group_msg_list.crbegin(); it != group_msg_list.crend(); ++it) {
+        const auto &msg = *it;
+        if (msg.sender_id == target_id) {
+            target_msgs.insert(target_msgs.begin(),
+                               fmt::format("'{}': '{}'", msg.sender_name,
+                                           bot_adapter::get_text_from_message_chain(*msg.message_chain_list)));
+            if (target_msgs.size() >= 100) {
+                break;
+            }
+        }
+    }
+
+    if (target_msgs.empty()) {
+        return fmt::format("在'{}'群里没有找到 '{}' 的聊天记录", group_id, target_name);
+    } else {
+        return fmt::format("'{}'群内 '{}' 的最近消息:\n{}", group_id, target_name,
+                           join_str(target_msgs.cbegin(), target_msgs.cend(), "\n"));
+    }
+}
+
+void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &user_asking_content,
                    const std::optional<std::string> &additional_system_prompt_option) {
     spdlog::debug("Event type: {}, Sender json: {}", context.event->get_typename(),
                   context.event->sender_ptr->to_json().dump());
@@ -227,7 +263,7 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
     auto system_prompt =
         gen_common_prompt(bot_profile, context.adapter, *context.event->sender_ptr, context.is_deep_think);
 
-    system_prompt += "\n" + query_chat_session_knowledge(context, msg_content_str);
+    system_prompt += "\n" + query_chat_session_knowledge(context, user_asking_content);
 
     if (additional_system_prompt_option.has_value()) {
         system_prompt += additional_system_prompt_option.value();
@@ -235,7 +271,7 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
 
     auto msg_json = get_msg_json(system_prompt, context.event->sender_ptr->id, context.event->sender_ptr->name);
 
-    auto user_chat_msg = ChatMessage(ROLE_USER, msg_content_str);
+    auto user_chat_msg = ChatMessage(ROLE_USER, user_asking_content);
     add_to_msg_json(msg_json, user_chat_msg);
 
     std::vector<ChatMessage> one_chat_session;
@@ -345,7 +381,9 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
                                             func_calls.id);
             } else if (func_calls.name == "view_chat_history") {
                 const auto arguments = nlohmann::json::parse(func_calls.arguments);
-                const std::optional<qq_id_t> target_id_opt = get_optional<qq_id_t>(arguments, "target");
+
+                // try with qq id
+                std::optional<qq_id_t> target_id_opt = get_optional<qq_id_t>(arguments, "targetId");
                 std::string content = "啥记录都没有";
 
                 if (const auto &group_sender = bot_adapter::try_group_sender(*context.event->sender_ptr);
@@ -353,59 +391,55 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
                     // Group Chat
                     if (target_id_opt.has_value()) {
                         // Target is specified in group chat
-                        spdlog::info("查询群 '{}' 内目标 '{}' 的聊天记录", group_sender->get().group.name,
+                        spdlog::info("查询群 '{}' 内目标 '{}'(qq号) 的聊天记录", group_sender->get().group.name,
                                      *target_id_opt);
 
-                        std::string target_name = std::to_string(*target_id_opt); // Default name is ID
-                        const auto &member_list = context.adapter.fetch_group_member_info(group_sender->get().group.id)
-                                                      ->get()
-                                                      .member_info_list;
-                        if (auto member_info = member_list->find(*target_id_opt); member_info.has_value()) {
-                            target_name = member_info->get().member_name;
-                        }
-
-                        // Fetch recent messages from the group and filter by target user
-                        const auto &group_msg_list =
-                            g_group_message_storage.get_individual_last_msg_list(group_sender->get().group.id, 100);
-
-                        std::vector<std::string> target_msgs;
-                        target_msgs.reserve(10);
-                        for (auto it = group_msg_list.crbegin(); it != group_msg_list.crend(); ++it) {
-                            const auto &msg = it->get();
-                            if (msg.sender_id == *target_id_opt) {
-                                target_msgs.insert(
-                                    target_msgs.begin(),
-                                    fmt::format("'{}': '{}'", msg.sender_name,
-                                                bot_adapter::get_text_from_message_chain(*msg.message_chain_list)));
-                                if (target_msgs.size() >= 10) {
-                                    break;
-                                }
-                            }
-                        }
-
-                        if (target_msgs.empty()) {
-                            content = fmt::format("在'{}'群里没有找到 '{}' 的聊天记录", group_sender->get().group.name,
-                                                  target_name);
-                        } else {
-                            content =
-                                fmt::format("'{}'群内 '{}' 的最近消息:\n{}", group_sender->get().group.name,
-                                            target_name, join_str(target_msgs.cbegin(), target_msgs.cend(), "\n"));
-                        }
+                        content = get_target_group_chat_history(context.adapter, group_sender->get().group.id,
+                                                                *target_id_opt);
 
                     } else {
-                        // No target, get group's history
-                        const auto &msg_list =
-                            g_group_message_storage.get_individual_last_msg_list(group_sender->get().group.id, 10);
-                        if (msg_list.empty()) {
-                            content = fmt::format("在'{}'群里还没有聊天记录哦", group_sender->get().group.name);
+                        // Try with member name
+                        auto target_name = get_optional<std::string>(arguments, "targetName");
+                        if (target_name.has_value() && !target_name->empty()) {
+                            spdlog::info("查询群 '{}' 内目标 '{}' 的聊天记录", group_sender->get().group.name,
+                                         *target_name);
+                            // query member name
+                            std::vector<qq_id_t> target_id_list =
+                                context.adapter.group_member_name_embedding_map.find(group_sender->get().group.id)
+                                    ->get()
+                                    .get_similar_member_names(*target_name, 0.5f);
+                            if (target_id_list.empty()) {
+                                content = fmt::format("在'{}'群里没有找到名为'{}'的群友",
+                                                      group_sender->get().group.name, *target_name);
+
+                            } else {
+                                content = "";
+                                for (const auto &target_id : target_id_list) {
+                                    if (!content.empty()) {
+                                        content += "\n";
+                                    }
+                                    spdlog::info("查询群 '{}' 内目标 '{}' 的聊天记录", group_sender->get().group.name,
+                                                 target_id);
+                                    content += get_target_group_chat_history(context.adapter,
+                                                                             group_sender->get().group.id, target_id);
+                                }
+                            }
                         } else {
-                            content =
-                                fmt::format("'{}'群的最近消息:\n{}", group_sender->get().group.name,
-                                            join_str(msg_list.cbegin(), msg_list.cend(), "\n", [](const auto &msg) {
-                                                return fmt::format("'{}': '{}'", msg.get().sender_name,
-                                                                   bot_adapter::get_text_from_message_chain(
-                                                                       *msg.get().message_chain_list));
-                                            }));
+
+                            // No target, get group's history
+                            const auto &msg_list =
+                                g_group_message_storage.get_individual_last_msg_list(group_sender->get().group.id, 10);
+                            if (msg_list.empty()) {
+                                content = fmt::format("在'{}'群里还没有聊天记录哦", group_sender->get().group.name);
+                            } else {
+                                content =
+                                    fmt::format("'{}'群的最近消息:\n{}", group_sender->get().group.name,
+                                                join_str(msg_list.cbegin(), msg_list.cend(), "\n", [](const auto &msg) {
+                                                    return fmt::format("'{}': '{}'", msg.sender_name,
+                                                                       bot_adapter::get_text_from_message_chain(
+                                                                           *msg.message_chain_list));
+                                                }));
+                            }
                         }
                     }
                 } else {
@@ -415,12 +449,12 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
                     if (msg_list.empty()) {
                         content = "我们之间还没有聊天记录哦";
                     } else {
-                        content = fmt::format("与'{}'的最近聊天记录:\n{}", context.event->sender_ptr->name,
-                                              join_str(msg_list.cbegin(), msg_list.cend(), "\n", [](const auto &msg) {
-                                                  return fmt::format("'{}': '{}'", msg.get().sender_name,
-                                                                     bot_adapter::get_text_from_message_chain(
-                                                                         *msg.get().message_chain_list));
-                                              }));
+                        content = fmt::format(
+                            "与'{}'的最近聊天记录:\n{}", context.event->sender_ptr->name,
+                            join_str(msg_list.cbegin(), msg_list.cend(), "\n", [](const auto &msg) {
+                                return fmt::format("'{}': '{}'", msg.sender_name,
+                                                   bot_adapter::get_text_from_message_chain(*msg.message_chain_list));
+                            }));
                     }
                 }
                 tool_call_msg = ChatMessage(ROLE_TOOL, content, func_calls.id);
@@ -607,7 +641,11 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ms
 
     spdlog::info("Prepare to send msg response");
 
-    context.adapter.send_long_plain_text_reply(*context.event->sender_ptr, replay_content);
+    context.adapter.send_long_plain_text_reply(*context.event->sender_ptr, replay_content, true, MAX_OUTPUT_LENGTH,
+                                               [user_asking_content, replay_content](uint64_t message_id) {
+                                                   auto input_emb = neural_network::get_model_set().text_embedding_model.embed(user_asking_content);
+                                                   auto llm_output_emb = neural_network::get_model_set().text_embedding_model.embed(replay_content);
+                                               });
     if (const auto &group_sender = bot_adapter::try_group_sender(*context.event->sender_ptr)) {
         database::get_global_db_connection().insert_message(
             replay_content,
@@ -753,6 +791,102 @@ std::optional<OptimMessageResult> optimize_message_query(const bot_adapter::Prof
         return OptimMessageResult(std::move(*summary), *query_date, std::move(fetch_data_list));
     } catch (const std::exception &e) {
         spdlog::error("JSON 解析失败: {}", e.what());
+    }
+    return std::nullopt;
+}
+
+std::optional<UserProtait>
+generate_user_protait(const bot_adapter::BotAdapter &adapter, const bot_adapter::Profile &profile,
+                      const std::vector<bot_adapter::MessageChainPtrList> message_chain_list) {
+    // 拼接用户历史消息
+    std::string history;
+    for (const auto &chain : message_chain_list) {
+        std::string text = bot_adapter::get_text_from_message_chain(chain);
+        if (!text.empty()) {
+            history += text + "\n";
+        }
+    }
+
+    // 获取bot_profile
+    const auto &bot_profile = adapter.get_bot_profile();
+
+    // 构造system prompt，包含bot_profile全部字段
+    std::string system_prompt = fmt::format(
+        R"(请根据以下信息生成一段简明的用户画像，作为你对该用户的印象信息。你将根据这段信息来理解和判断当前正在与你聊天的用户。请生成你对用户的喜好程度,并尽量提炼用户的性格、兴趣、行为习惯等特征，内容要简洁明了。
+你的信息：
+- 名字：{}  
+- QQ号：{}  
+- 性别：{}  
+- 年龄：{}  
+- 等级：{}  
+- 邮箱：{}  
+用户信息：
+- 名字：{}  
+- QQ号：{}  
+- 性别：{}  
+- 年龄：{}  
+- 等级：{}  
+- 邮箱：{}  
+历史消息：
+{}
+你的输出格式为JSON: {{
+"favorability": 你对这个用户的喜好程度(0.0-1.0的实数),
+"portrait": "用户画像内容"
+}}
+)",
+        bot_profile.name, bot_profile.id, bot_adapter::to_chs_string(bot_profile.sex), bot_profile.age,
+        bot_profile.level, bot_profile.email, profile.name, profile.id, bot_adapter::to_chs_string(profile.sex),
+        profile.age, profile.level, profile.email, history);
+
+    nlohmann::json msg_json;
+    msg_json.push_back({{"role", "system"}, {"content", system_prompt}});
+
+    nlohmann::json body = {
+        {"model", config.llm_model_name}, {"messages", msg_json}, {"stream", false}, {"temperature", 0.0}};
+    const auto json_str = body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
+    spdlog::info("llm body: {}", json_str);
+    cpr::Response response =
+        cpr::Post(cpr::Url{fmt::format("{}:{}/{}", config.llm_api_url, config.llm_api_port, LLM_API_SUFFIX)},
+                  cpr::Body{json_str}, cpr::Header{{"Content-Type", "application/json"}});
+
+    try {
+        spdlog::info("生成用户画像: {}", response.text);
+        if (response.status_code != 200) {
+            spdlog::error("LLM API请求失败，状态码: {}", response.status_code);
+            return std::nullopt;
+        }
+        auto json = nlohmann::json::parse(response.text);
+        if (!json.contains("choices") || json["choices"].empty() || !json["choices"][0].contains("message") ||
+            !json["choices"][0]["message"].contains("content")) {
+            spdlog::error("LLM API返回格式错误: 缺少必要字段");
+            return std::nullopt;
+        }
+        std::string content = json["choices"][0]["message"]["content"].get<std::string>();
+        // 移除前后空白字符
+        size_t start = content.find_first_not_of(" \t\n\r");
+        size_t end = content.find_last_not_of(" \t\n\r");
+        if (start == std::string::npos) {
+            spdlog::error("LLM返回内容为空");
+            return std::nullopt;
+        }
+        std::string result = content.substr(start, end - start + 1);
+        // 验证JSON格式
+        nlohmann::json result_json = nlohmann::json::parse(result);
+        if (!result_json.contains("favorability") || !result_json.contains("portrait")) {
+            spdlog::error("LLM返回JSON格式错误: 缺少favorability或portrait字段");
+            return std::nullopt;
+        }
+        auto favorability_opt = get_optional<double>(result_json, "favorability");
+        auto portrait_opt = get_optional<std::string>(result_json, "portrait");
+        if (!favorability_opt.has_value() || !portrait_opt.has_value()) {
+            spdlog::error("LLM返回JSON字段类型错误: favorability或portrait类型不正确");
+            return std::nullopt;
+        }
+        return UserProtait{*portrait_opt, *favorability_opt, std::chrono::system_clock::now()};
+    } catch (const nlohmann::json::parse_error &e) {
+        spdlog::error("generate_user_protait(): JSON解析失败: {}，响应内容: {}", e.what(), response.text);
+    } catch (const std::exception &e) {
+        spdlog::error("generate_user_protait(): 发生异常: {}", e.what());
     }
     return std::nullopt;
 }
