@@ -1,8 +1,6 @@
 #include "neural_network/nn.h"
 #include <cinttypes>
 #include <memory>
-#include <onnxruntime_c_api.h>
-#include <onnxruntime_cxx_api.h>
 #include <stdexcept>
 
 std::unique_ptr<Ort::Env> g_onnx_runtime_ptr;
