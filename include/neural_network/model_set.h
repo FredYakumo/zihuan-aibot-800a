@@ -8,8 +8,8 @@ namespace neural_network {
     struct ModelSet {
         ModelSet(neural_network::Device device = neural_network::Device::CPU);
 
-        neural_network::TextEmbeddingWithMeanPoolingModel text_embedding_model;
-        neural_network::CosineSimilarityONNXModel cosine_similarity_model;
+        std::unique_ptr<neural_network::TextEmbeddingWithMeanPoolingModel> text_embedding_model;
+        std::unique_ptr<neural_network::CosineSimilarityONNXModel> cosine_similarity_model;
         std::shared_ptr<tokenizers::Tokenizer> tokenizer;
         neural_network::TokenizerWrapper tokenizer_wrapper;
     };

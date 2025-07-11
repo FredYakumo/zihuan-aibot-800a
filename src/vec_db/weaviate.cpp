@@ -44,7 +44,7 @@ namespace vec_db {
         if (query.empty()) {
             return results; // Return empty if query is empty
         }
-        auto emb = neural_network::get_model_set().text_embedding_model.embed(std::string(query));
+        auto emb = neural_network::get_model_set().text_embedding_model->embed(std::string(query));
         std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
         auto &config = Config::instance();
         cpr::Response response = cpr::Post(

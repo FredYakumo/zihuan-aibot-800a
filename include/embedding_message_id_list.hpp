@@ -14,9 +14,9 @@ public:
         if (embedding_mat.empty()) {
             return ret;
         }
-        auto target_emb = neural_network::get_model_set().text_embedding_model.embed(query);
+        auto target_emb = neural_network::get_model_set().text_embedding_model->embed(query);
         // std::shared_lock lock(mutex);
-        auto sim = neural_network::get_model_set().cosine_similarity_model.inference(target_emb, embedding_mat);
+        auto sim = neural_network::get_model_set().cosine_similarity_model->inference(target_emb, embedding_mat);
         std::vector<std::pair<float, uint64_t>> sim_pairs;
         for (int i = 0; i < sim.size(); ++i) {
             if (sim[i] > threshold) {
@@ -43,7 +43,7 @@ public:
         if (content.empty()) {
             return;
         }
-        auto emb = neural_network::get_model_set().text_embedding_model.embed(content);
+        auto emb = neural_network::get_model_set().text_embedding_model->embed(content);
         // std::unique_lock lock(mutex);
         embedding_mat.push_back(emb);
         message_id_list.push_back(message_id);

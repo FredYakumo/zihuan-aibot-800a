@@ -425,7 +425,7 @@ namespace bot_adapter {
             spdlog::info("[GroupMemberNameEmbeddngMatrix] Computing embedding for member name: '{}'", member_name);
             auto start_time = std::chrono::high_resolution_clock::now();
 
-            auto embedding = neural_network::get_model_set().text_embedding_model.embed(member_name);
+            auto embedding = neural_network::get_model_set().text_embedding_model->embed(member_name);
 
             auto end_time = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
@@ -450,8 +450,8 @@ namespace bot_adapter {
             spdlog::info("[GroupMemberNameEmbeddngMatrix] Computing similarity for query: {}", query);
             auto start_time = std::chrono::high_resolution_clock::now();
 
-            const neural_network::emb_vec_t query_embedding = neural_network::get_model_set().text_embedding_model.embed(query);
-            auto cosine_similarity = neural_network::get_model_set().cosine_similarity_model.inference(
+            const neural_network::emb_vec_t query_embedding = neural_network::get_model_set().text_embedding_model->embed(query);
+            auto cosine_similarity = neural_network::get_model_set().cosine_similarity_model->inference(
                 query_embedding, member_name_embedding_matrix);
 
             auto end_time = std::chrono::high_resolution_clock::now();
