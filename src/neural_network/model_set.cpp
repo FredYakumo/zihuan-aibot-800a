@@ -14,7 +14,7 @@ namespace neural_network {
 
     std::unique_ptr<ModelSet> model_set = nullptr;
 
-    void init_model_set() { model_set = std::make_unique<ModelSet>(Device::CPU); }
+    void init_model_set(Device device) { model_set = std::make_unique<ModelSet>(device); }
 
     ModelSet &get_model_set() {
         if (!model_set) {

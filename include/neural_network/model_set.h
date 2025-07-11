@@ -14,6 +14,6 @@ namespace neural_network {
         neural_network::TokenizerWrapper tokenizer_wrapper;
     };
 
-    void init_model_set();
+    void init_model_set(Device device = Device::CPU);
     ModelSet &get_model_set();
 } // namespace neural_network

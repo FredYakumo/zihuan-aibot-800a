@@ -27,9 +27,9 @@ Ort::SessionOptions neural_network::get_onnx_session_opts_cpu() {
 Ort::SessionOptions neural_network::get_onnx_session_opts_core_ml() {
     Ort::SessionOptions opts;
     std::unordered_map<std::string, std::string> provider_options;
-    provider_options["ModelFormat"] = "MLProgram";
-    provider_options["RequireStaticInputShapes"] = "0";
-    provider_options["EnableOnSubgraphs"] = "0";
+    // provider_options["ModelFormat"] = "MLProgram";
+    // provider_options["RequireStaticInputShapes"] = "0";
+    // provider_options["EnableOnSubgraphs"] = "0";
     provider_options["MLComputeUnits"] = "ALL";
     opts.SetIntraOpNumThreads(8);
     opts.SetLogSeverityLevel(ORT_LOGGING_LEVEL_FATAL);

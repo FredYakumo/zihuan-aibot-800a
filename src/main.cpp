@@ -80,7 +80,26 @@ int main(int argc, char *argv[]) {
         }
     }
     neural_network::init_onnx_runtime();
-    neural_network::init_model_set();
+
+    neural_network::Device device = neural_network::Device::CPU;
+    if (argc > 1) {
+        if (strcmp(argv[1], "--use-coreml") == 0) {
+            device = neural_network::Device::CoreML;
+            spdlog::info("Using Apple CoreML for neural network inference.");
+        } else if (strcmp(argv[1], "--use-cuda") == 0) {
+            device = neural_network::Device::CUDA;
+            spdlog::info("Using CUDA for neural network inference.");
+        } else if (strcmp(argv[1], "--use-tensorrt") == 0) {
+            device = neural_network::Device::TensorRT;
+            spdlog::info("Using TensorRT for neural network inference.");
+        } else if (strcmp(argv[1], "--use-cpu") == 0) {
+            device = neural_network::Device::CPU;
+            spdlog::info("Using CPU for neural network inference.");
+        }
+    }
+
+
+    neural_network::init_model_set(device);
 
     bot_adapter::BotAdapter adapter("ws://localhost:13378/all", Config::instance().bot_id);
     adapter.update_bot_profile();
