@@ -15,15 +15,6 @@
 
 namespace rag {
 
-    struct DBGroupMessage {
-        std::string content;
-        std::string sender_name;
-        std::string group_name;
-        std::string group_id;
-        std::string sender_id;
-        std::string send_time;
-    };
-
     struct NetSearchImage {
         std::string url;
         std::string description;

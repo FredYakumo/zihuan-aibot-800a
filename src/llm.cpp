@@ -119,7 +119,7 @@ std::optional<ChatMessage> get_llm_response(const nlohmann::json &msg_json, bool
         remove_text_between_markers(result, "<think>", "</think>");
         ChatMessage ret{role, result};
         if (const auto &tool_calls = get_optional(message, "tool_calls"); tool_calls.has_value()) {
-            spdlog::info("Tool calls");
+            spdlog::info("LLM response TOOL CALLS request");
             std::vector<ToolCall> function_calls;
             for (const nlohmann::json &tool_call : *tool_calls) {
                 if (auto tc = try_get_chat_completeion_from_messag_tool_call(tool_call); tc.has_value())
@@ -288,13 +288,13 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &us
     // process function call
     // loop check if have function call
     while (one_chat_session.rbegin()->tool_calls) {
-        spdlog::info("Tool calls");
         const auto &llm_res = *one_chat_session.rbegin();
 
         // llm request tool call
         add_to_msg_json(msg_json, llm_res);
         std::vector<ChatMessage> append_tool_calls;
         for (const auto &func_calls : *llm_res.tool_calls) {
+            spdlog::info("Tool calls: {}()", func_calls.name, func_calls.arguments);
             std::optional<ChatMessage> tool_call_msg = std::nullopt;
             if (func_calls.name == "search_info") {
                 const auto arguments = nlohmann::json::parse(func_calls.arguments);
@@ -374,11 +374,11 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &us
                     tool_call_msg = ChatMessage(ROLE_TOOL, content, func_calls.id);
                 }
             } else if (func_calls.name == "view_model_info") {
-                tool_call_msg = ChatMessage(ROLE_TOOL,
-                                            nlohmann::json{{{"model_name", "ZiHuanChat"},
-                                                            {"system_prompt", "紫幻的名字是紫幻,是一个神秘的群友"}}}
-                                                .dump(),
-                                            func_calls.id);
+                std::string model_info_str = "获取模型信息失败";
+                if (auto model_info = fetch_model_info(); model_info.has_value()) {
+                    model_info_str = model_info->dump();
+                }
+                tool_call_msg = ChatMessage(ROLE_TOOL, model_info_str, func_calls.id);
             } else if (func_calls.name == "view_chat_history") {
                 const auto arguments = nlohmann::json::parse(func_calls.arguments);
 
@@ -641,11 +641,12 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &us
 
     spdlog::info("Prepare to send msg response");
 
-    context.adapter.send_long_plain_text_reply(*context.event->sender_ptr, replay_content, true, MAX_OUTPUT_LENGTH,
-                                               [user_asking_content, replay_content](uint64_t message_id) {
-                                                   auto input_emb = neural_network::get_model_set().text_embedding_model.embed(user_asking_content);
-                                                   auto llm_output_emb = neural_network::get_model_set().text_embedding_model.embed(replay_content);
-                                               });
+    context.adapter.send_long_plain_text_reply(
+        *context.event->sender_ptr, replay_content, true, MAX_OUTPUT_LENGTH,
+        [user_asking_content, replay_content](uint64_t message_id) {
+            auto input_emb = neural_network::get_model_set().text_embedding_model.embed(user_asking_content);
+            auto llm_output_emb = neural_network::get_model_set().text_embedding_model.embed(replay_content);
+        });
     if (const auto &group_sender = bot_adapter::try_group_sender(*context.event->sender_ptr)) {
         database::get_global_db_connection().insert_message(
             replay_content,
@@ -887,6 +888,31 @@ generate_user_protait(const bot_adapter::BotAdapter &adapter, const bot_adapter:
         spdlog::error("generate_user_protait(): JSON解析失败: {}，响应内容: {}", e.what(), response.text);
     } catch (const std::exception &e) {
         spdlog::error("generate_user_protait(): 发生异常: {}", e.what());
+    }
+    return std::nullopt;
+}
+
+std::optional<nlohmann::json> fetch_model_info() {
+    spdlog::info("Fetch model info");
+    std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
+    auto response =
+        cpr::Get(cpr::Url{fmt::format("{}:{}/{}", config.llm_api_url, config.llm_api_port, LLM_MODEL_INFO_SUFFIX)},
+                 cpr::Header{{"Content-Type", "application/json"}});
+    std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
+    if (response.status_code != 200) {
+        spdlog::error("Fetch model info failed, status code: {}, response: {}", response.status_code, response.text);
+        return std::nullopt;
+    }
+    try {
+        nlohmann::json json_result = nlohmann::json::parse(response.text);
+        spdlog::info("Fetch model info success, time taken: {} ms, response: {}",
+                     std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count(),
+                     json_result.dump(4));
+        return json_result;
+    } catch (const nlohmann::json::parse_error &e) {
+        spdlog::error("Fetch model info JSON parse error: {}, response: {}", e.what(), response.text);
+    } catch (const std::exception &e) {
+        spdlog::error("Fetch model info exception: {}", e.what());
     }
     return std::nullopt;
 }

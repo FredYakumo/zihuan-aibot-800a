@@ -14,6 +14,7 @@ constexpr const char *EMPTY_MSG_TAG = "<未输入任何信息>";
 constexpr const char *EMPTY_JSON_STR_VALUE = "<NULL>";
 
 constexpr const char *LLM_API_SUFFIX = "chat/completions";
+constexpr const char *LLM_MODEL_INFO_SUFFIX = "model_info";
 
 constexpr const char *SEARCH_WEB_SUFFIX = "search_web";
 constexpr const char *SEARCH_URL_SUFFIX = "curl";

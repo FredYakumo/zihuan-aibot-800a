@@ -8,6 +8,7 @@
 #include "msg_prop.h"
 #include "nlohmann/json_fwd.hpp"
 #include "utils.h"
+#include "vec_db/models.h"
 #include <config.h>
 #include <cpr/cpr.h>
 #include <fmt/format.h>
@@ -24,6 +25,7 @@ namespace rag {
     const Config &config = Config::instance();
 
     using namespace wheel;
+    using vec_db::DBGroupMessage;
 
     std::vector<std::pair<DBGroupMessage, double>> query_group_msg(const std::string_view query,
                                                                    std::optional<uint64_t> group_id_option) {

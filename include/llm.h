@@ -142,4 +142,12 @@ std::vector<ReplayContentNode> optimize_reply_content(std::string content);
 std::optional<UserProtait> generate_user_protait(const bot_adapter::BotAdapter &adapter, const bot_adapter::Profile &profile,
     const std::vector<bot_adapter::MessageChainPtrList> &message_chain_list);
 
+/**
+ * @brief Fetch model info from the model server.
+ *
+ * @return std::optional<nlohmann::json> Returns a JSON object containing model info, if available.
+ *         Returns an empty optional if the fetch fails or no info is available.
+ */
+std::optional<nlohmann::json> fetch_model_info();
+
 #endif

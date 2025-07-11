@@ -39,6 +39,8 @@ struct Config {
     /// Vector database url. AIBot800a now use Weaviate Vector Database.
     std::string vec_db_url;
 
+    uint32_t vec_db_port = 28080;
+
     /// Some bot command required administrator privile,
     /// user that QQ号/ID in this set will be treat as administrator.
     std::unordered_set<std::string> admin_id_set;

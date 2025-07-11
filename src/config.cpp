@@ -147,6 +147,9 @@ void Config::init() {
     load_yaml_config(node, "llm_api_port", config.llm_api_port);
     load_env_config_num("AIBOT_LLM_API_PORT", config.llm_api_port);
 
+    load_yaml_config(node, "vec_db_port", config.vec_db_port);
+    load_env_config_num("AIBOT_VEC_DB_PORT", config.vec_db_port);
+
     load_yaml_config(node, "search_api_port", config.search_api_port);
     load_env_config_num("AIBOT_SEARCH_API_PORT", config.search_api_port);
 
