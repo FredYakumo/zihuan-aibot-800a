@@ -26,18 +26,20 @@ namespace vec_db {
                         key
                         value
                         creator_name
-                        create_dt
+                        create_time
                         _additional {{
                             certainty
                         }}
                     }}
-            }})",
+            }}
+        }})",
             "AIBot_knowledge",
-            wheel::join_str(std::cbegin(emb), std::cend(emb), ",", [](auto v) { return std::to_string(v); }), schema,
+            wheel::join_str(std::cbegin(emb), std::cend(emb), ",", [](auto v) { return std::to_string(v); }),
             certainty_threshold, top_k);
     }
 
-    std::vector<DBKnowledge> query_knowledge_from_vec_db(const std::string_view query, float certainty_threshold, size_t top_k) {
+    std::vector<DBKnowledge> query_knowledge_from_vec_db(const std::string_view query, float certainty_threshold,
+                                                         size_t top_k) {
         std::vector<DBKnowledge> results;
         if (query.empty()) {
             return results; // Return empty if query is empty
@@ -45,14 +47,16 @@ namespace vec_db {
         auto emb = neural_network::get_model_set().text_embedding_model.embed(std::string(query));
         std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
         auto &config = Config::instance();
-        cpr::Response response =
-            cpr::Get(cpr::Url{fmt::format("http://{}:{}/v1/graphql", config.vec_db_url, config.vec_db_port)},
-                     cpr::Body{
-                         nlohmann::json{{"query", graphql_query("AIBot_knowledge", emb, certainty_threshold, top_k)}},
-                     });
+        cpr::Response response = cpr::Post(
+            cpr::Url{fmt::format("http://{}:{}/v1/graphql", config.vec_db_url, config.vec_db_port)},
+            cpr::Body{
+                nlohmann::json{{"query", graphql_query("AIBot_knowledge", emb, certainty_threshold, top_k)}}.dump(),
+            },
+            cpr::Header{{"Content-Type", "application/json"}});
         std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
         if (response.status_code != 200) {
-            spdlog::error("Weaviate query failed: {} - {}", response.status_code, response.error.message);
+            spdlog::error("Weaviate query failed: {} - {}", response.status_code, response.text);
             return results; // Return empty if query fails
         }
 
@@ -94,11 +98,12 @@ namespace vec_db {
 
         try {
             auto json_response = nlohmann::json::parse(response.text);
+
             if (auto data = get_optional(json_response, "data"); data.has_value()) {
                 if (auto get = get_optional(data.value(), "Get"); get.has_value()) {
                     if (auto knowledge = get_optional(get.value(), "AIBot_knowledge"); knowledge.has_value()) {
                         spdlog::info("Query knowledge 完成, 返回 {} 条结果, 耗时: {} ms", knowledge.value().size(),
-                                     (end_time - start_time).count());
+                                     duration.count());
                         for (const auto &item : knowledge.value()) {
                             DBKnowledge db_knowledge;
                             db_knowledge.key = get_optional(item, "key").value_or("");
@@ -119,6 +124,8 @@ namespace vec_db {
                         }
                     }
                 }
+            } else {
+                spdlog::info("Query knowledge 失败, 耗时: {} ms, 返回 {}, ", duration.count(), response.text);
             }
         } catch (const std::exception &e) {
             spdlog::error("Error parsing Weaviate response: {}", e.what());

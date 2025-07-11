@@ -899,6 +899,7 @@ std::optional<nlohmann::json> fetch_model_info() {
         cpr::Get(cpr::Url{fmt::format("{}:{}/{}", config.llm_api_url, config.llm_api_port, LLM_MODEL_INFO_SUFFIX)},
                  cpr::Header{{"Content-Type", "application/json"}});
     std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
     if (response.status_code != 200) {
         spdlog::error("Fetch model info failed, status code: {}, response: {}", response.status_code, response.text);
         return std::nullopt;
@@ -906,7 +907,7 @@ std::optional<nlohmann::json> fetch_model_info() {
     try {
         nlohmann::json json_result = nlohmann::json::parse(response.text);
         spdlog::info("Fetch model info success, time taken: {} ms, response: {}",
-                     std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count(),
+                     duration.count(),
                      json_result.dump(4));
         return json_result;
     } catch (const nlohmann::json::parse_error &e) {
