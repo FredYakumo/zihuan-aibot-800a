@@ -9,6 +9,7 @@
 #include "nlohmann/json_fwd.hpp"
 #include "utils.h"
 #include "vec_db/models.h"
+#include "vec_db/weaviate.h"
 #include <config.h>
 #include <cpr/cpr.h>
 #include <fmt/format.h>
@@ -107,40 +108,7 @@ namespace rag {
     }
 
     std::vector<DBKnowledge> query_knowledge(const std::string_view query, bool exactly_match) {
-        std::vector<DBKnowledge> result;
-
-        nlohmann::json request_body{{"query", query}};
-
-        cpr::Response r = cpr::Post(cpr::Url{fmt::format("{}{}", config.vec_db_url,
-                                                         exactly_match ? "find_class_name_match" : "query_knowledge")},
-                                    cpr::Header{{"Content-Type", "application/json"}}, cpr::Body{request_body.dump()});
-
-        if (r.status_code != 200) {
-            spdlog::error("查询知识失败: {}", r.text);
-            return result;
-        }
-        try {
-            auto knowledge_json = nlohmann::json::parse(r.text);
-
-            for (auto &json : knowledge_json) {
-                DBKnowledge knowledge{get_optional<std::string_view>(json, "key").value_or(""),
-                                      get_optional<std::string_view>(json, "value").value_or(""),
-                                      get_optional<std::string_view>(json, "creator_name").value_or(""),
-                                      get_optional<std::string_view>(json, "create_dt").value_or(""),
-                                      get_optional<float>(json, "certainty").value_or(0.0f)};
-                spdlog::info("key: {}, value: {}, 创建者: {}, 日期: {}, 置信度: {}", knowledge.key, knowledge.value,
-                             knowledge.creator_name, knowledge.create_dt, knowledge.certainty);
-                result.push_back(knowledge);
-            }
-        } catch (const nlohmann::json::exception &e) {
-            spdlog::error("查询知识出错: {}", e.what());
-        } catch (const std::invalid_argument &e) {
-            spdlog::error("查询知识时转换得分出错: {}", e.what());
-        } catch (const std::out_of_range &e) {
-            spdlog::error("查询知识时转换得分出错，数据超出范围: {}", e.what());
-        }
-
-        return result;
+        return vec_db::query_knowledge_from_vec_db(query, 0.7f, 5);
     }
 
     void insert_group_msg(uint64_t group_id, const std::string_view group_name, uint64_t sender_id,

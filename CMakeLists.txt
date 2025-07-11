@@ -67,6 +67,7 @@ endif()
 # 收集源码文件
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/ SRC_FILES)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network NN_SRC_FILES)
+aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/vec_db VEC_DB_SRC_FILES)
 
 
 # set(ALL_SOURCES
@@ -79,6 +80,7 @@ aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network NN_SRC_FILES
 set(BIN_SOURCES
     ${SRC_FILES}
     ${NN_SRC_FILES}
+    ${VEC_DB_SRC_FILES}
     ${PLUGIN_SOURCE_PATH}
     ${CMAKE_CURRENT_SOURCE_DIR}/external/easywsclient/easywsclient.cpp
 )
@@ -111,12 +113,14 @@ target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE ncnn)
 target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE tokenizers_cpp)
 target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE onnxruntime::onnxruntime)
 target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE general-wheel-cpp::general-wheel-cpp)
-target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE /usr/local/lib64/libmysqlcppconnx.so)
 
 
 if(APPLE)
     target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE /opt/homebrew/lib/libmysqlcppconnx.dylib)
+elseif(LINUX)
+    target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE /usr/local/lib64/libmysqlcppconnx.so)
 endif()
+
 
 # 单元测试
 include(CTest)
@@ -127,12 +131,19 @@ add_executable(unit_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/nn.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/text_model.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/model_set.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/vec_db/weaviate.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/utils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/global_data.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/external/easywsclient/easywsclient.cpp
 )
-target_link_libraries(unit_test cpr::cpr gtest gtest_main fmt::fmt yaml-cpp::yaml-cpp Boost::filesystem tokenizers_cpp ncnn onnxruntime::onnxruntime 
-general-wheel-cpp::general-wheel-cpp)
+
+if(LINUX)
+    target_link_libraries(unit_test cpr::cpr gtest gtest_main fmt::fmt yaml-cpp::yaml-cpp Boost::filesystem tokenizers_cpp ncnn onnxruntime::onnxruntime 
+        general-wheel-cpp::general-wheel-cpp)
+else()
+    target_link_libraries(unit_test cpr::cpr GTest::GTest GTest::Main fmt::fmt yaml-cpp::yaml-cpp Boost::filesystem tokenizers_cpp ncnn onnxruntime::onnxruntime 
+        general-wheel-cpp::general-wheel-cpp)
+endif()
 
 add_test(NAME unit_test COMMAND unit_test)
 

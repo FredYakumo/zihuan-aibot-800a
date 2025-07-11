@@ -10,8 +10,6 @@
 #include <string>
 #include <string_utils.hpp>
 
-auto config = Config::instance();
-
 namespace vec_db {
     std::string graphql_query(const std::string_view schema, const neural_network::emb_vec_t &emb,
                               float certainty_threshold, size_t top_k) {
@@ -39,13 +37,14 @@ namespace vec_db {
             certainty_threshold, top_k);
     }
 
-    std::vector<DBKnowledge> query_knowledge(const std::string_view query, float certainty_threshold, size_t top_k) {
+    std::vector<DBKnowledge> query_knowledge_from_vec_db(const std::string_view query, float certainty_threshold, size_t top_k) {
         std::vector<DBKnowledge> results;
         if (query.empty()) {
             return results; // Return empty if query is empty
         }
         auto emb = neural_network::get_model_set().text_embedding_model.embed(std::string(query));
         std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
+        auto &config = Config::instance();
         cpr::Response response =
             cpr::Get(cpr::Url{fmt::format("http://{}:{}/v1/graphql", config.vec_db_url, config.vec_db_port)},
                      cpr::Body{

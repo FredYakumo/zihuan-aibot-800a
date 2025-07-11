@@ -2,7 +2,7 @@
 
 #include "db_knowledge.hpp"
 namespace vec_db {
-    std::vector<DBKnowledge> query_knowledge(const std::string_view query, float certainty_threshold = 0.7f, size_t top_k = 5);
+    std::vector<DBKnowledge> query_knowledge_from_vec_db(const std::string_view query, float certainty_threshold = 0.7f, size_t top_k = 5);
 
 
     std::string graphql_query(const std::string_view schema, const neural_network::emb_vec_t &emb,
