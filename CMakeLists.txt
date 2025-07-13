@@ -24,7 +24,7 @@ find_package(spdlog REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(ncnn REQUIRED)
-find_package(onnxruntime REQUIRED)
+# find_package(onnxruntime REQUIRED)  # 移动到条件分支
 find_package(general-wheel-cpp REQUIRED)
 
 
@@ -111,7 +111,12 @@ target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE yaml-cpp::yaml-cpp)
 target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE Boost::filesystem)
 target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE ncnn)
 target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE tokenizers_cpp)
-target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE onnxruntime::onnxruntime)
+if(NOT use_libtorch)
+    target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE onnxruntime::onnxruntime)
+endif()
+if(use_libtorch)
+    target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE torch)
+endif()
 target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE general-wheel-cpp::general-wheel-cpp)
 
 
@@ -137,12 +142,44 @@ add_executable(unit_test
     ${CMAKE_CURRENT_SOURCE_DIR}/external/easywsclient/easywsclient.cpp
 )
 
-if(LINUX)
-    target_link_libraries(unit_test cpr::cpr gtest gtest_main fmt::fmt yaml-cpp::yaml-cpp Boost::filesystem tokenizers_cpp ncnn onnxruntime::onnxruntime 
-        general-wheel-cpp::general-wheel-cpp)
+# 允许用户直接通过use_libtorch指定libtorch路径（字符串），为空则不用libtorch
+set(use_libtorch "" CACHE PATH "Path to libtorch directory; leave empty to disable libtorch")
+# 允许用户通过use_ort指定onnxruntime路径（字符串），为空则用默认查找
+set(use_ort "" CACHE PATH "Path to onnxruntime directory; leave empty to use system default")
+
+# 如果指定了use_libtorch（即路径非空），则引入libtorch，否则引入onnxruntime
+if(use_libtorch)
+    set(Torch_DIR "${use_libtorch}/share/cmake/Torch")
+    find_package(Torch REQUIRED PATHS ${use_libtorch})
+    message(STATUS "Using libtorch from: ${use_libtorch}")
 else()
-    target_link_libraries(unit_test cpr::cpr GTest::GTest GTest::Main fmt::fmt yaml-cpp::yaml-cpp Boost::filesystem tokenizers_cpp ncnn onnxruntime::onnxruntime 
+    if(use_ort)
+        set(onnxruntime_DIR "${use_ort}")
+        find_package(onnxruntime REQUIRED PATHS ${use_ort})
+        message(STATUS "Using onnxruntime from: ${use_ort}")
+    else()
+        find_package(onnxruntime REQUIRED)
+    endif()
+endif()
+
+if(LINUX)
+    target_link_libraries(unit_test cpr::cpr gtest gtest_main fmt::fmt yaml-cpp::yaml-cpp Boost::filesystem tokenizers_cpp ncnn
         general-wheel-cpp::general-wheel-cpp)
+    if(NOT use_libtorch)
+        target_link_libraries(unit_test onnxruntime::onnxruntime)
+    endif()
+    if(use_libtorch)
+        target_link_libraries(unit_test torch)
+    endif()
+else()
+    target_link_libraries(unit_test cpr::cpr GTest::GTest GTest::Main fmt::fmt yaml-cpp::yaml-cpp Boost::filesystem tokenizers_cpp ncnn
+        general-wheel-cpp::general-wheel-cpp)
+    if(NOT use_libtorch)
+        target_link_libraries(unit_test onnxruntime::onnxruntime)
+    endif()
+    if(use_libtorch)
+        target_link_libraries(unit_test torch)
+    endif()
 endif()
 
 add_test(NAME unit_test COMMAND unit_test)
