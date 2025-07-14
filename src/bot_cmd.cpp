@@ -351,6 +351,12 @@ namespace bot_cmd {
                                                     fmt::format("设置的key '{}' 不存在", key))));
                 return bot_cmd::CommandRes{true, true};
             }
+            if (!user_preference->text_output && !user_preference->render_markdown_output) {
+                context.adapter.send_replay_msg(*context.event->sender_ptr,
+                                                bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
+                                                    fmt::format("错误: 你不能同时设置'输出渲染'和'输出文本'为空,必须有一项为{}", "是|true|1|yes|y"))));
+                return bot_cmd::CommandRes{true, true};
+            }
             database::get_global_db_connection().insert_or_update_user_preferences(
                 std::vector<std::pair<qq_id_t, database::UserPreference>>{
                     std::make_pair(context.event->sender_ptr->id, *user_preference)});

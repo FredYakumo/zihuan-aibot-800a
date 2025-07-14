@@ -530,7 +530,7 @@ namespace bot_adapter {
             }
 
             // Output text if user preference allows it, regardless of whether markdown was rendered
-            if (should_output_text) {
+            if (should_output_text || node.code_text.has_value()) {
                 const auto split_output = Utf8Splitter(node.text, msg_length_limit);
                 for (auto chunk : split_output) {
                     spdlog::info("长文块: {}, {}", index, chunk);
