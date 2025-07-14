@@ -92,8 +92,6 @@ void DBConnection::insert_or_update_user_preferences(
     }
 
     try {
-        auto table = get_user_preference_table();
-
         std::vector<std::string> user_ids;
         user_ids.reserve(user_preferences.size());
         for (const auto &pref_pair : user_preferences) {
@@ -102,10 +100,13 @@ void DBConnection::insert_or_update_user_preferences(
 
         std::string user_ids_list_str = wheel::join_str(user_ids.cbegin(), user_ids.cend(), ",",
                                                         [](const std::string &id) { return "'" + id + "'"; });
-        auto delete_result = table.remove().where("user_id IN (" + user_ids_list_str + ")").execute();
+        
+        // Execute delete operation
+        auto delete_result = get_user_preference_table().remove().where("user_id IN (" + user_ids_list_str + ")").execute();
         auto deleted_count = delete_result.getAffectedItemsCount();
 
-        auto insert = table.insert("user_id", "render_markdown_output", "text_output", "auto_new_chat_session");
+        // Execute insert operation with fresh table reference
+        auto insert = get_user_preference_table().insert("user_id", "render_markdown_output", "text_output", "auto_new_chat_session");
         for (const auto &pref_pair : user_preferences) {
             insert.values(std::to_string(pref_pair.first), pref_pair.second.render_markdown_output,
                           pref_pair.second.text_output,
@@ -128,7 +129,7 @@ void DBConnection::insert_user_protait(qq_id_t id, const std::string &protait,
     try {
         get_user_protait_table()
             .insert("user_id", "protait", "create_time")
-            .values(id, protait, time_point_to_db_str(create_time))
+            .values(std::to_string(id), protait, time_point_to_db_str(create_time))
             .execute();
         spdlog::info("Insert user protait successed.");
     } catch (const mysqlx::Error &e) {
@@ -145,7 +146,7 @@ void DBConnection::insert_user_protait(const std::vector<std::pair<qq_id_t, User
         auto table = get_user_protait_table();
         auto insert = table.insert("user_id", "protait", "create_time");
         for (const auto &protait_pair : user_protaits) {
-            insert.values(protait_pair.first, protait_pair.second.protait,
+            insert.values(std::to_string(protait_pair.first), protait_pair.second.protait,
                           time_point_to_db_str(protait_pair.second.create_time));
         }
         auto insert_result = insert.execute();

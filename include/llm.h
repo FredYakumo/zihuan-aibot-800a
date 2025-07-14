@@ -11,7 +11,8 @@ std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot
                               const bot_adapter::Sender &sender, bool is_deep_think);
 
 void process_llm(const bot_cmd::CommandContext &context,
-                 const std::optional<std::string> &additional_system_prompt_option);
+                 const std::optional<std::string> &additional_system_prompt_option,
+                 const std::optional<database::UserPreference> &user_preference_option);
 
 inline bool try_begin_processing_llm(uint64_t target_id) {
     if (auto v = g_chat_processing_map.find(target_id); v.has_value()) {

@@ -402,13 +402,18 @@ namespace bot_adapter {
 
     void BotAdapter::send_long_plain_text_reply(const Sender &sender, std::string text, bool at_target,
                                                 uint64_t msg_length_limit,
-                                                std::optional<std::function<void(uint64_t &)>> out_message_id_option) {
+                                                std::optional<std::function<void(uint64_t &)>> out_message_id_option,
+                                                std::optional<database::UserPreference> user_preference_option) {
         const auto sync_id_base = generate_send_replay_sync_id(sender);
 
         // Parse llm reply content
         auto markdown_node = wheel::parse_markdown(std::move(text));
-        if (markdown_node.size() == 1 && !markdown_node[0].render_html_text.has_value() &&
-            markdown_node[0].text.length() < msg_length_limit) {
+
+        // Check if it's simple text (not markdown blocks)
+        bool is_simple_text = markdown_node.size() == 1 && !markdown_node[0].render_html_text.has_value() &&
+                              markdown_node[0].text.length() < msg_length_limit;
+
+        if (is_simple_text) {
             spdlog::info("Markdown text is short and no render HTML.");
             send_replay_msg(sender, make_message_chain_list(PlainTextMessage(text)), true, out_message_id_option);
             return;
@@ -416,7 +421,8 @@ namespace bot_adapter {
 
         std::function<void(const std::string_view sync_id, const MessageChainPtrList &msg_chain)> send_func;
         if (const auto group_sender = try_group_sender(sender)) {
-            send_func = [this, group_sender, out_message_id_option](const std::string_view sync_id, const MessageChainPtrList &msg_chain) {
+            send_func = [this, group_sender, out_message_id_option](const std::string_view sync_id,
+                                                                    const MessageChainPtrList &msg_chain) {
                 send_group_message(group_sender->get().group, msg_chain, sync_id, out_message_id_option);
             };
             if (at_target) {
@@ -424,20 +430,26 @@ namespace bot_adapter {
                 send_func(fmt::format("{}_at", sync_id_base), make_message_chain_list(AtTargetMessage(sender.id)));
             }
         } else {
-            send_func = [this, sender, out_message_id_option](const std::string_view sync_id, const MessageChainPtrList &msg_chain) {
+            send_func = [this, sender, out_message_id_option](const std::string_view sync_id,
+                                                              const MessageChainPtrList &msg_chain) {
                 send_message(sender, msg_chain, sync_id, out_message_id_option);
             };
         }
+
+        bool should_render_markdown =
+            user_preference_option.has_value() ? user_preference_option->render_markdown_output : true;
+        bool should_output_text = user_preference_option.has_value() ? user_preference_option->text_output : false;
 
         size_t render_html_count = 0;
         size_t index = 0;
         std::vector<ForwardMessageNode> forward_nodes;
         const auto &config = Config::instance();
+
         for (const auto &node : markdown_node) {
+            // Handle markdown rendering if user preference allows it
             if (node.render_html_text.has_value()) {
                 std::string file_name = fmt::format("{}{}_markdown_render_block_{}", config.temp_res_path, sync_id_base,
                                                     render_html_count++);
-
                 float font_size = 15;
                 // Calculate HTML content width and height based on content
                 float max_size = 20.f;
@@ -448,36 +460,39 @@ namespace bot_adapter {
                     }
                     ++line_count;
                 }
-                nlohmann::json send_json = nlohmann::json{{
-                                                              "html",
-                                                              *node.render_html_text,
-                                                          },
-                                                          {"save_path", file_name + ".png"},
-                                                          {"font_size", font_size}};
-                if (node.rich_text.has_value() && !node.code_text.has_value() && !node.table_text.has_value() &&
-                    !node.latex_text.has_value()) {
-                    send_json["html"] = replace_str(*node.render_html_text, "\n", "<br/>");
-                    send_json.push_back({"body_width", 350});
+                if (should_render_markdown) {
+                    nlohmann::json send_json = nlohmann::json{{
+                                                                  "html",
+                                                                  *node.render_html_text,
+                                                              },
+                                                              {"save_path", file_name + ".png"},
+                                                              {"font_size", font_size}};
+                    if (node.rich_text.has_value() && !node.code_text.has_value() && !node.table_text.has_value() &&
+                        !node.latex_text.has_value()) {
+                        send_json["html"] = replace_str(*node.render_html_text, "\n", "<br/>");
+                        send_json.push_back({"body_width", 350});
 
-                } else if (node.code_text.has_value()) {
+                    } else if (node.code_text.has_value()) {
 
-                    float width = std::max(20.f, max_size * font_size / 2.f) + 40.f +
-                                  font_size; // Estimate width from content length
-                    float height = std::max(20.f, (line_count + 2) * font_size * 1.5f) +
-                                   20.f; // Estimate height based on number of lines
-                    send_json.push_back({"width", (int64_t)width});
-                    send_json.push_back({"height", (int64_t)height});
-                    send_json.push_back({"body_width", (int64_t)width});
+                        float width = std::max(20.f, max_size * font_size / 2.f) + 40.f +
+                                      font_size; // Estimate width from content length
+                        float height = std::max(20.f, (line_count + 2) * font_size * 1.5f) +
+                                       20.f; // Estimate height based on number of lines
+                        send_json.push_back({"width", (int64_t)width});
+                        send_json.push_back({"height", (int64_t)height});
+                        send_json.push_back({"body_width", (int64_t)width});
+                    }
+                    cpr::Response response = cpr::Post(
+                        cpr::Url{fmt::format("{}:{}/{}", config.llm_api_url, config.llm_api_port, "html_to_image")},
+                        cpr::Body{std::string(send_json.dump())}, cpr::Header{{"Content-Type", "application/json"}});
+                    spdlog::info("Render HTML text to image: {}.png", file_name);
+                    // 发送图片消息
+                    spdlog::info("长文块: {}, 发送图片消息: {}.png", index++, file_name);
                 }
-                cpr::Response response = cpr::Post(
-                    cpr::Url{fmt::format("{}:{}/{}", config.llm_api_url, config.llm_api_port, "html_to_image")},
-                    cpr::Body{std::string(send_json.dump())}, cpr::Header{{"Content-Type", "application/json"}});
-                spdlog::info("Render HTML text to image: {}.png", file_name);
-                // 发送图片消息
-                spdlog::info("长文块: {}, 发送图片消息: {}.png", index++, file_name);
 
+                // code display   node
                 // Use planc's code display & run project (https://github.com/hubenchang0515)
-                if (node.code_text.has_value() && line_count > 3) {
+                if (node.code_text.has_value() && line_count > 3 && line_count <= 100) {
                     std::string code_text_param = wheel::url_encode(*node.code_text);
                     code_text_param = base64::to_base64(code_text_param);
 
@@ -494,29 +509,47 @@ namespace bot_adapter {
 
                     // Short line length, Markdown rener picture and line.
                     if (node.text.length() <= MAX_OUTPUT_LENGTH) {
-                        forward_nodes.push_back(ForwardMessageNode(
-                            bot_profile.id, std::chrono::system_clock::now(), bot_profile.name,
-                            make_message_chain_list(LocalImageMessage{file_name + ".png"}, PlainTextMessage(node.text)),
-                            std::nullopt, std::nullopt));
+                        MessageChainPtrList msg_chain;
+                        if (should_render_markdown) {
+                            msg_chain.push_back(std::make_shared<LocalImageMessage>(LocalImageMessage{file_name + ".png"}));
+                        }
+                        if (should_output_text) {
+                            msg_chain.push_back(std::make_shared<PlainTextMessage>(PlainTextMessage(node.text)));
+                        }
+                        forward_nodes.push_back(ForwardMessageNode(bot_profile.id, std::chrono::system_clock::now(),
+                                                                   bot_profile.name, std::move(msg_chain), std::nullopt,
+                                                                   std::nullopt));
                         continue;
                     }
-                    // One Markdown render picture only, and need to split_output like normal plain text
+
+                    // One Markdown render picture only, and need to split_output like normal plain text(text too long)
                     forward_nodes.push_back(ForwardMessageNode(
                         bot_profile.id, std::chrono::system_clock::now(), bot_profile.name,
                         make_message_chain_list(LocalImageMessage{file_name + ".png"}), std::nullopt, std::nullopt));
                 }
             }
-            const auto split_output = Utf8Splitter(node.text, msg_length_limit);
-            for (auto chunk : split_output) {
-                spdlog::info("长文块: {}, {}", index, chunk);
-                forward_nodes.push_back(
-                    ForwardMessageNode(bot_profile.id, std::chrono::system_clock::now(), bot_profile.name,
-                                       make_message_chain_list(PlainTextMessage(chunk)), std::nullopt, std::nullopt));
-                ++index;
+
+            // Output text if user preference allows it, regardless of whether markdown was rendered
+            if (should_output_text) {
+                const auto split_output = Utf8Splitter(node.text, msg_length_limit);
+                for (auto chunk : split_output) {
+                    spdlog::info("长文块: {}, {}", index, chunk);
+                    forward_nodes.push_back(ForwardMessageNode(
+                        bot_profile.id, std::chrono::system_clock::now(), bot_profile.name,
+                        make_message_chain_list(PlainTextMessage(chunk)), std::nullopt, std::nullopt));
+                    ++index;
+                }
             }
         }
 
         const auto bot_profile = get_bot_profile();
+
+
+        if (forward_nodes.size() == 1) {
+            spdlog::info("仅有单块内容，直接发送该消息链");
+            send_func(fmt::format("{}_img", sync_id_base), forward_nodes.front().message_chain);
+            return;
+        }
 
         for (size_t i = 0; i < forward_nodes.size(); ++i) {
             forward_nodes[forward_nodes.size() - i].time -= std::chrono::seconds(i);

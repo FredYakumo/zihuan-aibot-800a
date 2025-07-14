@@ -241,7 +241,8 @@ std::string get_target_group_chat_history(const bot_adapter::BotAdapter &adapter
 }
 
 void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &user_asking_content,
-                   const std::optional<std::string> &additional_system_prompt_option) {
+                   const std::optional<std::string> &additional_system_prompt_option,
+                   const std::optional<database::UserPreference> &user_preference_option) {
     spdlog::debug("Event type: {}, Sender json: {}", context.event->get_typename(),
                   context.event->sender_ptr->to_json().dump());
 
@@ -646,7 +647,7 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &us
         [user_asking_content, replay_content](uint64_t message_id) {
             auto input_emb = neural_network::get_model_set().text_embedding_model->embed(user_asking_content);
             auto llm_output_emb = neural_network::get_model_set().text_embedding_model->embed(replay_content);
-        });
+        }, user_preference_option);
     if (const auto &group_sender = bot_adapter::try_group_sender(*context.event->sender_ptr)) {
         database::get_global_db_connection().insert_message(
             replay_content,
@@ -665,7 +666,8 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &us
 }
 
 void process_llm(const bot_cmd::CommandContext &context,
-                 const std::optional<std::string> &additional_system_prompt_option) {
+                 const std::optional<std::string> &additional_system_prompt_option,
+                 const std::optional<database::UserPreference> &user_preference_option) {
     spdlog::info("开始处理LLM信息");
 
     if (!try_begin_processing_llm(context.event->sender_ptr->id)) {
@@ -691,8 +693,8 @@ void process_llm(const bot_cmd::CommandContext &context,
 
     spdlog::info("作为用户输入给llm的content: {}", msg_content_str);
 
-    auto llm_thread = std::thread([context, msg_content_str, additional_system_prompt_option] {
-        on_llm_thread(context, msg_content_str, additional_system_prompt_option);
+    auto llm_thread = std::thread([context, msg_content_str, additional_system_prompt_option, user_preference_option] {
+        on_llm_thread(context, msg_content_str, additional_system_prompt_option, user_preference_option);
     });
 
     llm_thread.detach();

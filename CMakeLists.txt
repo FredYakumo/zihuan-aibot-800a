@@ -163,23 +163,25 @@ else()
 endif()
 
 if(LINUX)
-    target_link_libraries(unit_test cpr::cpr gtest gtest_main fmt::fmt yaml-cpp::yaml-cpp Boost::filesystem tokenizers_cpp ncnn
+    target_link_libraries(unit_test PRIVATE cpr::cpr gtest gtest_main fmt::fmt yaml-cpp::yaml-cpp Boost::filesystem tokenizers_cpp ncnn
         general-wheel-cpp::general-wheel-cpp)
     if(NOT use_libtorch)
-        target_link_libraries(unit_test onnxruntime::onnxruntime)
+        target_link_libraries(unit_test PRIVATE onnxruntime::onnxruntime)
     endif()
     if(use_libtorch)
-        target_link_libraries(unit_test torch)
+        target_link_libraries(unit_test PRIVATE torch)
     endif()
+    target_link_libraries(unit_test PRIVATE /usr/local/lib64/libmysqlcppconnx.so)
 else()
-    target_link_libraries(unit_test cpr::cpr GTest::GTest GTest::Main fmt::fmt yaml-cpp::yaml-cpp Boost::filesystem tokenizers_cpp ncnn
+    target_link_libraries(unit_test PRIVATE cpr::cpr GTest::GTest GTest::Main fmt::fmt yaml-cpp::yaml-cpp Boost::filesystem tokenizers_cpp ncnn
         general-wheel-cpp::general-wheel-cpp)
     if(NOT use_libtorch)
-        target_link_libraries(unit_test onnxruntime::onnxruntime)
+        target_link_libraries(unit_test PRIVATE onnxruntime::onnxruntime)
     endif()
     if(use_libtorch)
-        target_link_libraries(unit_test torch)
+        target_link_libraries(unit_test PRIVATE torch)
     endif()
+    target_link_libraries(unit_test PRIVATE /opt/homebrew/lib/libmysqlcppconnx.dylib)
 endif()
 
 add_test(NAME unit_test COMMAND unit_test)

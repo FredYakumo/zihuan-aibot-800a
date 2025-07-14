@@ -91,7 +91,7 @@ ParseRunCmdRes parse_and_run_chat_command(bot_adapter::BotAdapter &adapter,
 
     for (const auto &cmd : run_cmd_list) {
 
-        const auto res = cmd.first(bot_cmd::CommandContext{adapter, event, cmd.second, is_deep_think, msg_prop});
+        const auto res = cmd.first(bot_cmd::CommandContext{adapter, event, cmd.second, is_deep_think, msg_prop, std::nullopt});
         if (res.is_deep_think) {
             is_deep_think = true;
             ret.is_deep_think = true;
@@ -177,17 +177,41 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
 
     if (user_preference->auto_new_chat_session_sec.has_value() &&
         user_preference->auto_new_chat_session_sec.value() > 0) {
+        spdlog::debug("检查自动新对话设置: 用户ID={}, 群ID={}, 设置值={}秒", event->sender_ptr->id, event->get_group_sender().group.id, user_preference->auto_new_chat_session_sec.value());
+        
         auto last_msg_list =
             g_group_message_storage.get_individual_last_msg_list(event->get_group_sender().group.id, 1);
+        spdlog::debug("获取群聊历史消息: 群ID={}, 消息数量={}", event->get_group_sender().group.id, last_msg_list.size());
+        
         if (last_msg_list.size() > 0) {
             auto last_msg_time = last_msg_list[0].send_time;
             auto event_time = event->send_time;
+            auto time_diff = event_time - last_msg_time;
+            auto time_diff_sec = std::chrono::duration_cast<std::chrono::seconds>(time_diff).count();
+            
+            spdlog::debug("群聊时间间隔检查: 用户ID={}, 群ID={}, 上条消息时间={}, 当前消息时间={}, 时间差={}秒, 阈值={}秒", 
+                         event->sender_ptr->id,
+                         event->get_group_sender().group.id,
+                         system_clock_to_string(last_msg_time),
+                         system_clock_to_string(event_time),
+                         time_diff_sec,
+                         user_preference->auto_new_chat_session_sec.value());
+            
             if (event_time - last_msg_time > std::chrono::seconds(user_preference->auto_new_chat_session_sec.value())) {
                 spdlog::info("用户对话超过{}秒，创建新的对话", user_preference->auto_new_chat_session_sec.value());
                 g_chat_session_map.erase(event->get_group_sender().id);
                 g_chat_session_knowledge_list_map.erase(event->get_group_sender().id);
+            } else {
+                spdlog::debug("群聊时间间隔未超过阈值，不创建新对话");
             }
+        } else {
+            spdlog::debug("没有找到群聊历史消息，跳过自动新对话检查");
         }
+    } else {
+        spdlog::debug("用户ID={}的群聊自动新对话设置无效: has_value={}, value={}", 
+                     event->sender_ptr->id, 
+                     user_preference->auto_new_chat_session_sec.has_value(),
+                     user_preference->auto_new_chat_session_sec.has_value() ? user_preference->auto_new_chat_session_sec.value() : -1);
     }
 
     spdlog::debug("At list: {}", join_str(std::cbegin(msg_prop.at_id_set), std::cend(msg_prop.at_id_set), ",",
@@ -234,8 +258,8 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
 
     auto process_res = message_preprocessing(adapter, event, msg_prop, sender_id);
     if (!process_res.skip_default_llm) {
-        auto context = bot_cmd::CommandContext(adapter, event, "", process_res.is_deep_think, msg_prop);
-        process_llm(context, std::nullopt);
+        auto context = bot_cmd::CommandContext(adapter, event, "", process_res.is_deep_think, msg_prop, user_preference);
+        process_llm(context, std::nullopt, user_preference);
     }
 }
 
@@ -261,11 +285,60 @@ void on_friend_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_a
         return;
     }
 
+        // Get User preference
+    auto user_preference = database::get_global_db_connection().get_user_preference(event->sender_ptr->id);
+    if (!user_preference.has_value()) {
+        spdlog::warn("用户'{}'没有偏好设置，创建默认偏好设置", event->sender_ptr->id);
+        user_preference = database::UserPreference{};
+        database::get_global_db_connection().insert_or_update_user_preferences(
+            std::vector<std::pair<qq_id_t, database::UserPreference>>{
+                std::make_pair(event->sender_ptr->id, database::UserPreference{})});
+    }
+    spdlog::info("用户'{}'的偏好设置: {}", event->sender_ptr->id, user_preference.value().to_string());
+
+    if (user_preference->auto_new_chat_session_sec.has_value() &&
+        user_preference->auto_new_chat_session_sec.value() > 0) {
+        spdlog::debug("检查自动新对话设置: 用户ID={}, 设置值={}秒", event->sender_ptr->id, user_preference->auto_new_chat_session_sec.value());
+        
+        auto last_msg_list =
+            g_friend_message_storage.get_individual_last_msg_list(event->sender_ptr->id, 2);
+        spdlog::debug("获取历史消息: 用户ID={}, 消息数量={}", event->sender_ptr->id, last_msg_list.size());
+        
+        if (last_msg_list.size() > 1) {
+            auto last_msg_time = last_msg_list[0].send_time;
+            auto event_time = event->send_time;
+            auto time_diff = event_time - last_msg_time;
+            auto time_diff_sec = std::chrono::duration_cast<std::chrono::seconds>(time_diff).count();
+            
+            spdlog::debug("时间间隔检查: 用户ID={}, 上条消息时间={}, 当前消息时间={}, 时间差={}秒, 阈值={}秒", 
+                         event->sender_ptr->id, 
+                         system_clock_to_string(last_msg_time),
+                         system_clock_to_string(event_time),
+                         time_diff_sec,
+                         user_preference->auto_new_chat_session_sec.value());
+            
+            if (event_time - last_msg_time > std::chrono::seconds(user_preference->auto_new_chat_session_sec.value())) {
+                spdlog::info("用户对话超过{}秒，创建新的对话", user_preference->auto_new_chat_session_sec.value());
+                g_chat_session_map.erase(event->sender_ptr->id);
+                g_chat_session_knowledge_list_map.erase(event->sender_ptr->id);
+            } else {
+                spdlog::debug("时间间隔未超过阈值，不创建新对话");
+            }
+        } else {
+            spdlog::debug("没有找到历史消息，跳过自动新对话检查");
+        }
+    } else {
+        spdlog::debug("用户ID={}的自动新对话设置无效: has_value={}, value={}", 
+                     event->sender_ptr->id, 
+                     user_preference->auto_new_chat_session_sec.has_value(),
+                     user_preference->auto_new_chat_session_sec.has_value() ? user_preference->auto_new_chat_session_sec.value() : -1);
+    }
+
     auto process_res = message_preprocessing(adapter, event, msg_prop, sender_id);
 
     if (!process_res.skip_default_llm) {
-        auto context = bot_cmd::CommandContext(adapter, event, "", process_res.is_deep_think, msg_prop);
-        process_llm(context, std::nullopt);
+        auto context = bot_cmd::CommandContext(adapter, event, "", process_res.is_deep_think, msg_prop, user_preference);
+        process_llm(context, std::nullopt, user_preference);
     }
 }
 

@@ -4,6 +4,7 @@
 #include "adapter_event.h"
 #include "adapter_model.h"
 #include "bot_adapter.h"
+#include "database.h"
 #include "msg_prop.h"
 #include <utility>
 
@@ -19,11 +20,12 @@ namespace bot_cmd {
         std::string param;
         bool is_deep_think = false;
         MessageProperties msg_prop;
+        std::optional<database::UserPreference> user_preference_option;
 
         CommandContext(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_adapter::MessageEvent> e,
-                       std::string_view param, bool is_deep_think, MessageProperties msg_prop)
+                       std::string_view param, bool is_deep_think, MessageProperties msg_prop, std::optional<database::UserPreference> user_preference_option)
             : adapter(adapter), event(e), param(param), is_deep_think(is_deep_think),
-              msg_prop(msg_prop) {}
+              msg_prop(msg_prop), user_preference_option(user_preference_option) {}
     };
 
     /**

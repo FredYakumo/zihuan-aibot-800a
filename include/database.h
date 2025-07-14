@@ -90,7 +90,7 @@ namespace database {
         void create_user_protait_table(const std::string_view table_name = DEFAULT_USER_PORTAIT_TABLE_NAME) {
             session
                 .sql(fmt::format("CREATE TABLE IF NOT EXISTS {} ("
-                                 " user_id int NOT NULL,"
+                                 " user_id varchar(255) NOT NULL,"
                                  " favorability double NOT NULL,"
                                  " protait TEXT NOT NULL,"
                                  " create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"
@@ -129,7 +129,7 @@ namespace database {
         }
 
         std::optional<UserPreference> get_user_preference(qq_id_t id) {
-            auto &table = get_user_preference_table();
+            auto table = get_user_preference_table();
             auto result = table.select("render_markdown_output", "text_output", "auto_new_chat_session")
                               .where("user_id = :user_id")
                               .bind("user_id", std::to_string(id))
@@ -156,7 +156,7 @@ namespace database {
         std::optional<UserProtait> get_user_protait(qq_id_t id) {
             auto &table = get_user_protait_table();
             auto result =
-                table.select("protait", "create_time").where("user_id = :user_id").bind("user_id", id).execute();
+                table.select("protait", "create_time").where("user_id = :user_id").bind("user_id", std::to_string(id)).execute();
 
             if (auto row = result.fetchOne()) {
                 return UserProtait{row[0].get<std::string>(), 0.0, row[1].get<std::chrono::system_clock::time_point>()};
@@ -189,7 +189,6 @@ namespace database {
         mysqlx::Schema schema;
         std::optional<mysqlx::Table> message_record_table = std::nullopt;
         std::optional<mysqlx::Table> tool_calls_record_table = std::nullopt;
-        std::optional<mysqlx::Table> user_preference_table = std::nullopt;
         std::optional<mysqlx::Table> user_protait_table = std::nullopt;
 
         inline mysqlx::Table &get_message_record_table() {
@@ -206,11 +205,8 @@ namespace database {
             return *tool_calls_record_table;
         }
 
-        inline mysqlx::Table &get_user_preference_table() {
-            if (!user_preference_table) {
-                user_preference_table = schema.getTable(std::string(DEFAULT_USER_PREFERENCE_TABLE_NAME), true);
-            }
-            return *user_preference_table;
+        inline mysqlx::Table get_user_preference_table() {
+            return schema.getTable(std::string(DEFAULT_USER_PREFERENCE_TABLE_NAME), true);
         }
 
         inline mysqlx::Table &get_user_protait_table() {
