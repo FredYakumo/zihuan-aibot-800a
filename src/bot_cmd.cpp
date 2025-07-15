@@ -271,7 +271,7 @@ namespace bot_cmd {
             context.adapter.send_replay_msg(
                 *context.event->sender_ptr,
                 bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(fmt::format(
-                    "'{}'的偏好设置:\n{}", context.event->sender_ptr->name, user_preference.value().to_string()))));
+                    "'{}'的偏好设置:\n{}\n\n使用#设置(...)设置选项。", context.event->sender_ptr->name, user_preference.value().to_string()))));
         }
         return bot_cmd::CommandRes{true, true};
     }

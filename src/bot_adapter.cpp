@@ -6,6 +6,7 @@
 #include "config.h"
 #include "constant_types.hpp"
 #include "constants.hpp"
+#include "database.h"
 #include "easywsclient.hpp"
 #include "get_optional.hpp"
 #include "global_data.h"
@@ -33,6 +34,15 @@ namespace bot_adapter {
 
     using namespace wheel;
 
+    void fetch_message_list_from_db(bot_adapter::BotAdapter &adapter) {
+        spdlog::info("从Database中获取1000条消息记录");
+        // // const auto group_list = adapter.get_bot_all_group_info();
+        // for (auto group : group_list) {
+        //     spdlog::info("Fetch message list in group '{}'({})", group.get().name, group.get().group_id);
+        //     // auto message_list = database::get_global_db_connection()
+        // }
+    }
+
     BotAdapter::~BotAdapter() {
 #ifdef _WIN32
         WSACleanup();
@@ -51,6 +61,7 @@ namespace bot_adapter {
                 std::this_thread::sleep_for(std::chrono::seconds(config.update_group_info_period_sec));
             }
         });
+
 
         while (ws->getReadyState() != easywsclient::WebSocket::CLOSED) {
             ws->poll();
@@ -569,7 +580,7 @@ namespace bot_adapter {
 
         for (const auto &node : markdown_node) {
             // Handle markdown rendering if user preference allows it
-            if (node.render_html_text.has_value()) {
+            if (node.render_html_text.has_value() || node.code_text.has_value()) {
                 std::string file_name = fmt::format("{}{}_markdown_render_block_{}", config.temp_res_path, sync_id_base,
                                                     render_html_count++);
                 float font_size = 15;
@@ -582,7 +593,7 @@ namespace bot_adapter {
                     }
                     ++line_count;
                 }
-                if (should_render_markdown) {
+                if (should_render_markdown || node.code_text.has_value()) {
                     nlohmann::json send_json = nlohmann::json{{
                                                                   "html",
                                                                   *node.render_html_text,

@@ -195,7 +195,7 @@ namespace database {
 
                                       const std::string &tool_calls, const std::string &tool_calls_content);
 
-        std::vector<GroupMessageRecord> query_group_user_message(uint64_t sender_id, uint64_t group_id,
+        std::vector<GroupMessageRecord> query_group_message(qq_id_t group_id, std::optional<qq_id_t> filter_sender = std::nullopt,
                                                                  size_t count_limit = 10);
 
       private:

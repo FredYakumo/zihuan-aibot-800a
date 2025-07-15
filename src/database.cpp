@@ -1,5 +1,6 @@
 #include "database.h"
 #include "config.h"
+#include "constant_types.hpp"
 #include <general-wheel-cpp/string_utils.hpp>
 #include <memory>
 #include <stdexcept>
@@ -68,20 +69,23 @@ void DBConnection::insert_tool_calls_record(const std::string &sender_name, qq_i
     }
 }
 
-std::vector<GroupMessageRecord> DBConnection::query_group_user_message(uint64_t sender_id, uint64_t group_id,
-                                                                       size_t count_limit) {
-    mysqlx::RowResult sql_result = get_message_record_table()
-                                       .select("content", "send_time")
-                                       .where("sender_id = :sender_id and group_id = :group_id")
-                                       .orderBy("send_time DESC")
-                                       .limit(count_limit)
-                                       .bind("sender_id", sender_id)
-                                       .bind("group_id", group_id)
-                                       .execute();
-    std::vector<GroupMessageRecord> result;
-    for (auto row : sql_result) {
-        // result.emplace_back(row.get(0), )
+std::vector<GroupMessageRecord>
+DBConnection::query_group_message(qq_id_t group_id, std::optional<qq_id_t> filter_sender, size_t count_limit) {
+    auto sql = get_message_record_table().select("content", "send_time", "sender_id");
+    if (filter_sender) {
+        sql.where("group_id = :group_id and sender_id = :sender_id")
+            .bind("group_id", group_id)
+            .bind("sender_id", *filter_sender);
+    } else {
+        sql.where("group_id = :group_id").bind("group_id", group_id);
     }
+    sql.orderBy("send_time DESC").limit(count_limit).execute();
+    mysqlx::RowResult sql_result = sql.execute();
+
+    std::vector<GroupMessageRecord> result;
+    // for (auto row : sql_result) {
+    //     result.push_back(GroupMessageRecord{.content=row.get(0), .send_time=}}
+    // }
     return result;
 }
 
@@ -100,13 +104,15 @@ void DBConnection::insert_or_update_user_preferences(
 
         std::string user_ids_list_str = wheel::join_str(user_ids.cbegin(), user_ids.cend(), ",",
                                                         [](const std::string &id) { return "'" + id + "'"; });
-        
+
         // Execute delete operation
-        auto delete_result = get_user_preference_table().remove().where("user_id IN (" + user_ids_list_str + ")").execute();
+        auto delete_result =
+            get_user_preference_table().remove().where("user_id IN (" + user_ids_list_str + ")").execute();
         auto deleted_count = delete_result.getAffectedItemsCount();
 
         // Execute insert operation with fresh table reference
-        auto insert = get_user_preference_table().insert("user_id", "render_markdown_output", "text_output", "auto_new_chat_session");
+        auto insert = get_user_preference_table().insert("user_id", "render_markdown_output", "text_output",
+                                                         "auto_new_chat_session");
         for (const auto &pref_pair : user_preferences) {
             insert.values(std::to_string(pref_pair.first), pref_pair.second.render_markdown_output,
                           pref_pair.second.text_output,
