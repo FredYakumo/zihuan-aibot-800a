@@ -533,15 +533,11 @@ namespace bot_adapter {
         // 合并节点，rich_text自动换行
         float font_size = 15;
         int body_width = 350;
-        auto merged_nodes = merge_markdown_nodes(markdown_node, 500, font_size, body_width);
 
         // Check if it's simple text (not markdown blocks)
-        bool is_simple_text = merged_nodes.size() == 1 && !merged_nodes[0].render_html_text.has_value() &&
-                              merged_nodes[0].text.length() < msg_length_limit;
-
-        if (is_simple_text) {
+        if (markdown_node.size() < 2 || (markdown_node.size() == 1 && !markdown_node[0].render_html_text.has_value())) {
             spdlog::info("Markdown text is short and no render HTML.");
-            send_replay_msg(sender, make_message_chain_list(PlainTextMessage(merged_nodes[0].text)), true, out_message_id_option);
+            send_replay_msg(sender, make_message_chain_list(PlainTextMessage(markdown_node[0].text)), true, out_message_id_option);
             return;
         }
 
@@ -571,7 +567,7 @@ namespace bot_adapter {
         std::vector<ForwardMessageNode> forward_nodes;
         const auto &config = Config::instance();
 
-        for (const auto &node : merged_nodes) {
+        for (const auto &node : markdown_node) {
             // Handle markdown rendering if user preference allows it
             if (node.render_html_text.has_value()) {
                 std::string file_name = fmt::format("{}{}_markdown_render_block_{}", config.temp_res_path, sync_id_base,
