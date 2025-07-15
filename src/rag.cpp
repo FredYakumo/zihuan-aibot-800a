@@ -2,6 +2,7 @@
 #include "adapter_model.h"
 #include "config.h"
 #include "constants.hpp"
+#include "database.h"
 #include "db_knowledge.hpp"
 #include "fmt/core.h"
 #include "get_optional.hpp"
@@ -238,6 +239,16 @@ namespace rag {
         } catch (const nlohmann::json::exception &e) {
             spdlog::error("JSON解析失败: {}", e.what());
         }
+        return ret;
+    }
+
+    std::optional<std::string> get_user_protait_string(qq_id_t user_id) {
+        // auto protait_list = database::get_global_db_connection().get_user_protait(user_id, 1);
+        // if (protait_list.empty()) {
+        //     return std::nullopt;
+        // }
+        std::string ret;
+        
         return ret;
     }
 

@@ -9,17 +9,31 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <spdlog/sinks/daily_file_sink.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 
 int main(int argc, char *argv[]) {
     const auto log_level = std::getenv("LOG_LEVEL");
 
+    int rotation_hour = 0;
+    int rotation_minute = 0;
+
+    auto daily_file_sink =
+        std::make_shared<spdlog::sinks::daily_file_sink_mt>("logs/aibot/aibot_800a.txt",
+                                                            rotation_hour, rotation_minute);
+    auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+    std::vector<spdlog::sink_ptr> sinks {console_sink, daily_file_sink};
+    auto logger = std::make_shared<spdlog::logger>("aibot_800a", sinks.begin(), sinks.end());
+    spdlog::set_default_logger(logger);
+    
+    
     if (log_level != nullptr) {
         try {
             // Convert string to lowercase for case-insensitive comparison
             std::string level_str(log_level);
             std::transform(level_str.begin(), level_str.end(), level_str.begin(),
                            [](unsigned char c) { return std::tolower(c); });
-    
+
             // Map string values to spdlog levels
             if (level_str == "trace") {
                 spdlog::set_level(spdlog::level::trace);
@@ -38,10 +52,11 @@ int main(int argc, char *argv[]) {
             } else {
                 spdlog::warn("Unknown LOG_LEVEL value: {}, using default", log_level);
             }
-        } catch (const std::exception& e) {
+        } catch (const std::exception &e) {
             spdlog::error("Failed to parse LOG_LEVEL: {}", e.what());
         }
     }
+    spdlog::info("Set logging level to {}", spdlog::level::to_string_view(spdlog::get_level()));
 
     Config::init();
     bot_cmd::init_command_map();
@@ -97,7 +112,6 @@ int main(int argc, char *argv[]) {
             spdlog::info("Using CPU for neural network inference.");
         }
     }
-
 
     neural_network::init_model_set(device);
 

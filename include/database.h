@@ -153,19 +153,33 @@ namespace database {
             return std::nullopt;
         }
 
-        std::optional<UserProtait> get_user_protait(qq_id_t id) {
+        /**
+         * @brief Get a list of user protait records by user id, ordered by create_time.
+         * @param id User id
+         * @param limit The maximum number of records to return (default 1)
+         * @return std::vector<UserProtait>
+         */
+        std::vector<UserProtait> get_user_protait(qq_id_t id, size_t limit = 1) {
             auto &table = get_user_protait_table();
-            auto result =
-                table.select("protait", "create_time").where("user_id = :user_id").bind("user_id", std::to_string(id)).execute();
-
-            if (auto row = result.fetchOne()) {
-                return UserProtait{row[0].get<std::string>(), 0.0, row[1].get<std::chrono::system_clock::time_point>()};
+            auto result = table.select("protait", "favorability", "create_time")
+                .where("user_id = :user_id")
+                .orderBy("create_time DESC")
+                .limit(static_cast<int>(limit))
+                .bind("user_id", std::to_string(id))
+                .execute();
+            std::vector<UserProtait> protaits;
+            for (auto row : result) {
+                protaits.emplace_back(UserProtait{
+                    row[0].get<std::string>(),
+                    row[1].get<double>(),
+                    row[2].get<std::chrono::system_clock::time_point>()
+                });
             }
-            return std::nullopt;
+            return protaits;
         }
 
         void insert_user_protait(qq_id_t id, const std::string &protait,
-                                 const std::chrono::system_clock::time_point &create_time);
+                                 const std::chrono::system_clock::time_point &create_time, double favorability);
 
         void insert_user_protait(const std::vector<std::pair<qq_id_t, UserProtait>> &user_protaits);
 

@@ -125,11 +125,11 @@ void DBConnection::insert_or_update_user_preferences(
 }
 
 void DBConnection::insert_user_protait(qq_id_t id, const std::string &protait,
-                                       const std::chrono::system_clock::time_point &create_time) {
+                                       const std::chrono::system_clock::time_point &create_time, double favorability) {
     try {
         get_user_protait_table()
-            .insert("user_id", "protait", "create_time")
-            .values(std::to_string(id), protait, time_point_to_db_str(create_time))
+            .insert("user_id", "protait", "create_time", "favorability")
+            .values(std::to_string(id), protait, time_point_to_db_str(create_time), favorability)
             .execute();
         spdlog::info("Insert user protait successed.");
     } catch (const mysqlx::Error &e) {
@@ -144,10 +144,10 @@ void DBConnection::insert_user_protait(const std::vector<std::pair<qq_id_t, User
 
     try {
         auto table = get_user_protait_table();
-        auto insert = table.insert("user_id", "protait", "create_time");
+        auto insert = table.insert("user_id", "protait", "create_time", "favorability");
         for (const auto &protait_pair : user_protaits) {
             insert.values(std::to_string(protait_pair.first), protait_pair.second.protait,
-                          time_point_to_db_str(protait_pair.second.create_time));
+                          time_point_to_db_str(protait_pair.second.create_time), protait_pair.second.favorability);
         }
         auto insert_result = insert.execute();
         auto inserted_count = insert_result.getAffectedItemsCount();

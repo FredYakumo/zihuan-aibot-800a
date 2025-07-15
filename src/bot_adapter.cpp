@@ -400,6 +400,128 @@ namespace bot_adapter {
         }
     }
 
+    /**
+     * @brief 对markdown节点进行合并，连续同类型合并，单块不超过max_lines。
+     * @param nodes 原始markdown节点
+     * @param max_lines 单块最大行数
+     * @param font_size rich_text时用于word-break的字体大小
+     * @param body_width rich_text时用于word-break的最大宽度
+     * @return 合并后的节点
+     */
+    static std::vector<wheel::MarkdownNode> merge_markdown_nodes(const std::vector<wheel::MarkdownNode>& nodes, size_t max_lines = 500, float font_size = 15, int body_width = 350) {
+        using wheel::MarkdownNode;
+        std::vector<MarkdownNode> merged;
+        auto count_lines = [](const std::string& text) -> size_t {
+            return std::count(text.begin(), text.end(), '\n') + 1;
+        };
+        auto word_break_for_rich_text = [font_size, body_width](const std::string& text) -> std::string {
+            size_t max_chars_per_line = static_cast<size_t>(body_width / font_size);
+            std::string result;
+            size_t char_count = 0;
+            for (size_t i = 0; i < text.size(); ++i) {
+                char c = text[i];
+                if (c == '\n') {
+                    result += c;
+                    char_count = 0;
+                } else {
+                    result += c;
+                    ++char_count;
+                    if (char_count >= max_chars_per_line) {
+                        result += '\n';
+                        char_count = 0;
+                    }
+                }
+            }
+            return result;
+        };
+        auto try_merge = [&](MarkdownNode& current, const MarkdownNode& next) -> bool {
+            // rich_text
+            if (current.rich_text && next.rich_text) return true;
+            if (current.code_text && next.code_text && current.code_language == next.code_language) return true;
+            if (current.table_text && next.table_text) return true;
+            if (current.latex_text && next.latex_text) return true;
+            return false;
+        };
+        MarkdownNode current;
+        size_t current_lines = 0;
+        bool has_current = false;
+        for (const auto& node : nodes) {
+            std::string node_text = node.text;
+            // rich_text word-break
+            if (node.rich_text) {
+                node_text = word_break_for_rich_text(node_text);
+            }
+            size_t node_lines = count_lines(node_text);
+            if (!has_current) {
+                current = node;
+                current.text = node_text;
+                current_lines = node_lines;
+                has_current = true;
+                continue;
+            }
+            if (try_merge(current, node) && current_lines + node_lines <= max_lines) {
+                // 合并
+                if (current.rich_text && node.rich_text) {
+                    if (current.rich_text && node.rich_text) {
+                        *current.rich_text += "\n" + *node.rich_text;
+                    }
+                }
+                if (current.code_text && node.code_text) {
+                    if (current.code_text && node.code_text) {
+                        *current.code_text += "\n" + *node.code_text;
+                    }
+                }
+                if (current.table_text && node.table_text) {
+                    if (current.table_text && node.table_text) {
+                        *current.table_text += "\n" + *node.table_text;
+                    }
+                }
+                if (current.latex_text && node.latex_text) {
+                    if (current.latex_text && node.latex_text) {
+                        *current.latex_text += "\n" + *node.latex_text;
+                    }
+                }
+                current.text += "\n" + node_text;
+                current_lines += node_lines;
+            } else {
+                merged.push_back(current);
+                current = node;
+                current.text = node_text;
+                current_lines = node_lines;
+            }
+            // 拆分超长
+            while (current_lines > max_lines) {
+                // 拆分text
+                size_t line_cnt = 0, split_pos = 0;
+                for (size_t i = 0; i < current.text.size(); ++i) {
+                    if (current.text[i] == '\n') ++line_cnt;
+                    if (line_cnt == max_lines) {
+                        split_pos = i;
+                        break;
+                    }
+                }
+                MarkdownNode part = current;
+                part.text = current.text.substr(0, split_pos);
+                if (current.rich_text) part.rich_text = part.text;
+                if (current.code_text) part.code_text = part.text;
+                if (current.table_text) part.table_text = part.text;
+                if (current.latex_text) part.latex_text = part.text;
+                merged.push_back(part);
+                // 剩余部分
+                current.text = current.text.substr(split_pos + 1);
+                if (current.rich_text) current.rich_text = current.text;
+                if (current.code_text) current.code_text = current.text;
+                if (current.table_text) current.table_text = current.text;
+                if (current.latex_text) current.latex_text = current.text;
+                current_lines = count_lines(current.text);
+            }
+        }
+        if (has_current && !current.text.empty()) {
+            merged.push_back(current);
+        }
+        return merged;
+    }
+
     void BotAdapter::send_long_plain_text_reply(const Sender &sender, std::string text, bool at_target,
                                                 uint64_t msg_length_limit,
                                                 std::optional<std::function<void(uint64_t &)>> out_message_id_option,
@@ -408,14 +530,18 @@ namespace bot_adapter {
 
         // Parse llm reply content
         auto markdown_node = wheel::parse_markdown(std::move(text));
+        // 合并节点，rich_text自动换行
+        float font_size = 15;
+        int body_width = 350;
+        auto merged_nodes = merge_markdown_nodes(markdown_node, 500, font_size, body_width);
 
         // Check if it's simple text (not markdown blocks)
-        bool is_simple_text = markdown_node.size() == 1 && !markdown_node[0].render_html_text.has_value() &&
-                              markdown_node[0].text.length() < msg_length_limit;
+        bool is_simple_text = merged_nodes.size() == 1 && !merged_nodes[0].render_html_text.has_value() &&
+                              merged_nodes[0].text.length() < msg_length_limit;
 
         if (is_simple_text) {
             spdlog::info("Markdown text is short and no render HTML.");
-            send_replay_msg(sender, make_message_chain_list(PlainTextMessage(text)), true, out_message_id_option);
+            send_replay_msg(sender, make_message_chain_list(PlainTextMessage(merged_nodes[0].text)), true, out_message_id_option);
             return;
         }
 
@@ -445,7 +571,7 @@ namespace bot_adapter {
         std::vector<ForwardMessageNode> forward_nodes;
         const auto &config = Config::instance();
 
-        for (const auto &node : markdown_node) {
+        for (const auto &node : merged_nodes) {
             // Handle markdown rendering if user preference allows it
             if (node.render_html_text.has_value()) {
                 std::string file_name = fmt::format("{}{}_markdown_render_block_{}", config.temp_res_path, sync_id_base,
@@ -530,7 +656,7 @@ namespace bot_adapter {
             }
 
             // Output text if user preference allows it, regardless of whether markdown was rendered
-            if (should_output_text || node.code_text.has_value()) {
+            if (should_output_text || node.code_text.has_value() || !node.render_html_text.has_value()) {
                 const auto split_output = Utf8Splitter(node.text, msg_length_limit);
                 for (auto chunk : split_output) {
                     spdlog::info("长文块: {}, {}", index, chunk);

@@ -2,6 +2,7 @@
 #define MSG_DB_H
 
 #include "chat_session.hpp"
+#include "constant_types.hpp"
 #include "constants.hpp"
 #include "global_data.h"
 #include "msg_prop.h"
@@ -41,6 +42,9 @@ namespace rag {
     std::vector<NetSearchImage> net_search_image(const std::string_view query);
 
     UrlSearchResult url_search_content(const std::vector<std::string> &url_list);
+
+    std::optional<std::string> get_user_protait_string(qq_id_t user_id);
+    
 } // namespace rag
 
 #endif
