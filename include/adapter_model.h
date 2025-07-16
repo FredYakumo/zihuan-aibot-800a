@@ -501,6 +501,20 @@ namespace bot_adapter {
         neural_network::emb_mat_t member_name_embedding_matrix;
         wheel::concurrent_vector<std::optional<qq_id_t>> member_ids;
     };
+
+    struct FriendInfo {
+        qq_id_t id;
+        std::string name;
+        std::optional<std::string> remark;
+
+        FriendInfo(qq_id_t id, std::string name, std::optional<std::string> remark)
+            : id(id), name(std::move(name)), remark(std::move(remark)) {}
+
+        FriendInfo(const nlohmann::json &friend_info)
+            : id(get_optional<qq_id_t>(friend_info, "id").value_or(0)),
+              name(get_optional<std::string>(friend_info, "name").value_or("")),
+              remark(get_optional<std::string>(friend_info, "remark")) {}
+    };
 } // namespace bot_adapter
 
 #endif

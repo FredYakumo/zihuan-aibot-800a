@@ -28,6 +28,7 @@ namespace database {
     constexpr std::string_view DEFAULT_USER_PREFERENCE_TABLE_NAME = "user_preference";
 
     struct GroupMessageRecord {
+        std::optional<message_id_t> message_id_opt;
         std::string content;
         std::chrono::system_clock::time_point send_time;
         bot_adapter::GroupSender sender;

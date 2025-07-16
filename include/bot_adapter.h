@@ -8,6 +8,7 @@
 #include "constant_types.hpp"
 #include "constants.hpp"
 #include "database.h"
+#include "get_optional.hpp"
 #include "neural_network/text_model.h"
 #include <collection/concurrent_unordered_map.hpp>
 #include <cstdint>
@@ -26,6 +27,7 @@
 namespace bot_adapter {
     using CommandResHandleFunc = std::function<void(const nlohmann::json &command_res_json)>;
     using GroupAnnouncementResHandleFunc = std::function<void(const std::vector<GroupAnnouncement> &)>;
+
     class BotAdapter {
       public:
         BotAdapter(const std::string_view url, std::optional<uint64_t> bot_id_option = std::nullopt) {
@@ -95,10 +97,11 @@ namespace bot_adapter {
             const Sender &sender, const MessageChainPtrList &message_chain, bool at_target = true,
             std::optional<std::function<void(uint64_t &out_message_id)>> out_message_id_option = std::nullopt);
 
-        void send_long_plain_text_reply(const Sender &sender, std::string text, bool at_target = true,
-                                        uint64_t msg_length_limit = MAX_OUTPUT_LENGTH,
-                                        std::optional<std::function<void(uint64_t &)>> out_message_id_option = std::nullopt,
-                                        std::optional<database::UserPreference> user_preference_option = std::nullopt);
+        void
+        send_long_plain_text_reply(const Sender &sender, std::string text, bool at_target = true,
+                                   uint64_t msg_length_limit = MAX_OUTPUT_LENGTH,
+                                   std::optional<std::function<void(uint64_t &)>> out_message_id_option = std::nullopt,
+                                   std::optional<database::UserPreference> user_preference_option = std::nullopt);
 
         void update_bot_profile();
 
@@ -152,6 +155,35 @@ namespace bot_adapter {
                              }
                              out_func(announcements);
                          });
+        }
+
+        inline std::vector<FriendInfo> get_friend_list_sync() {
+            const std::string sync_id =
+                fmt::format("get_friend_list_sync_{}", std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                                           std::chrono::system_clock::now().time_since_epoch())
+                                                           .count());
+            auto res = send_command_sync(AdapterCommand(sync_id, "friendList", std::make_shared<CommandJsonContent>()));
+
+            std::vector<FriendInfo> friend_list;
+            if (!res.has_value()) {
+                return friend_list;
+            }
+
+            try {
+                if (auto data = get_optional(*res, "data")) {
+                    if (data->is_array()) {
+                        for (const auto &friend_data : *data) {
+                            if (friend_data.is_object()) {
+                                friend_list.emplace_back(friend_data);
+                            }
+                        }
+                    }
+                }
+            } catch (const std::exception &e) {
+                spdlog::error("botAdapter::get_friend_list_sync() Error parsing friend list JSON: {}", e.what());
+            }
+
+            return friend_list;
         }
 
         /**

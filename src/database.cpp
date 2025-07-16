@@ -75,7 +75,7 @@ void DBConnection::insert_tool_calls_record(const std::string &sender_name, qq_i
 std::vector<GroupMessageRecord>
 DBConnection::query_group_message(qq_id_t group_id, std::optional<qq_id_t> filter_sender, size_t count_limit) {
     auto sql = get_message_record_table().select(
-        "content", "send_time", "sender_id", "sender_name", "group_id", "group_name", "group_permission"
+        "message_id", "content", "send_time", "sender_id", "sender_name", "group_id", "group_name", "group_permission"
     );
     if (filter_sender) {
         sql.where("group_id = :group_id and sender_id = :sender_id")
@@ -89,19 +89,35 @@ DBConnection::query_group_message(qq_id_t group_id, std::optional<qq_id_t> filte
 
     std::vector<GroupMessageRecord> result;
     for (auto row : sql_result) {
-        std::string content = row[0].get<std::string>();
-        auto send_time_str = row[1].get<std::string>();
+        auto message_id_val = row[0];
+        std::string content = row[1].get<std::string>();
+        auto send_time_str = row[2].get<std::string>();
         auto send_time = db_str_to_time_point(send_time_str);
-        uint64_t sender_id = std::stoull(row[2].get<std::string>());
-        std::string sender_name = row[3].get<std::string>();
-        uint64_t group_id_val = std::stoull(row[4].get<std::string>());
-        std::string group_name = row[5].get<std::string>();
-        std::string group_permission = row[6].get<std::string>();
+        uint64_t sender_id = std::stoull(row[3].get<std::string>());
+        std::string sender_name = row[4].get<std::string>();
+        uint64_t group_id_val = std::stoull(row[5].get<std::string>());
+        std::string group_name = row[6].get<std::string>();
+        std::string group_permission = row[7].get<std::string>();
 
-        // Construct Group, GroupSender
+        // Construct Group, GroupSender 
         bot_adapter::Group group(group_id_val, group_name, group_permission);
-        bot_adapter::GroupSender sender(sender_id, sender_name, std::nullopt, group_permission, std::nullopt, send_time, group);
-        result.emplace_back(content, send_time, sender);
+        auto sender = std::make_shared<bot_adapter::GroupSender>(
+            sender_id, sender_name, "", // id, name, remark
+            group_permission, // permission
+            std::nullopt, // join_time
+            send_time, // last_speak_time  
+            group // group
+        );
+        GroupMessageRecord record(content, send_time, *sender);
+        if (!message_id_val.isNull()) {
+            try {
+                record.message_id_opt = std::stoull(message_id_val.get<std::string>());
+            } catch (const std::exception& e) {
+                spdlog::warn("Failed to convert message_id to integer: {}", e.what());
+                record.message_id_opt = std::nullopt;
+            }
+        }
+        result.push_back(std::move(record));
     }
     return result;
 }

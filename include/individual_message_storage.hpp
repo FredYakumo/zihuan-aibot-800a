@@ -33,7 +33,11 @@ class IndividualMessageStorage {
         add_message(individual_id, message_id, std::make_shared<MessageStorageEntry>(std::move(msg_entry)));
     }
 
-
+    void batch_add_message(const std::vector<qq_id_t> &individual_ids, const std::vector<qq_id_t> &message_ids,
+                           const std::vector<std::shared_ptr<MessageStorageEntry>> &msg_entry_ptrs) {
+        batch_add_message_to_individual_view(individual_ids, message_ids, msg_entry_ptrs);
+        batch_add_message_to_individual_time_sequence_view(individual_ids, msg_entry_ptrs);
+    }
 
     std::optional<std::reference_wrapper<const MessageStorageEntry>> find_message_id(qq_id_t individual_id,
                                                                                      qq_id_t message_id) const {
@@ -48,8 +52,7 @@ class IndividualMessageStorage {
         return std::nullopt;
     }
 
-    std::vector<MessageStorageEntry> get_individual_last_msg_list(qq_id_t individual_id,
-                                                                                                size_t limit = 5) {
+    std::vector<MessageStorageEntry> get_individual_last_msg_list(qq_id_t individual_id, size_t limit = 5) {
         std::vector<MessageStorageEntry> ret;
         auto time_sequence_group = time_sequence_view.find(individual_id);
         if (time_sequence_group.has_value()) {
@@ -71,18 +74,44 @@ class IndividualMessageStorage {
         individual->insert_or_assign(message_id, msg_entry_ptr);
     }
 
-    void add_message_to_individual_view(std::vector<qq_id_t> individual_ids, std::vector<qq_id_t> message_ids,
-                                         std::vector<std::shared_ptr<MessageStorageEntry>> msg_entry_ptrs) {
-        
+    inline void
+    batch_add_message_to_individual_view(const std::vector<qq_id_t> &individual_ids,
+                                         const std::vector<qq_id_t> &message_ids,
+                                         const std::vector<std::shared_ptr<MessageStorageEntry>> &msg_entry_ptrs) {
+        if (individual_ids.size() != message_ids.size() || individual_ids.size() != msg_entry_ptrs.size()) {
+            throw std::invalid_argument(
+                "IndividualMessageStorage::batch_add_message_to_individual_view(): mismatched vector sizes");
+        }
+        message_id_view_map.modify_map([&](auto &map) {
+            for (size_t i = 0; i < individual_ids.size(); ++i) {
+                MessageIdView empty_view;
+                auto [it, inserted] = map.try_emplace(individual_ids[i], empty_view);
+                it->second.insert_or_assign(message_ids[i], msg_entry_ptrs[i]);
+            }
+        });
     }
-
 
     inline void add_message_to_individual_time_sequence_view(qq_id_t individual_id,
                                                              std::shared_ptr<MessageStorageEntry> msg_entry_ptr) {
-        auto time_sequence_group = time_sequence_view.get_or_emplace_value(
-            individual_id);
+        auto time_sequence_group = time_sequence_view.get_or_emplace_value(individual_id);
 
         time_sequence_group->push_back(msg_entry_ptr);
+    }
+
+    inline void batch_add_message_to_individual_time_sequence_view(
+        const std::vector<qq_id_t> &individual_ids,
+        const std::vector<std::shared_ptr<MessageStorageEntry>> &msg_entry_ptrs) {
+        if (individual_ids.size() != msg_entry_ptrs.size()) {
+            throw std::invalid_argument("IndividualMessageStorage::batch_add_message_to_individual_time_sequence_view()"
+                                        ": mismatched vector sizes");
+        }
+        time_sequence_view.modify_map([&](auto &map) {
+            for (size_t i = 0; i < individual_ids.size(); ++i) {
+                auto [it, inserted] = map.try_emplace(individual_ids[i],
+                                                      wheel::concurrent_vector<std::shared_ptr<MessageStorageEntry>>());
+                it->second.push_back(msg_entry_ptrs[i]);
+            }
+        });
     }
 
     /**
@@ -130,4 +159,3 @@ class IndividualMessageStorage {
     wheel::concurrent_unordered_map<qq_id_t, wheel::concurrent_vector<std::shared_ptr<MessageStorageEntry>>>
         time_sequence_view;
 };
-
