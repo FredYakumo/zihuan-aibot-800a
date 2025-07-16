@@ -80,8 +80,14 @@ namespace database {
                                  "  send_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, "
                                  "  group_name VARCHAR(255) NULL, "
                                  "  group_id VARCHAR(255) NULL, "
-                                 "  group_permission VARCHAR(255) NULL"
-                                 "  at_target_list TEXT NULL"
+                                 "  group_permission VARCHAR(255) NULL,"
+                                 "  at_target_list TEXT NULL,"
+                                 "  message_id VARCHAR(255) NULL,"
+                                 "  INDEX idx_sender_id (sender_id),"
+                                 "  INDEX idx_sender_name (sender_name),"
+                                 "  INDEX idx_send_time (send_time),"
+                                 "  INDEX idx_group_id (group_id),"
+                                 "  INDEX idx_group_name (group_name)"
                                  ");",
                                  table_name))
                 .execute();
