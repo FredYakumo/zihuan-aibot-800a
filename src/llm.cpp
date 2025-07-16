@@ -646,24 +646,28 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &us
 
     context.adapter.send_long_plain_text_reply(
         *context.event->sender_ptr, replay_content, true, MAX_OUTPUT_LENGTH,
-        [user_asking_content, replay_content](uint64_t message_id) {
+        [context, user_asking_content, replay_content](uint64_t message_id) {
             auto input_emb = neural_network::get_model_set().text_embedding_model->embed(user_asking_content);
             auto llm_output_emb = neural_network::get_model_set().text_embedding_model->embed(replay_content);
+            if (const auto &group_sender = bot_adapter::try_group_sender(*context.event->sender_ptr)) {
+                database::get_global_db_connection().insert_message(
+                    message_id,
+                    replay_content,
+                    bot_adapter::GroupSender(
+                        config.bot_id, context.adapter.get_bot_profile().name, std::nullopt,
+                        to_string(
+                            context.adapter.get_group(group_sender->get().group.id).group_info.bot_in_group_permission),
+                        std::nullopt, std::chrono::system_clock::now(), group_sender->get().group),
+                    std::chrono::system_clock::now(), std::set<uint64_t>{context.event->sender_ptr->id});
+            } else {
+                database::get_global_db_connection().insert_message(
+                    message_id,
+                    replay_content,
+                    bot_adapter::Sender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt),
+                    std::chrono::system_clock::now(), std::set<uint64_t>{context.event->sender_ptr->id});
+            }
         },
         user_preference_option);
-    if (const auto &group_sender = bot_adapter::try_group_sender(*context.event->sender_ptr)) {
-        database::get_global_db_connection().insert_message(
-            replay_content,
-            bot_adapter::GroupSender(
-                config.bot_id, context.adapter.get_bot_profile().name, std::nullopt,
-                to_string(context.adapter.get_group(group_sender->get().group.id).group_info.bot_in_group_permission),
-                std::nullopt, std::chrono::system_clock::now(), group_sender->get().group),
-            std::chrono::system_clock::now(), std::set<uint64_t>{context.event->sender_ptr->id});
-    } else {
-        database::get_global_db_connection().insert_message(
-            replay_content, bot_adapter::Sender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt),
-            std::chrono::system_clock::now(), std::set<uint64_t>{context.event->sender_ptr->id});
-    }
 
     release_processing_llm(context.event->sender_ptr->id);
 
