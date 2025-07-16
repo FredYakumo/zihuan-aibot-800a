@@ -14,7 +14,6 @@
 #include "rag.h"
 #include "user_protait.h"
 #include "utils.h"
-#include <strings.h>
 #include <chrono>
 #include <cpr/cpr.h>
 #include <cstdint>
@@ -26,6 +25,7 @@
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
+#include <strings.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -346,8 +346,9 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &us
                     context.adapter.send_long_plain_text_reply(*context.event->sender_ptr,
                                                                "你发的啥,我看不到...再发一遍呢?", true);
                 } else {
-                    context.adapter.send_long_plain_text_reply(*context.event->sender_ptr, "等我看看这个链接哦...",
-                                                               true);
+                    context.adapter.send_long_plain_text_reply(
+                        *context.event->sender_ptr,
+                        ltrim(rtrim(llm_res.content)).empty() ? "等我看看这个链接哦..." : llm_res.content, true);
                 }
 
                 const auto url_search_res = rag::url_search_content(urls);
@@ -446,7 +447,7 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &us
                 } else {
                     // Friend chat, ignore target
                     const auto &msg_list =
-                        g_friend_message_storage.get_individual_last_msg_list(context.event->sender_ptr->id, 10);
+                        g_person_message_storage.get_individual_last_msg_list(context.event->sender_ptr->id, 10);
                     if (msg_list.empty()) {
                         content = "我们之间还没有聊天记录哦";
                     } else {
@@ -647,7 +648,8 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &us
         [user_asking_content, replay_content](uint64_t message_id) {
             auto input_emb = neural_network::get_model_set().text_embedding_model->embed(user_asking_content);
             auto llm_output_emb = neural_network::get_model_set().text_embedding_model->embed(replay_content);
-        }, user_preference_option);
+        },
+        user_preference_option);
     if (const auto &group_sender = bot_adapter::try_group_sender(*context.event->sender_ptr)) {
         database::get_global_db_connection().insert_message(
             replay_content,
@@ -908,8 +910,7 @@ std::optional<nlohmann::json> fetch_model_info() {
     }
     try {
         nlohmann::json json_result = nlohmann::json::parse(response.text);
-        spdlog::info("Fetch model info success, time taken: {} ms, response: {}",
-                     duration.count(),
+        spdlog::info("Fetch model info success, time taken: {} ms, response: {}", duration.count(),
                      json_result.dump(4));
         return json_result;
     } catch (const nlohmann::json::parse_error &e) {

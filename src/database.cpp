@@ -4,6 +4,7 @@
 #include <general-wheel-cpp/string_utils.hpp>
 #include <memory>
 #include <stdexcept>
+#include <time_utils.h>
 
 using namespace database;
 
@@ -71,7 +72,9 @@ void DBConnection::insert_tool_calls_record(const std::string &sender_name, qq_i
 
 std::vector<GroupMessageRecord>
 DBConnection::query_group_message(qq_id_t group_id, std::optional<qq_id_t> filter_sender, size_t count_limit) {
-    auto sql = get_message_record_table().select("content", "send_time", "sender_id");
+    auto sql = get_message_record_table().select(
+        "content", "send_time", "sender_id", "sender_name", "group_id", "group_name", "group_permission"
+    );
     if (filter_sender) {
         sql.where("group_id = :group_id and sender_id = :sender_id")
             .bind("group_id", group_id)
@@ -79,13 +82,25 @@ DBConnection::query_group_message(qq_id_t group_id, std::optional<qq_id_t> filte
     } else {
         sql.where("group_id = :group_id").bind("group_id", group_id);
     }
-    sql.orderBy("send_time DESC").limit(count_limit).execute();
+    sql.orderBy("send_time DESC").limit(count_limit);
     mysqlx::RowResult sql_result = sql.execute();
 
     std::vector<GroupMessageRecord> result;
-    // for (auto row : sql_result) {
-    //     result.push_back(GroupMessageRecord{.content=row.get(0), .send_time=}}
-    // }
+    for (auto row : sql_result) {
+        std::string content = row[0].get<std::string>();
+        auto send_time_str = row[1].get<std::string>();
+        auto send_time = db_str_to_time_point(send_time_str);
+        uint64_t sender_id = std::stoull(row[2].get<std::string>());
+        std::string sender_name = row[3].get<std::string>();
+        uint64_t group_id_val = std::stoull(row[4].get<std::string>());
+        std::string group_name = row[5].get<std::string>();
+        std::string group_permission = row[6].get<std::string>();
+
+        // Construct Group, GroupSender
+        bot_adapter::Group group(group_id_val, group_name, group_permission);
+        bot_adapter::GroupSender sender(sender_id, sender_name, std::nullopt, group_permission, std::nullopt, send_time, group);
+        result.emplace_back(content, send_time, sender);
+    }
     return result;
 }
 

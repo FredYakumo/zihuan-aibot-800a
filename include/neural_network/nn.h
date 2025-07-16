@@ -127,16 +127,16 @@ namespace neural_network {
             auto output_tensors = m_session.Run(Ort::RunOptions{nullptr}, m_input_names.data(), input_tensors.data(),
                                                 input_tensors.size(), m_output_names.data(), m_output_names.size());
 
-            // 检查输出有效性
+
             if (output_tensors.empty() || !output_tensors[0].IsTensor()) {
                 throw std::runtime_error("Inference failed: invalid output tensors");
             }
 
-            // 获取输出数据
+
             float *output_data = output_tensors[0].GetTensorMutableData<float>();
             auto output_shape = output_tensors[0].GetTensorTypeAndShapeInfo().GetShape();
 
-            // 计算输出元素总数
+
             size_t output_size = 1;
             for (auto dim : output_shape) {
                 if (dim < 0) {
@@ -145,7 +145,7 @@ namespace neural_network {
                 output_size *= dim;
             }
 
-            // 拷贝结果到vector
+
             return std::vector<float>(output_data, output_data + output_size);
         }
 

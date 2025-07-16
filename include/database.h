@@ -15,6 +15,7 @@
 #include <string_view>
 #include <vector>
 #include "user_protait.h"
+#include <time_utils.h>
 
 namespace database {
     using mysqlx::SessionOption;
@@ -172,7 +173,7 @@ namespace database {
                 protaits.emplace_back(UserProtait{
                     row[0].get<std::string>(),
                     row[1].get<double>(),
-                    row[2].get<std::chrono::system_clock::time_point>()
+                    db_str_to_time_point(row[2].get<std::string>())
                 });
             }
             return protaits;

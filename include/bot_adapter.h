@@ -110,7 +110,7 @@ namespace bot_adapter {
                          out_func);
         }
 
-        std::vector<std::reference_wrapper<GroupInfo>> get_bot_all_group_info();
+        std::vector<GroupInfo> get_bot_all_group_info() const;
 
         inline std::optional<std::reference_wrapper<const GroupWrapper>>
         fetch_group_member_info(qq_id_t group_id) const {

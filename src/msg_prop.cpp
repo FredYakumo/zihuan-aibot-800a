@@ -54,7 +54,7 @@ MessageProperties get_msg_prop_from_event(const bot_adapter::MessageEvent &event
                 }
             } else if (quote_msg->get().ref_friend_id_opt) {
                 // Try friend message storage
-                if (auto found_msg = g_friend_message_storage.find_message_id(*quote_msg->get().ref_friend_id_opt,
+                if (auto found_msg = g_person_message_storage.find_message_id(*quote_msg->get().ref_friend_id_opt,
                                                                             quote_msg->get().ref_msg_id)) {
                     // Combine all message texts in the chain
                     if (found_msg->get().message_chain_list) {

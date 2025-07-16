@@ -15,6 +15,6 @@ concurrent_vector<DBKnowledge> g_wait_add_knowledge_list;
 
 IndividualMessageStorage g_group_message_storage;
 
-IndividualMessageStorage g_friend_message_storage;
+IndividualMessageStorage g_person_message_storage;
 
 IndividualMessageStorage g_bot_send_group_message_storage;

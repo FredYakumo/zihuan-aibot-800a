@@ -65,13 +65,13 @@ const nlohmann::json DEFAULT_TOOLS = nlohmann::json::array(
                {{"type", "string"}, {"description", "互动内容.如揍'张三'则为'揍'或者'打一顿', 如@1232142则为@"}}}})),
 
      // query user tool
-     make_tool_function(
-         "query_user", "你可以调用此函数来查看用户或者群友的资料,如性别,地址信息等",
-         make_object_params({{"target", {{"type", "string"}, {"description", "对象.只能为QQ号或者名字"}}},
-                             {"item",
-                              {{"type", "string"},
-                               {"description", "查询内容,仅支持PROFILE(用户资料),AVATAR(头像),SUMMARY(印象或者评价),"
-                                               ".除此以外则是OTHER"}}}})),
+    //  make_tool_function(
+    //      "query_user", "你可以调用此函数来查看用户或者群友的资料,如性别,地址信息等",
+    //      make_object_params({{"target", {{"type", "string"}, {"description", "对象.只能为QQ号或者名字"}}},
+    //                          {"item",
+    //                           {{"type", "string"},
+    //                            {"description", "查询内容,仅支持PROFILE(用户资料),AVATAR(头像),SUMMARY(印象或者评价),"
+    //                                            ".除此以外则是OTHER"}}}})),
      // query group tool
      make_tool_function("query_group", "如果用户的消息中涉及查看群的信息,调用此函数",
                         make_object_params({{"item",

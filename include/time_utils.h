@@ -23,4 +23,20 @@ inline std::chrono::system_clock::time_point timestamp_to_timepoint(uint64_t tim
     return std::chrono::system_clock::from_time_t(timestamp);
 }
 
+/**
+ * @brief Convert database time string (format: "%Y-%m-%d %H:%M:%S") to std::chrono::system_clock::time_point.
+ * @param db_time_str Database time string.
+ * @return time_point corresponding to the input string.
+ */
+inline std::chrono::system_clock::time_point db_str_to_time_point(const std::string &db_time_str) {
+    std::tm tm = {};
+    std::istringstream ss(db_time_str);
+    ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
+    if (ss.fail()) {
+        throw std::runtime_error("Failed to parse time string: " + db_time_str);
+    }
+    std::time_t time_c = std::mktime(&tm);
+    return std::chrono::system_clock::from_time_t(time_c);
+}
+
 #endif
