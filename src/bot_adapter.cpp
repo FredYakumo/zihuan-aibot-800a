@@ -35,13 +35,13 @@ namespace bot_adapter {
     using namespace wheel;
 
     void fetch_message_list_from_db(bot_adapter::BotAdapter &adapter) {
-        // spdlog::info("从Database中获取1000条消息记录");
-        // const auto group_list = adapter.get_bot_all_group_info();
-        // for (auto group : group_list) {
-        //     spdlog::info("Fetch message list in group '{}'({})", group.name, group.group_id);
-        //     auto message_list =
-        //         database::get_global_db_connection().query_group_message(group.group_id, std::nullopt, 1000);
-        // }
+        spdlog::info("从Database中获取1000条消息记录");
+        const auto group_list = adapter.get_bot_all_group_info();
+        for (auto group : group_list) {
+            spdlog::info("Fetch message list in group '{}'({})", group.name, group.group_id);
+            auto message_list =
+                database::get_global_db_connection().query_group_message(group.group_id, std::nullopt, 1000);
+        }
     }
 
     BotAdapter::~BotAdapter() {

@@ -83,6 +83,7 @@ set(BIN_SOURCES
     ${VEC_DB_SRC_FILES}
     ${PLUGIN_SOURCE_PATH}
     ${CMAKE_CURRENT_SOURCE_DIR}/external/easywsclient/easywsclient.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/database.cpp
 )
 
 # 打印所有源文件（方便调试）
@@ -139,6 +140,7 @@ add_executable(unit_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/vec_db/weaviate.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/utils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/global_data.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/database.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/external/easywsclient/easywsclient.cpp
 )
 

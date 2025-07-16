@@ -185,12 +185,13 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
         spdlog::info("检查自动新对话设置: 用户ID={}, 群ID={}, 设置值={}秒", event->sender_ptr->id,
                      event->get_group_sender().group.id, user_preference->auto_new_chat_session_sec.value());
 
-        auto last_msg_list = g_person_message_storage.get_individual_last_msg_list(event->get_group_sender().id, 2);
-        spdlog::info("获取个人历史消息: 用户ID={}, 消息数量={}", event->get_group_sender().group.id,
-                     last_msg_list.size());
+        auto last_chat_time = g_last_chat_message_time_map.find(event->get_group_sender().id);
+        bool has_last_message = last_chat_time.has_value();
+        spdlog::info("获取个人历史消息: 用户ID={}, 是否有历史消息={}", event->get_group_sender().group.id,
+                     has_last_message);
 
-        if (last_msg_list.size() > 1) {
-            auto last_msg_time = last_msg_list[1].send_time;
+        if (has_last_message) {
+            auto last_msg_time = *last_chat_time.value();
             auto event_time = event->send_time;
             auto time_diff = event_time - last_msg_time;
             auto time_diff_sec = std::chrono::duration_cast<std::chrono::seconds>(time_diff).count();
@@ -306,11 +307,12 @@ void on_friend_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_a
         spdlog::info("检查自动新对话设置: 用户ID={}, 设置值={}秒", event->sender_ptr->id,
                      user_preference->auto_new_chat_session_sec.value());
 
-        auto last_msg_list = g_person_message_storage.get_individual_last_msg_list(event->sender_ptr->id, 2);
-        spdlog::info("获取历史消息: 用户ID={}, 消息数量={}", event->sender_ptr->id, last_msg_list.size());
+        auto last_chat_time = g_last_chat_message_time_map.find(event->sender_ptr->id);
+        bool has_last_message = last_chat_time.has_value();
+        spdlog::info("获取历史消息: 用户ID={}, 是否有历史消息={}", event->sender_ptr->id, has_last_message);
 
-        if (last_msg_list.size() > 1) {
-            auto last_msg_time = last_msg_list[1].send_time;
+        if (has_last_message) {
+            auto last_msg_time = *last_chat_time.value();
             auto event_time = event->send_time;
             auto time_diff = event_time - last_msg_time;
             auto time_diff_sec = std::chrono::duration_cast<std::chrono::seconds>(time_diff).count();

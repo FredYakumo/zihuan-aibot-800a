@@ -1,5 +1,6 @@
 #include "global_data.h"
 #include "constant_types.hpp"
+#include "individual_message_storage.hpp"
 #include <general-wheel-cpp/mutex_data.hpp>
 #include <set>
 
@@ -18,3 +19,5 @@ IndividualMessageStorage g_group_message_storage;
 IndividualMessageStorage g_person_message_storage;
 
 IndividualMessageStorage g_bot_send_group_message_storage;
+
+wheel::concurrent_unordered_map<qq_id_t, std::chrono::system_clock::time_point> g_last_chat_message_time_map;

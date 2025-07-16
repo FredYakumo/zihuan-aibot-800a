@@ -588,6 +588,7 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &us
             context.adapter.send_replay_msg(*context.event->sender_ptr,
                                             bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("?")));
             release_processing_llm(context.event->sender_ptr->id);
+
             return;
         }
     }
@@ -665,6 +666,8 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &us
     }
 
     release_processing_llm(context.event->sender_ptr->id);
+
+    g_last_chat_message_time_map.insert_or_assign(context.event->sender_ptr->id, std::chrono::system_clock::now());
 }
 
 void process_llm(const bot_cmd::CommandContext &context,
