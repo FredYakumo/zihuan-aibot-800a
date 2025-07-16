@@ -41,6 +41,8 @@ namespace bot_adapter {
             spdlog::info("Fetch message list in group '{}'({})", group.name, group.group_id);
             auto message_list =
                 database::get_global_db_connection().query_group_message(group.group_id, std::nullopt, 1000);
+            spdlog::info("Actual fetch count: {}", message_list.size());
+            // g_group_message_storage.add_message()
         }
     }
 

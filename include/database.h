@@ -192,7 +192,9 @@ namespace database {
 
         void insert_or_update_user_preferences(const std::vector<std::pair<qq_id_t, UserPreference>> &user_preferences);
 
-        void insert_message(const std::string &content, const bot_adapter::Sender &sender,
+        void insert_message(message_id_t message_id,
+                            const std::string &content,
+                            const bot_adapter::Sender &sender,
                             const std::chrono::system_clock::time_point send_time,
                             const std::optional<std::set<uint64_t>> at_target_set = std::nullopt);
 

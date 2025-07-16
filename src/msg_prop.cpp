@@ -136,7 +136,7 @@ MessageProperties get_msg_prop_from_event(const bot_adapter::MessageEvent &event
     return ret;
 }
 
-void store_msg_prop_to_db(const MessageProperties &msg_prop, const bot_adapter::Sender &sender,
+void store_msg_prop_to_db(message_id_t message_id, const MessageProperties &msg_prop, const bot_adapter::Sender &sender,
                  const std::chrono::system_clock::time_point &send_time,
                  const std::optional<std::set<uint64_t>> specify_at_target_set) {
     if ((msg_prop.plain_content == nullptr || *msg_prop.plain_content == EMPTY_MSG_TAG) &&
@@ -150,7 +150,11 @@ void store_msg_prop_to_db(const MessageProperties &msg_prop, const bot_adapter::
             : fmt::format("引用了消息: {}\n{}", *msg_prop.ref_msg_content, *msg_prop.plain_content);
 
     database::get_global_db_connection().insert_message(
-        msg_content, sender, send_time, specify_at_target_set ? specify_at_target_set : msg_prop.at_id_set);
+        message_id,
+        msg_content, 
+        sender, 
+        send_time, 
+        specify_at_target_set ? specify_at_target_set : msg_prop.at_id_set);
 }
 
 std::vector<std::string> get_message_list_from_chat_session(const std::string_view sender_name, qq_id_t sender_id) {

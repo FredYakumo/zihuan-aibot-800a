@@ -3,6 +3,7 @@
 
 #include "adapter_event.h"
 #include "adapter_model.h"
+#include "constant_types.hpp"
 #include "constants.hpp"
 #include <chrono>
 #include <fmt/format.h>
@@ -60,7 +61,7 @@ struct MessageProperties {
 MessageProperties get_msg_prop_from_event(const bot_adapter::MessageEvent &event, const std::string_view bot_name,
                                           uint64_t bot_id);
 
-void store_msg_prop_to_db(const MessageProperties &msg_prop, const bot_adapter::Sender &sender,
+void store_msg_prop_to_db(message_id_t message_id, const MessageProperties &msg_prop, const bot_adapter::Sender &sender,
                  const std::chrono::system_clock::time_point &send_time,
                  const std::optional<std::set<uint64_t>> specify_at_target_set = std::nullopt);
 

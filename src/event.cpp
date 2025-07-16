@@ -129,7 +129,7 @@ void store_msg(const MessageProperties &msg_prop, const std::shared_ptr<bot_adap
         set_thread_name("AIBot msg storage");
         spdlog::info("Start message storage thread.");
 
-        store_msg_prop_to_db(msg_prop, *event->sender_ptr, send_time);
+        store_msg_prop_to_db(event->message_id, msg_prop, *event->sender_ptr, send_time);
     });
     msg_storage_thread.detach();
 }

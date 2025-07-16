@@ -1,14 +1,15 @@
 #pragma once
 
 #include "adapter_message.h"
+#include "constant_types.hpp"
 #include <cstdint>
 #include <general-wheel-cpp/collection/concurrent_unordered_map.hpp>
 #include <general-wheel-cpp/collection/concurrent_vector.hpp>
 #include <memory>
 
 using bot_adapter::MessageStorageEntry;
-using MessageIdView = wheel::concurrent_unordered_map<uint64_t, std::shared_ptr<MessageStorageEntry>>;
-// using MessageIdContentEmbeddingView = wheel::concurrent_unordered_map<uint64_t, std::shared_ptr<std::vector<float>>>;
+using MessageIdView = wheel::concurrent_unordered_map<qq_id_t, std::shared_ptr<MessageStorageEntry>>;
+// using MessageIdContentEmbeddingView = wheel::concurrent_unordered_map<qq_id_t, std::shared_ptr<std::vector<float>>>;
 
 /**
  * @brief Concurrent map for storing message entries indexed by message ID
@@ -23,17 +24,19 @@ using MessageIdView = wheel::concurrent_unordered_map<uint64_t, std::shared_ptr<
  */
 class IndividualMessageStorage {
   public:
-    void add_message(uint64_t individual_id, uint64_t message_id, std::shared_ptr<MessageStorageEntry> msg_entry_ptr) {
+    void add_message(qq_id_t individual_id, qq_id_t message_id, std::shared_ptr<MessageStorageEntry> msg_entry_ptr) {
         add_message_to_individual_view(individual_id, message_id, msg_entry_ptr);
         add_message_to_individual_time_sequence_view(individual_id, msg_entry_ptr);
     }
 
-    void add_message(uint64_t individual_id, uint64_t message_id, MessageStorageEntry msg_entry) {
+    void add_message(qq_id_t individual_id, qq_id_t message_id, MessageStorageEntry msg_entry) {
         add_message(individual_id, message_id, std::make_shared<MessageStorageEntry>(std::move(msg_entry)));
     }
 
-    std::optional<std::reference_wrapper<const MessageStorageEntry>> find_message_id(uint64_t individual_id,
-                                                                                     uint64_t message_id) const {
+
+
+    std::optional<std::reference_wrapper<const MessageStorageEntry>> find_message_id(qq_id_t individual_id,
+                                                                                     qq_id_t message_id) const {
         auto group = message_id_view_map.find(individual_id);
         if (!group.has_value()) {
             return std::nullopt;
@@ -45,7 +48,7 @@ class IndividualMessageStorage {
         return std::nullopt;
     }
 
-    std::vector<MessageStorageEntry> get_individual_last_msg_list(uint64_t individual_id,
+    std::vector<MessageStorageEntry> get_individual_last_msg_list(qq_id_t individual_id,
                                                                                                 size_t limit = 5) {
         std::vector<MessageStorageEntry> ret;
         auto time_sequence_group = time_sequence_view.find(individual_id);
@@ -61,14 +64,20 @@ class IndividualMessageStorage {
     }
 
   private:
-    inline void add_message_to_individual_view(uint64_t individual_id, uint64_t message_id,
+    inline void add_message_to_individual_view(qq_id_t individual_id, qq_id_t message_id,
                                                std::shared_ptr<MessageStorageEntry> msg_entry_ptr) {
         auto individual = message_id_view_map.get_or_emplace_value(individual_id);
 
         individual->insert_or_assign(message_id, msg_entry_ptr);
     }
 
-    inline void add_message_to_individual_time_sequence_view(uint64_t individual_id,
+    void add_message_to_individual_view(std::vector<qq_id_t> individual_ids, std::vector<qq_id_t> message_ids,
+                                         std::vector<std::shared_ptr<MessageStorageEntry>> msg_entry_ptrs) {
+        
+    }
+
+
+    inline void add_message_to_individual_time_sequence_view(qq_id_t individual_id,
                                                              std::shared_ptr<MessageStorageEntry> msg_entry_ptr) {
         auto time_sequence_group = time_sequence_view.get_or_emplace_value(
             individual_id);
@@ -97,7 +106,7 @@ class IndividualMessageStorage {
      * @note Uses shared_ptr to maintain memory consistency with
      *       @ref time_sequence_view (same message objects)
      */
-    wheel::concurrent_unordered_map<uint64_t, MessageIdView> message_id_view_map;
+    wheel::concurrent_unordered_map<qq_id_t, MessageIdView> message_id_view_map;
 
     /**
      * @brief Temporal message sequence organized by group ID
@@ -118,7 +127,7 @@ class IndividualMessageStorage {
      *       shared_ptr to ensure data consistency. The same physical message
      *       may be accessed through either structure.
      */
-    wheel::concurrent_unordered_map<uint64_t, wheel::concurrent_vector<std::shared_ptr<MessageStorageEntry>>>
+    wheel::concurrent_unordered_map<qq_id_t, wheel::concurrent_vector<std::shared_ptr<MessageStorageEntry>>>
         time_sequence_view;
 };
 

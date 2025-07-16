@@ -25,7 +25,9 @@ DBConnection &database::get_global_db_connection() {
     return *g_db_connection;
 }
 
-void DBConnection::insert_message(const std::string &content, const bot_adapter::Sender &sender,
+void DBConnection::insert_message(message_id_t message_id,
+                                  const std::string &content,
+                                  const bot_adapter::Sender &sender,
                                   const std::chrono::system_clock::time_point send_time,
                                   const std::optional<std::set<uint64_t>> at_target_set) {
     try {
@@ -36,15 +38,15 @@ void DBConnection::insert_message(const std::string &content, const bot_adapter:
         if (const auto &group_sender = bot_adapter::try_group_sender(sender)) {
             const auto &g = group_sender->get();
             get_message_record_table()
-                .insert("sender_name", "sender_id", "content", "send_time", "group_name", "group_id",
+                .insert("message_id", "sender_name", "sender_id", "content", "send_time", "group_name", "group_id",
                         "group_permission", "at_target_list")
-                .values(g.name, g.id, content, time_point_to_db_str(send_time), g.group.name, g.group.id, g.permission,
+                .values(message_id, g.name, g.id, content, time_point_to_db_str(send_time), g.group.name, g.group.id, g.permission,
                         at_target_value)
                 .execute();
         } else {
             get_message_record_table()
-                .insert("sender_name", "sender_id", "content", "send_time", "at_target_list")
-                .values(sender.name, sender.id, content, time_point_to_db_str(send_time), at_target_value)
+                .insert("message_id", "sender_name", "sender_id", "content", "send_time", "at_target_list")
+                .values(message_id, sender.name, sender.id, content, time_point_to_db_str(send_time), at_target_value)
                 .execute();
         }
         spdlog::info("Insert message successed.");
