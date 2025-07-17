@@ -26,5 +26,7 @@ dependencies = [
     "weaviate-client>=4.14.4",
     "accelerate",
     "ipython>=9.3.0",
-    "tqdm"
+    "tqdm",
+    "netron>=8.4.4",
+    "tensorboard>=2.19.0",
 ]
