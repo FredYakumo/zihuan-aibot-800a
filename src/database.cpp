@@ -77,7 +77,7 @@ void DBConnection::insert_tool_calls_record(const std::string &sender_name, qq_i
 std::vector<GroupMessageRecord>
 DBConnection::query_group_message(qq_id_t group_id, std::optional<qq_id_t> filter_sender, size_t count_limit) {
     auto sql = get_message_record_table().select(
-        "message_id", "content", "send_time", "sender_id", "sender_name", "group_id", "group_name", "group_permission"
+        "message_id", "content", "UNIX_TIMESTAMP(send_time) as send_time", "sender_id", "sender_name", "group_id", "group_name", "group_permission"
     );
     if (filter_sender) {
         sql.where("group_id = :group_id and sender_id = :sender_id")
@@ -93,8 +93,9 @@ DBConnection::query_group_message(qq_id_t group_id, std::optional<qq_id_t> filte
     for (auto row : sql_result) {
         auto message_id_val = row[0];
         std::string content = row[1].get<std::string>();
-        auto send_time_str = row[2].get<std::string>();
-        auto send_time = db_str_to_time_point(send_time_str);
+        // Convert MySQL DATETIME to timestamp
+        auto send_time = std::chrono::system_clock::from_time_t(
+            row[2].get<uint64_t>());
         uint64_t sender_id = std::stoull(row[3].get<std::string>());
         std::string sender_name = row[4].get<std::string>();
         uint64_t group_id_val = std::stoull(row[5].get<std::string>());
@@ -181,7 +182,7 @@ void DBConnection::insert_user_protait(qq_id_t id, const std::string &protait,
 std::vector<MessageRecord>
 DBConnection::query_user_message(qq_id_t friend_id, size_t count_limit) {
     auto sql = get_message_record_table().select(
-        "message_id", "content", "send_time", "sender_id", "sender_name"
+        "message_id", "content", "UNIX_TIMESTAMP(send_time) as send_time", "sender_id", "sender_name"
     );
     sql.where("sender_id = :friend_id")
         .bind("friend_id", std::to_string(friend_id));
@@ -192,8 +193,9 @@ DBConnection::query_user_message(qq_id_t friend_id, size_t count_limit) {
     for (auto row : sql_result) {
         auto message_id_val = row[0];
         std::string content = row[1].get<std::string>();
-        auto send_time_str = row[2].get<std::string>();
-        auto send_time = db_str_to_time_point(send_time_str);
+        // Convert MySQL DATETIME to timestamp
+        auto send_time = std::chrono::system_clock::from_time_t(
+            row[2].get<uint64_t>());
         uint64_t sender_id = std::stoull(row[3].get<std::string>());
         std::string sender_name = row[4].get<std::string>();
 

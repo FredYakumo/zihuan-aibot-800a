@@ -220,15 +220,18 @@ std::string get_target_group_chat_history(const bot_adapter::BotAdapter &adapter
 
     std::vector<std::string> target_msgs;
     target_msgs.reserve(100);
+    size_t size_count = 0;
     for (auto it = group_msg_list.crbegin(); it != group_msg_list.crend(); ++it) {
         const auto &msg = *it;
         if (msg.sender_id == target_id) {
-            target_msgs.insert(target_msgs.begin(),
-                               fmt::format("'{}': '{}'", msg.sender_name,
-                                           bot_adapter::get_text_from_message_chain(*msg.message_chain_list)));
-            if (target_msgs.size() >= 100) {
+            auto text = bot_adapter::get_text_from_message_chain(*msg.message_chain_list);
+            size_count += text.size();
+            if (size_count > 3000) {
                 break;
             }
+            target_msgs.insert(target_msgs.begin(),
+                               fmt::format("'{}': '{}'", msg.sender_name,
+                                           std::move(text)));
         }
     }
 
@@ -430,33 +433,57 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &us
 
                             // No target, get group's history
                             const auto &msg_list =
-                                g_group_message_storage.get_individual_last_msg_list(group_sender->get().group.id, 10);
+                                g_group_message_storage.get_individual_last_msg_list(group_sender->get().group.id, 1000);
                             if (msg_list.empty()) {
                                 content = fmt::format("在'{}'群里还没有聊天记录哦", group_sender->get().group.name);
                             } else {
+                                std::string text;
+                                size_t total_length = 0;
+                                for (const auto &msg : msg_list) {
+                                    std::string msg_text = fmt::format("'{}': '{}'", msg.sender_name,
+                                                       bot_adapter::get_text_from_message_chain(
+                                                           *msg.message_chain_list));
+                                    if (total_length + msg_text.length() > 3000) {
+                                        break;
+                                    }
+                                    if (!text.empty()) {
+                                        text += "\n";
+                                    }
+                                    text += msg_text;
+                                    total_length += msg_text.length();
+                                }
+                                
                                 content =
                                     fmt::format("'{}'群的最近消息:\n{}", group_sender->get().group.name,
-                                                join_str(msg_list.cbegin(), msg_list.cend(), "\n", [](const auto &msg) {
-                                                    return fmt::format("'{}': '{}'", msg.sender_name,
-                                                                       bot_adapter::get_text_from_message_chain(
-                                                                           *msg.message_chain_list));
-                                                }));
+                                                text);
                             }
                         }
                     }
                 } else {
                     // Friend chat, ignore target
                     const auto &msg_list =
-                        g_person_message_storage.get_individual_last_msg_list(context.event->sender_ptr->id, 10);
+                        g_person_message_storage.get_individual_last_msg_list(context.event->sender_ptr->id, 1000);
                     if (msg_list.empty()) {
                         content = "我们之间还没有聊天记录哦";
                     } else {
+                        std::string text;
+                        size_t total_length = 0;
+                        for (const auto &msg : msg_list) {
+                            std::string msg_text = fmt::format("'{}': '{}'", msg.sender_name,
+                                               bot_adapter::get_text_from_message_chain(
+                                                   *msg.message_chain_list));
+                            if (total_length + msg_text.length() > 3000) {
+                                break;
+                            }
+                            if (!text.empty()) {
+                                text += "\n";
+                            }
+                            text += msg_text;
+                            total_length += msg_text.length();
+                        }
+                        
                         content = fmt::format(
-                            "与'{}'的最近聊天记录:\n{}", context.event->sender_ptr->name,
-                            join_str(msg_list.cbegin(), msg_list.cend(), "\n", [](const auto &msg) {
-                                return fmt::format("'{}': '{}'", msg.sender_name,
-                                                   bot_adapter::get_text_from_message_chain(*msg.message_chain_list));
-                            }));
+                            "与'{}'的最近聊天记录:\n{}", context.event->sender_ptr->name, text);
                     }
                 }
                 tool_call_msg = ChatMessage(ROLE_TOOL, content, func_calls.id);

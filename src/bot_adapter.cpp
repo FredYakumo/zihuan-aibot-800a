@@ -116,20 +116,22 @@ namespace bot_adapter {
     int BotAdapter::start() {
         is_running = true;
 
-        std::thread update_group_info_thread([this]() {
+        std::thread init_thread([this]() {
             const auto &config = Config::instance();
+
+            update_group_info_sync();
+            spdlog::info("从Database中获取持久化的消息记录并初始化到内存中");
+            fetch_message_list_from_db(*this);
+            spdlog::info("完成从Database中获取消息记录");
+            
+            spdlog::info("等待{}秒后再次运行update_group_info()", config.update_group_info_period_sec);
+            std::this_thread::sleep_for(std::chrono::seconds(config.update_group_info_period_sec));
             while (is_running) {
                 spdlog::info("周期性运行update_group_info()");
                 update_group_info_sync();
                 spdlog::info("等待{}秒后再次运行update_group_info()", config.update_group_info_period_sec);
                 std::this_thread::sleep_for(std::chrono::seconds(config.update_group_info_period_sec));
             }
-        });
-
-        std::thread init_fetch_message_record_thread([this]() {
-            spdlog::info("从Database中获取持久化的消息记录并初始化到内存中");
-            fetch_message_list_from_db(*this);
-            spdlog::info("完成从Database中获取消息记录");
         });
 
         while (ws->getReadyState() != easywsclient::WebSocket::CLOSED) {
@@ -143,8 +145,7 @@ namespace bot_adapter {
         }
 
         is_running = false;
-        update_group_info_thread.join();
-        init_fetch_message_record_thread.join();
+        init_thread.join();
 
         // TODO: Handle reconnection logic
 
