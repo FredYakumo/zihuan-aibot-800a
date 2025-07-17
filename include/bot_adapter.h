@@ -162,7 +162,8 @@ namespace bot_adapter {
                 fmt::format("get_friend_list_sync_{}", std::chrono::duration_cast<std::chrono::nanoseconds>(
                                                            std::chrono::system_clock::now().time_since_epoch())
                                                            .count());
-            auto res = send_command_sync(AdapterCommand(sync_id, "friendList", std::make_shared<CommandJsonContent>()));
+            auto res = send_command_sync(
+                AdapterCommand(sync_id, "friendList", std::make_shared<CommandJsonContent>(CommandJsonContent({}))));
 
             std::vector<FriendInfo> friend_list;
             if (!res.has_value()) {

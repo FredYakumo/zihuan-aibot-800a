@@ -52,22 +52,18 @@ namespace bot_adapter {
             std::vector<std::shared_ptr<MessageStorageEntry>> this_msg_entry_ptr_vec;
             this_msg_entry_ptr_vec.reserve(message_list.size());
             for (const auto &msg : message_list) {
-                this_message_id_vec.push_back(msg.message_id_opt.value_or(padding_message_id++));
+                message_id_t msg_id = msg.message_id_opt.value_or(padding_message_id++);
+                this_message_id_vec.push_back(msg_id);
                 this_msg_entry_ptr_vec.push_back(std::make_shared<MessageStorageEntry>(
-                    msg.message_id_opt.value_or(padding_message_id++), msg.sender.name, msg.sender.id, msg.send_time,
-                    make_message_chain_list(PlainTextMessage(msg.content))));
+                    msg_id, msg.sender.name, msg.sender.id, msg.send_time,
+                    std::make_shared<MessageChainPtrList>(make_message_chain_list(PlainTextMessage(msg.content)))));
             }
-            std::chrono::high_resolution_clock::time_point end_time =
-                std::chrono::high_resolution_clock::now();
+            std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
             spdlog::info("Prepare batch add message storage data cost: {}ms",
                          std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
             spdlog::info("Start batch add database message records to group message storage");
             start_time = std::chrono::high_resolution_clock::now();
-            g_group_message_storage.batch_add_message(
-                this_group_id_vec,
-                this_message_id_vec,
-                this_msg_entry_ptr_vec
-            );
+            g_group_message_storage.batch_add_message(this_group_id_vec, this_message_id_vec, this_msg_entry_ptr_vec);
             end_time = std::chrono::high_resolution_clock::now();
             spdlog::info("Batch add database message records cost: {}ms",
                          std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
