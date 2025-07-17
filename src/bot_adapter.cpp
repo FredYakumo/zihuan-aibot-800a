@@ -626,7 +626,7 @@ namespace bot_adapter {
         const auto sync_id_base = generate_send_replay_sync_id(sender);
 
         // Parse llm reply content
-        auto markdown_node = wheel::parse_markdown(std::move(text));
+        auto markdown_node = wheel::parse_markdown(text);
         // 合并节点，rich_text自动换行
         float font_size = 15;
         int body_width = 350;

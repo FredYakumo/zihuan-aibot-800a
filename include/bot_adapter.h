@@ -98,7 +98,7 @@ namespace bot_adapter {
             std::optional<std::function<void(uint64_t &out_message_id)>> out_message_id_option = std::nullopt);
 
         void
-        send_long_plain_text_reply(const Sender &sender, std::string text, bool at_target = true,
+        send_long_plain_text_reply(const Sender &sender, const std::string &text, bool at_target = true,
                                    uint64_t msg_length_limit = MAX_OUTPUT_LENGTH,
                                    std::optional<std::function<void(uint64_t &)>> out_message_id_option = std::nullopt,
                                    std::optional<database::UserPreference> user_preference_option = std::nullopt);
