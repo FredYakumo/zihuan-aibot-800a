@@ -72,6 +72,8 @@ void DBConnection::insert_tool_calls_record(const std::string &sender_name, qq_i
     }
 }
 
+
+
 std::vector<GroupMessageRecord>
 DBConnection::query_group_message(qq_id_t group_id, std::optional<qq_id_t> filter_sender, size_t count_limit) {
     auto sql = get_message_record_table().select(
@@ -174,6 +176,41 @@ void DBConnection::insert_user_protait(qq_id_t id, const std::string &protait,
     } catch (const mysqlx::Error &e) {
         spdlog::error("Insert user protait error at MySQL X DevAPI Error: {}", e.what());
     }
+}
+
+std::vector<MessageRecord>
+DBConnection::query_user_message(qq_id_t friend_id, size_t count_limit) {
+    auto sql = get_message_record_table().select(
+        "message_id", "content", "send_time", "sender_id", "sender_name"
+    );
+    sql.where("sender_id = :friend_id")
+        .bind("friend_id", std::to_string(friend_id));
+    sql.orderBy("send_time DESC").limit(count_limit);
+    mysqlx::RowResult sql_result = sql.execute();
+
+    std::vector<MessageRecord> result;
+    for (auto row : sql_result) {
+        auto message_id_val = row[0];
+        std::string content = row[1].get<std::string>();
+        auto send_time_str = row[2].get<std::string>();
+        auto send_time = db_str_to_time_point(send_time_str);
+        uint64_t sender_id = std::stoull(row[3].get<std::string>());
+        std::string sender_name = row[4].get<std::string>();
+
+        // Construct Sender with name and empty remark
+        bot_adapter::Sender sender(sender_id, sender_name, std::nullopt);
+        MessageRecord record(content, send_time, sender);
+        if (!message_id_val.isNull()) {
+            try {
+                record.message_id_opt = std::stoull(message_id_val.get<std::string>());
+            } catch (const std::exception& e) {
+                spdlog::warn("Failed to convert message_id to integer: {}", e.what());
+                record.message_id_opt = std::nullopt;
+            }
+        }
+        result.push_back(std::move(record));
+    }
+    return result;
 }
 
 void DBConnection::insert_user_protait(const std::vector<std::pair<qq_id_t, UserProtait>> &user_protaits) {

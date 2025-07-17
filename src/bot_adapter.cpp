@@ -36,6 +36,7 @@ namespace bot_adapter {
 
     void fetch_message_list_from_db(bot_adapter::BotAdapter &adapter) {
         spdlog::info("从Database中获取1000条消息记录");
+        spdlog::info("获取Bot的所有群信息");
         const auto group_list = adapter.get_bot_all_group_info();
         for (auto group : group_list) {
             spdlog::info("Fetch message list in group '{}'({})", group.name, group.group_id);
@@ -68,6 +69,42 @@ namespace bot_adapter {
             spdlog::info("Batch add database message records cost: {}ms",
                          std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
         }
+
+        spdlog::info("获取Bot的所有好友信息");
+        const auto friend_list = adapter.get_friend_list_sync();
+        for (const auto &friend_info : friend_list) {
+            spdlog::info("Fetch message list from '{}'({})", friend_info.name, friend_info.id);
+
+            auto message_list = database::get_global_db_connection().query_user_message(friend_info.id, 1000);
+            spdlog::info("Actual fetch count: {}", message_list.size());
+
+            spdlog::info("Prepare batch add message storage data");
+            std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
+            std::vector<qq_id_t> this_friend_id_vec(message_list.size(), friend_info.id);
+            std::vector<message_id_t> this_message_id_vec;
+            this_message_id_vec.reserve(message_list.size());
+            message_id_t padding_message_id = 0;
+            std::vector<std::shared_ptr<MessageStorageEntry>> this_msg_entry_ptr_vec;
+            this_msg_entry_ptr_vec.reserve(message_list.size());
+
+            for (const auto &msg : message_list) {
+                message_id_t msg_id = msg.message_id_opt.value_or(padding_message_id++);
+                this_message_id_vec.push_back(msg_id);
+                this_msg_entry_ptr_vec.push_back(std::make_shared<MessageStorageEntry>(
+                    msg_id, msg.sender.name, msg.sender.id, msg.send_time,
+                    std::make_shared<MessageChainPtrList>(make_message_chain_list(PlainTextMessage(msg.content)))));
+            }
+            std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
+            spdlog::info("Prepare batch add message storage data cost: {}ms",
+                         std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
+
+            spdlog::info("Start batch add database message records to friend message storage");
+            start_time = std::chrono::high_resolution_clock::now();
+            g_person_message_storage.batch_add_message(this_friend_id_vec, this_message_id_vec, this_msg_entry_ptr_vec);
+            end_time = std::chrono::high_resolution_clock::now();
+            spdlog::info("Batch add database message records cost: {}ms",
+                         std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
+        }
     }
 
     BotAdapter::~BotAdapter() {
@@ -89,6 +126,12 @@ namespace bot_adapter {
             }
         });
 
+        std::thread init_fetch_message_record_thread([this]() {
+            spdlog::info("从Database中获取持久化的消息记录并初始化到内存中");
+            fetch_message_list_from_db(*this);
+            spdlog::info("完成从Database中获取消息记录");
+        });
+
         while (ws->getReadyState() != easywsclient::WebSocket::CLOSED) {
             ws->poll();
             ws->dispatch([this](const std::string &msg) { handle_message(msg); });
@@ -101,6 +144,7 @@ namespace bot_adapter {
 
         is_running = false;
         update_group_info_thread.join();
+        init_fetch_message_record_thread.join();
 
         // TODO: Handle reconnection logic
 

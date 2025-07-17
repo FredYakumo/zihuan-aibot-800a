@@ -4,6 +4,7 @@
 #include "adapter_model.h"
 #include "constant_types.hpp"
 #include "constants.hpp"
+#include "user_protait.h"
 #include "utils.h"
 #include <chrono>
 #include <cstdint>
@@ -13,9 +14,8 @@
 #include <spdlog/spdlog.h>
 #include <string>
 #include <string_view>
-#include <vector>
-#include "user_protait.h"
 #include <time_utils.h>
+#include <vector>
 
 namespace database {
     using mysqlx::SessionOption;
@@ -27,15 +27,23 @@ namespace database {
     constexpr std::string_view DEFAULT_USER_PORTAIT_TABLE_NAME = "user_protait";
     constexpr std::string_view DEFAULT_USER_PREFERENCE_TABLE_NAME = "user_preference";
 
-    struct GroupMessageRecord {
+    struct MessageRecord {
         std::optional<message_id_t> message_id_opt;
         std::string content;
         std::chrono::system_clock::time_point send_time;
-        bot_adapter::GroupSender sender;
+        bot_adapter::Sender sender;
+
+        MessageRecord(const std::string_view content, const std::chrono::system_clock::time_point &send_time,
+                      const bot_adapter::Sender &sender)
+            : content(content), send_time(send_time), sender(sender) {}
+    };
+
+    struct GroupMessageRecord : public MessageRecord {
+        bot_adapter::GroupSender group_sender;
 
         GroupMessageRecord(const std::string_view content, const std::chrono::system_clock::time_point &send_time,
                            const bot_adapter::GroupSender &sender)
-            : content(content), send_time(send_time), sender(sender) {}
+            : MessageRecord(content, send_time, sender), group_sender(sender) {}
     };
 
     struct ToolCallsRecord {
@@ -146,16 +154,15 @@ namespace database {
             if (auto row = result.fetchOne()) {
                 // The C++ connector returns tinyint as integer.
                 UserPreference pref{
-                    static_cast<bool>(row[0].get<int>()),
-                    static_cast<bool>(row[1].get<int>()),
-                    std::nullopt  // 默认为 nullopt
+                    static_cast<bool>(row[0].get<int>()), static_cast<bool>(row[1].get<int>()),
+                    std::nullopt // 默认为 nullopt
                 };
-                
+
                 // 如果 auto_new_chat_session 不为 NULL，则设置具体值
                 if (!row[2].isNull()) {
                     pref.auto_new_chat_session_sec = row[2].get<int64_t>();
                 }
-                
+
                 return pref;
             }
             return std::nullopt;
@@ -170,18 +177,15 @@ namespace database {
         std::vector<UserProtait> get_user_protait(qq_id_t id, size_t limit = 1) {
             auto &table = get_user_protait_table();
             auto result = table.select("protait", "favorability", "create_time")
-                .where("user_id = :user_id")
-                .orderBy("create_time DESC")
-                .limit(static_cast<int>(limit))
-                .bind("user_id", std::to_string(id))
-                .execute();
+                              .where("user_id = :user_id")
+                              .orderBy("create_time DESC")
+                              .limit(static_cast<int>(limit))
+                              .bind("user_id", std::to_string(id))
+                              .execute();
             std::vector<UserProtait> protaits;
             for (auto row : result) {
-                protaits.emplace_back(UserProtait{
-                    row[0].get<std::string>(),
-                    row[1].get<double>(),
-                    db_str_to_time_point(row[2].get<std::string>())
-                });
+                protaits.emplace_back(UserProtait{row[0].get<std::string>(), row[1].get<double>(),
+                                                  db_str_to_time_point(row[2].get<std::string>())});
             }
             return protaits;
         }
@@ -193,9 +197,7 @@ namespace database {
 
         void insert_or_update_user_preferences(const std::vector<std::pair<qq_id_t, UserPreference>> &user_preferences);
 
-        void insert_message(message_id_t message_id,
-                            const std::string &content,
-                            const bot_adapter::Sender &sender,
+        void insert_message(message_id_t message_id, const std::string &content, const bot_adapter::Sender &sender,
                             const std::chrono::system_clock::time_point send_time,
                             const std::optional<std::set<uint64_t>> at_target_set = std::nullopt);
 
@@ -205,8 +207,11 @@ namespace database {
 
                                       const std::string &tool_calls, const std::string &tool_calls_content);
 
-        std::vector<GroupMessageRecord> query_group_message(qq_id_t group_id, std::optional<qq_id_t> filter_sender = std::nullopt,
-                                                                 size_t count_limit = 10);
+        std::vector<MessageRecord> query_user_message(qq_id_t friend_id, size_t count_limit = 10);
+        
+        std::vector<GroupMessageRecord> query_group_message(qq_id_t group_id,
+                                                            std::optional<qq_id_t> filter_sender = std::nullopt,
+                                                            size_t count_limit = 10);
 
       private:
         mysqlx::Session session;
