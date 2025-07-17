@@ -619,7 +619,7 @@ namespace bot_adapter {
         return merged;
     }
 
-    void BotAdapter::send_long_plain_text_reply(const Sender &sender, std::string text, bool at_target,
+    void BotAdapter::send_long_plain_text_reply(const Sender &sender, const std::string &text, bool at_target,
                                                 uint64_t msg_length_limit,
                                                 std::optional<std::function<void(uint64_t &)>> out_message_id_option,
                                                 std::optional<database::UserPreference> user_preference_option) {
@@ -627,14 +627,14 @@ namespace bot_adapter {
 
         // Parse llm reply content
         auto markdown_node = wheel::parse_markdown(text);
-        // 合并节点，rich_text自动换行
+
         float font_size = 15;
         int body_width = 350;
 
         // Check if it's simple text (not markdown blocks)
-        if (markdown_node.size() < 2 || (markdown_node.size() == 1 && !markdown_node[0].render_html_text.has_value())) {
+        if (markdown_node.empty() || (markdown_node.size() == 1 && !markdown_node[0].render_html_text.has_value())) {
             spdlog::info("Markdown text is short and no render HTML.");
-            send_replay_msg(sender, make_message_chain_list(PlainTextMessage(markdown_node[0].text)), true,
+            send_replay_msg(sender, make_message_chain_list(PlainTextMessage(text)), true,
                             out_message_id_option);
             return;
         }

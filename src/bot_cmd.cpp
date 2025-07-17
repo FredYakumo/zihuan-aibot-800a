@@ -270,8 +270,9 @@ namespace bot_cmd {
         } else {
             context.adapter.send_replay_msg(
                 *context.event->sender_ptr,
-                bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(fmt::format(
-                    "'{}'的偏好设置:\n{}\n\n使用#设置(...)设置选项。", context.event->sender_ptr->name, user_preference.value().to_string()))));
+                bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
+                    fmt::format("'{}'的偏好设置:\n{}\n\n使用#设置(...)设置选项。", context.event->sender_ptr->name,
+                                user_preference.value().to_string()))));
         }
         return bot_cmd::CommandRes{true, true};
     }
@@ -372,10 +373,10 @@ namespace bot_cmd {
                 //                                 bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
                 //                                     "请输入设置。用法: #设置(参数1=值1;参数2=值2;...)")));
             }
-            context.adapter.send_replay_msg(*context.event->sender_ptr,
-                                            bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
-                                                "请输入设置。用法: #设置(参数1=值1;参数2=值2;...)")));
-            return bot_cmd::CommandRes{true, true};
         }
+        context.adapter.send_replay_msg(*context.event->sender_ptr,
+                                        bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
+                                            "请输入设置。用法: #设置(参数1=值1;参数2=值2;...)")));
+        return bot_cmd::CommandRes{true, true};
     }
 } // namespace bot_cmd
