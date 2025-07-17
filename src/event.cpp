@@ -117,8 +117,13 @@ ParseRunCmdRes message_preprocessing(bot_adapter::BotAdapter &adapter, std::shar
     auto ret = parse_and_run_chat_command(adapter, event, msg_prop, sender_id);
     // Processing empty messagem
     if ((msg_prop.plain_content == nullptr || ltrim(rtrim(*msg_prop.plain_content)).empty()) &&
-        (msg_prop.ref_msg_content == nullptr || ltrim(rtrim(*msg_prop.ref_msg_content)).empty()))
-        *msg_prop.plain_content = EMPTY_MSG_TAG;
+        (msg_prop.ref_msg_content == nullptr || ltrim(rtrim(*msg_prop.ref_msg_content)).empty())) {
+            if (msg_prop.plain_content == nullptr) {
+                msg_prop.plain_content = std::make_shared<std::string>(EMPTY_MSG_TAG);
+            } else {
+                *msg_prop.plain_content = EMPTY_MSG_TAG;
+            }
+        }
 
     return ret;
 }
