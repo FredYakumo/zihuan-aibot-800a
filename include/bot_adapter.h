@@ -10,7 +10,7 @@
 #include "database.h"
 #include "get_optional.hpp"
 #include "neural_network/text_model.h"
-#include <collection/concurrent_unordered_map.hpp>
+#include <general-wheel-cpp/collection/concurrent_unordered_map.hpp>
 #include <cstdint>
 #include <easywsclient.hpp>
 #include <functional>

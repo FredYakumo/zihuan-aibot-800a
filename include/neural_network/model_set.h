@@ -9,7 +9,12 @@ namespace neural_network {
         ModelSet(neural_network::Device device = neural_network::Device::CPU);
 
         std::unique_ptr<neural_network::TextEmbeddingWithMeanPoolingModel> text_embedding_model;
-        std::unique_ptr<neural_network::CosineSimilarityONNXModel> cosine_similarity_model;
+#ifdef __USE_ONNX_RUNTIME__
+        std::unique_ptr<neural_network::CosineSimilarityModel> cosine_similarity_model;
+#endif
+#ifdef __USE_LIBTORCH__
+        std::unique_ptr<neural_network::CosineSimilarityModel> cosine_similarity_model;
+#endif
         std::shared_ptr<tokenizers::Tokenizer> tokenizer;
         neural_network::TokenizerWrapper tokenizer_wrapper;
     };

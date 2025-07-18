@@ -8,7 +8,7 @@
 #include <fmt/format.h>
 #include <iterator>
 #include <string>
-#include <string_utils.hpp>
+#include <general-wheel-cpp/string_utils.hpp>
 
 namespace vec_db {
     std::string graphql_query(const std::string_view schema, const neural_network::emb_vec_t &emb,

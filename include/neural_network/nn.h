@@ -98,14 +98,14 @@ namespace neural_network {
     /**
      * @brief Cosine similarity ONNX model wrapper
      */
-    class CosineSimilarityONNXModel {
+    class CosineSimilarityModel {
       public:
         /**
-         * @brief Construct a new CosineSimilarityONNXModel object
+         * @brief Construct a new CosineSimilarityModel object
          * @param model_path Path to the ONNX model file
          * @param device Device type for inference (default: CPU)
          */
-        CosineSimilarityONNXModel(const std::string &model_path, Device device = Device::CPU)
+        CosineSimilarityModel(const std::string &model_path, Device device = Device::CPU)
             : m_session(get_onnx_runtime(), model_path.c_str(), get_session_options(device)), m_allocator() {
             Ort::AllocatorWithDefaultOptions allocator;
 
@@ -191,6 +191,32 @@ namespace neural_network {
     };
 
 #endif // __USE_ONNX_RUNTIME__
+
+#ifdef __USE_LIBTORCH__
+    /**
+     * @brief Cosine similarity LibTorch model wrapper
+     */
+    class CosineSimilarityModel {
+      public:
+        /**
+         * @brief Construct a new CosineSimilarityModel object
+         * @param model_path Path to the TorchScript model file
+         * @param device Device type for inference (default: CPU)
+         */
+        CosineSimilarityModel(const std::string &model_path, Device device = Device::CPU);
+
+        /**
+         * @brief Compute cosine similarity between target and value list
+         * @param target Target embedding vector
+         * @param value_list List of value embedding vectors
+         * @return Vector of cosine similarity scores
+         */
+        emb_vec_t inference(emb_vec_t target, emb_mat_t value_list);
+
+      private:
+        torch::jit::script::Module m_module;
+    };
+#endif // __USE_LIBTORCH__
 
     namespace cpu {
         inline float dot_product(const float *a, const float *b, size_t size) {

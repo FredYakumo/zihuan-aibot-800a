@@ -6,8 +6,13 @@
 #include <memory>
 #include <stdexcept>
 
-constexpr const char *TEXT_EMBEDDING_MEAN_POOLING_MODEL_PATH = "models/text_embedding_mean_pooling.onnx";
-constexpr const char *COSINE_SIMILARITY_MODEL_PATH = "models/cosine_sim.onnx";
+#ifdef __USE_ONNX_RUNTIME__
+constexpr const char *TEXT_EMBEDDING_MEAN_POOLING_MODEL_PATH = "exported_model/text_embedding_mean_pooling.onnx";
+constexpr const char *COSINE_SIMILARITY_MODEL_PATH = "exported_model/cosine_sim.onnx";
+#elif defined(__USE_LIBTORCH__)
+constexpr const char *TEXT_EMBEDDING_MEAN_POOLING_MODEL_PATH = "exported_model/text_embedding_mean_pooling.pt";
+constexpr const char *COSINE_SIMILARITY_MODEL_PATH = "exported_model/cosine_sim.bin";
+#endif
 
 namespace neural_network {
     ModelSet::ModelSet(neural_network::Device device)
@@ -23,8 +28,13 @@ namespace neural_network {
                      TEXT_EMBEDDING_MEAN_POOLING_MODEL_PATH, duration.count());
 
         start_time = std::chrono::high_resolution_clock::now();
+#ifdef __USE_ONNX_RUNTIME__
         this->cosine_similarity_model =
-            std::make_unique<neural_network::CosineSimilarityONNXModel>(COSINE_SIMILARITY_MODEL_PATH, device);
+            std::make_unique<neural_network::CosineSimilarityModel>(COSINE_SIMILARITY_MODEL_PATH, device);
+#elif defined(__USE_LIBTORCH__)
+        this->cosine_similarity_model =
+            std::make_unique<neural_network::CosineSimilarityModel>(COSINE_SIMILARITY_MODEL_PATH, device);
+#endif
         end_time = std::chrono::high_resolution_clock::now();
         duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
         spdlog::info("Loading cosine similarity model from {} successfully in {} ms", COSINE_SIMILARITY_MODEL_PATH,

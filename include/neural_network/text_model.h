@@ -9,7 +9,7 @@
 
 namespace neural_network {
 
-#ifndef __USE_LIBTORCH__
+#ifdef __USE_ONNX_RUNTIME__
 
     class TextEmbeddingModel {
       public:
@@ -129,38 +129,96 @@ namespace neural_network {
         std::vector<const char *> m_output_names;
         std::vector<Ort::AllocatedStringPtr> m_output_names_ptr;
     };
+#endif
 
-#else // __USE_LIBTORCH__
+#ifdef __USE_LIBTORCH__
+    class TextEmbeddingModel {
+      public:
+        /**
+         * @brief Construct a new Text Embedding Model object
+         *
+         * @param model_path Path to torchscript model
+         * @param device Device to run model
+         */
+        TextEmbeddingModel(const std::string &model_path, Device device = Device::CPU);
 
-    class TextEmbeddingWithMeanPoolingModelTorch {
-        public:
-            /**
-             * @brief Construct a new Text Embedding Model object
-             *
-             * @param model_path Path to torchscript model
-             * @param device Device to run model
-             */
-            TextEmbeddingWithMeanPoolingModelTorch(const std::string &model_path, Device device = Device::CPU);
-    
-            /**
-             * @brief Get the sentence embedding for a given text.
-             * @param text Input text
-             * @return A vector representing the sentence embedding.
-             */
-            emb_vec_t embed(const std::string &text);
-    
-            /**
-             * @brief Get the sentence embeddings for multiple texts.
-             * @param texts List of input texts
-             * @return A matrix where each row is a sentence embedding.
-             */
-            emb_mat_t embed(const std::vector<std::string> &texts);
-    
-        private:
-            torch::jit::script::Module m_module;
+        /**
+         * @brief Get the token embeddings for a given text.
+         * @param text Input text
+         * @return A matrix representing the embeddings for each token.
+         */
+        emb_mat_t embed(const std::string &text);
+
+        /**
+         * @brief Get the token embeddings for multiple texts.
+         * @param texts List of input texts
+         * @return A list of matrices representing the embeddings for each text.
+         */
+        std::vector<emb_mat_t> embed(const std::vector<std::string> &texts);
+
+        /**
+         * @brief Get the token embeddings for a given tokenized text.
+         * @return A matrix representing the embeddings for each token.
+         */
+        emb_mat_t embed(const token_id_list_t &token_ids, const attention_mask_list_t &attention_mask);
+
+        /**
+         * @brief Get the token embeddings for multiple tokenized texts.
+         * @param token_ids List of token ID sequences
+         * @param attention_mask List of attention mask sequences
+         * @return A list of matrices representing the embeddings for each text
+         */
+        std::vector<emb_mat_t> embed(const std::vector<token_id_list_t> &token_ids,
+                                     const std::vector<attention_mask_list_t> &attention_mask);
+
+      private:
+        torch::jit::script::Module m_module;
     };
 
-#endif // __USE_LIBTORCH__
+    class TextEmbeddingWithMeanPoolingModel {
+      public:
+        /**
+         * @brief Construct a new Text Embedding Model object
+         *
+         * @param model_path Path to torchscript model
+         * @param device Device to run model
+         */
+        TextEmbeddingWithMeanPoolingModel(const std::string &model_path, Device device = Device::CPU);
+
+        /**
+         * @brief Get the sentence embedding for a given text.
+         * @param text Input text
+         * @return A vector representing the sentence embedding.
+         */
+        emb_vec_t embed(const std::string &text);
+
+        /**
+         * @brief Get the sentence embeddings for multiple texts.
+         * @param texts List of input texts
+         * @return A matrix where each row is a sentence embedding.
+         */
+        emb_mat_t embed(const std::vector<std::string> &texts);
+
+        /**
+         * @brief Get the sentence embedding for a given tokenized text.
+         * @return A vector representing the sentence embedding.
+         */
+        emb_vec_t embed(const token_id_list_t &token_ids, const attention_mask_list_t &attention_mask);
+
+        /**
+         * @brief Get the sentence embeddings for multiple tokenized texts.
+         * @param token_ids List of token ID sequences
+         * @param attention_mask List of attention mask sequences
+         * @return A matrix where each row is a sentence embedding.
+         */
+        emb_mat_t embed(const std::vector<token_id_list_t> &token_ids,
+                        const std::vector<attention_mask_list_t> &attention_mask);
+
+      private:
+        torch::jit::script::Module m_module;
+    };
+
+#endif
 
     struct TokenizerConfig {
         bool add_special_tokens = true;

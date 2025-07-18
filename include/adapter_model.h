@@ -8,7 +8,7 @@
 #include "neural_network/nn.h"
 #include "neural_network/text_model.h"
 #include <chrono>
-#include <collection/concurrent_vector.hpp>
+#include <general-wheel-cpp/collection/concurrent_vector.hpp>
 #include <cstdint>
 #include <fmt/format.h>
 #include <general-wheel-cpp/collection/concurrent_hashset.hpp>

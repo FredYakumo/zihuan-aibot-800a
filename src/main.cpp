@@ -94,14 +94,20 @@ int main(int argc, char *argv[]) {
             return 0;
         }
     }
+
+#ifdef __USE_ONNX_RUNTIME__
     neural_network::init_onnx_runtime();
+#endif
 
     neural_network::Device device = neural_network::Device::CPU;
     if (argc > 1) {
         if (strcmp(argv[1], "--use-coreml") == 0) {
             device = neural_network::Device::CoreML;
             spdlog::info("Using Apple CoreML for neural network inference.");
-        } else if (strcmp(argv[1], "--use-cuda") == 0) {
+        } else if (strcmp(argv[1], "--use-mps") == 0) {
+            device = neural_network::Device::MPS;
+            spdlog::info("Using Apple Metal Performance Shaders for neural network inference.");
+        }else if (strcmp(argv[1], "--use-cuda") == 0) {
             device = neural_network::Device::CUDA;
             spdlog::info("Using CUDA for neural network inference.");
         } else if (strcmp(argv[1], "--use-tensorrt") == 0) {

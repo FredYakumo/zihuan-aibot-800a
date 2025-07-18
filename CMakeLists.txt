@@ -131,9 +131,7 @@ endif()
 # Unit tests
 include(CTest)
 add_executable(unit_test
-    ${MARKDOWN_SRC_FILES}
     ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/bot_adapter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/nn.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/text_model.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/model_set.cpp
@@ -165,8 +163,7 @@ else()
 endif()
 
 if(LINUX)
-    target_link_libraries(unit_test PRIVATE cpr::cpr gtest gtest_main fmt::fmt yaml-cpp::yaml-cpp Boost::filesystem tokenizers_cpp ncnn
-        general-wheel-cpp::general-wheel-cpp)
+    target_link_libraries(unit_test PRIVATE cpr::cpr gtest gtest_main fmt::fmt yaml-cpp::yaml-cpp Boost::filesystem tokenizers_cpp ncnn)
     if(NOT use_libtorch)
         target_link_libraries(unit_test PRIVATE onnxruntime::onnxruntime)
     endif()
@@ -175,8 +172,7 @@ if(LINUX)
     endif()
     target_link_libraries(unit_test PRIVATE /usr/local/lib64/libmysqlcppconnx.so)
 else()
-    target_link_libraries(unit_test PRIVATE cpr::cpr GTest::GTest GTest::Main fmt::fmt yaml-cpp::yaml-cpp Boost::filesystem tokenizers_cpp ncnn
-        general-wheel-cpp::general-wheel-cpp)
+    target_link_libraries(unit_test PRIVATE cpr::cpr GTest::GTest GTest::Main fmt::fmt yaml-cpp::yaml-cpp Boost::filesystem tokenizers_cpp ncnn)
     if(NOT use_libtorch)
         target_link_libraries(unit_test PRIVATE onnxruntime::onnxruntime)
     endif()
