@@ -216,7 +216,7 @@ std::string get_target_group_chat_history(const bot_adapter::BotAdapter &adapter
     }
 
     // Fetch recent messages from the group and filter by target user
-    const auto &group_msg_list = g_group_message_storage.get_individual_last_msg_list(group_id, 100);
+    const auto &group_msg_list = g_group_message_storage.get_individual_last_msg_list(group_id, 1000);
 
     std::vector<std::string> target_msgs;
     target_msgs.reserve(100);

@@ -59,8 +59,10 @@ class IndividualMessageStorage {
             auto &messages = time_sequence_group->get();
             size_t size = messages.size();
             size_t start = size > limit ? size - limit : 0;
-            for (size_t i = start; i < size; i++) {
-                ret.push_back(*messages[i]->get());
+            ret.reserve(size - start);  // Reserve space for performance
+            // Iterate backwards, but insert into the vector from the beginning to maintain order
+            for (size_t i = size; i > start; --i) {
+                ret.insert(ret.begin(), *messages[i-1]->get());
             }
         }
         return ret;
