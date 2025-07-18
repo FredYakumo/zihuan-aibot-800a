@@ -1,0 +1,94 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 14,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "ninja-libtorch-debug",
+            "displayName": "Ninja - LibTorch (Debug)",
+            "description": "Build using Ninja generator with LibTorch support in Debug mode",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/libtorch-debug",
+            "cacheVariables": {
+                "use_libtorch": "/Users/fredyakumo/libtorch",
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+            },
+            "environment": {
+                "CC": "clang",
+                "CXX": "clang++"
+            }
+        },
+        {
+            "name": "ninja-libtorch-release",
+            "displayName": "Ninja - LibTorch (Release)",
+            "description": "Build using Ninja generator with LibTorch support in Release mode",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/libtorch-release",
+            "cacheVariables": {
+                "use_libtorch": "/Users/fredyakumo/libtorch",
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+            },
+            "environment": {
+                "CC": "clang",
+                "CXX": "clang++"
+            }
+        },
+        {
+            "name": "ninja-onnxruntime-debug",
+            "displayName": "Ninja - ONNXRuntime (Debug)",
+            "description": "Build using Ninja generator with ONNXRuntime in Debug mode",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/onnx-debug",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+            },
+            "environment": {
+                "CC": "clang",
+                "CXX": "clang++"
+            }
+        },
+        {
+            "name": "ninja-onnxruntime-release",
+            "displayName": "Ninja - ONNXRuntime (Release)",
+            "description": "Build using Ninja generator with ONNXRuntime in Release mode",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/onnx-release",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+            },
+            "environment": {
+                "CC": "clang",
+                "CXX": "clang++"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "ninja-libtorch-debug-build",
+            "displayName": "Build with LibTorch (Debug)",
+            "configurePreset": "ninja-libtorch-debug"
+        },
+        {
+            "name": "ninja-libtorch-release-build",
+            "displayName": "Build with LibTorch (Release)",
+            "configurePreset": "ninja-libtorch-release"
+        },
+        {
+            "name": "ninja-onnxruntime-debug-build",
+            "displayName": "Build with ONNXRuntime (Debug)",
+            "configurePreset": "ninja-onnxruntime-debug"
+        },
+        {
+            "name": "ninja-onnxruntime-release-build",
+            "displayName": "Build with ONNXRuntime (Release)",
+            "configurePreset": "ninja-onnxruntime-release"
+        }
+    ]
+}
