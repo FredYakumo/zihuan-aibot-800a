@@ -3,7 +3,7 @@ cmake_policy(SET CMP0167 NEW)
 set(CMAKE_CXX_STANDARD 23)
 project(ZiHuanAIBot LANGUAGES CXX)
 
-# 设置默认构建类型为 Debug（如果没有通过命令行指定）
+# Set default build type to Debug (if not specified via command line)
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
@@ -24,7 +24,7 @@ find_package(spdlog REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(ncnn REQUIRED)
-# find_package(onnxruntime REQUIRED)  # 移动到条件分支
+# find_package(onnxruntime REQUIRED)  # Moved to conditional branch
 find_package(general-wheel-cpp REQUIRED)
 
 
@@ -59,19 +59,19 @@ endif()
 
 enable_testing()
 
-# 如果插件源路径未定义，则设为空
+# Set plugin source path to empty if not defined
 if(NOT DEFINED PLUGIN_SOURCE_PATH)
     set(PLUGIN_SOURCE_PATH "")
 endif()
 
-# 收集源码文件
+# Collect source files
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/ SRC_FILES)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network NN_SRC_FILES)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/vec_db VEC_DB_SRC_FILES)
 
 
 # set(ALL_SOURCES
-#     ${CMAKE_CURRENT_SOURCE_DIR}/external/MiraiCP-template/single_include/MiraiCP/MiraiCP.cpp  # MiraiCP 源文件
+#     ${CMAKE_CURRENT_SOURCE_DIR}/external/MiraiCP-template/single_include/MiraiCP/MiraiCP.cpp  # MiraiCP source file
 #     ${SRC_FILES}
 #     ${PLUGIN_SOURCE_PATH}
 #     ${CMAKE_CURRENT_SOURCE_DIR}/external/easywsclient/easywsclient.cpp
@@ -86,7 +86,7 @@ set(BIN_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/database.cpp
 )
 
-# 打印所有源文件（方便调试）
+# Print all source files (for debugging)
 foreach(file IN LISTS SRC_FILES)
     message(STATUS "Source file: ${file}")
 endforeach()
@@ -94,7 +94,7 @@ foreach(file IN LISTS NN_SRC_FILES)
     message(STATUS "Source file: ${file}")
 endforeach()
 
-# 创建共享库
+# Create shared library
 # add_library(${MIRAICP_TARGET_NAME} SHARED ${ALL_SOURCES})
 # target_link_libraries(${MIRAICP_TARGET_NAME} PRIVATE cpr::cpr)
 # target_link_libraries(${MIRAICP_TARGET_NAME} PRIVATE fmt::fmt)
@@ -104,7 +104,7 @@ endforeach()
 # and sentencepiece libary
 
 
-# 创建可执行文件
+# Create executable
 add_executable(${AIBOT_TARGET_NAME} ${BIN_SOURCES})
 target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE cpr::cpr)
 target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE fmt::fmt)
@@ -128,7 +128,7 @@ elseif(LINUX)
 endif()
 
 
-# 单元测试
+# Unit tests
 include(CTest)
 add_executable(unit_test
     ${MARKDOWN_SRC_FILES}
@@ -144,12 +144,12 @@ add_executable(unit_test
     ${CMAKE_CURRENT_SOURCE_DIR}/external/easywsclient/easywsclient.cpp
 )
 
-# 允许用户直接通过use_libtorch指定libtorch路径（字符串），为空则不用libtorch
+# Allow users to specify libtorch path directly via use_libtorch (string), empty means no libtorch
 set(use_libtorch "" CACHE PATH "Path to libtorch directory; leave empty to disable libtorch")
-# 允许用户通过use_ort指定onnxruntime路径（字符串），为空则用默认查找
+# Allow users to specify onnxruntime path via use_ort (string), empty means use default search
 set(use_ort "" CACHE PATH "Path to onnxruntime directory; leave empty to use system default")
 
-# 如果指定了use_libtorch（即路径非空），则引入libtorch，否则引入onnxruntime
+# If use_libtorch is specified (i.e., path is not empty), include libtorch, otherwise include onnxruntime
 if(use_libtorch)
     set(Torch_DIR "${use_libtorch}/share/cmake/Torch")
     find_package(Torch REQUIRED PATHS ${use_libtorch})
@@ -188,23 +188,49 @@ endif()
 
 add_test(NAME unit_test COMMAND unit_test)
 
-# 添加预编译宏定义
+# Add precompiled macro definitions
 # target_compile_definitions(${MIRAICP_TARGET_NAME} PUBLIC JSON_MultipleHeaders=ON MIRAICP_LIB_SDK)
 
-# 安装指令
+# Install instructions
 # install(TARGETS ${MIRAICP_TARGET_NAME}
 #     DESTINATION ${CMAKE_INSTALL_PREFIX}
 #     RENAME libAIBot800a.so
 # )
 
 # if(APPLE)
-#     # macOS 可能需要额外的配置，比如设置 rpath
+#     # macOS may need additional configuration, such as setting rpath
 #     set_target_properties(${MIRAICP_TARGET_NAME} PROPERTIES INSTALL_NAME_DIR "@rpath")
 # endif()
 
-# 根据构建类型设置 spdlog 的日志级别
+# Set spdlog log level based on build type
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_definitions(-DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_WARN)
 else()
     add_definitions(-DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG)
+endif()
+
+# Add custom macro definitions
+add_definitions(-DAIBOT_VERSION_800A)
+
+# Platform-based macro definitions
+if(APPLE)
+    add_definitions(-DPLATFORM_MACOS)
+elseif(LINUX)
+    add_definitions(-DPLATFORM_LINUX)
+endif()
+
+# Build type-based macro definitions
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_definitions(-DDEBUG_BUILD)
+else()
+    add_definitions(-DRELEASE_BUILD)
+endif()
+
+# AI inference backend-based macro definitions
+if(use_libtorch)
+    add_definitions(-D__USE_LIBTORCH__)
+    message(STATUS "Defined macro: __USE_LIBTORCH__")
+else()
+    add_definitions(-D__USE_ONNX_RUNTIME__)
+    message(STATUS "Defined macro: __USE_ONNX_RUNTIME__")
 endif()
