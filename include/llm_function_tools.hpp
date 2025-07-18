@@ -78,6 +78,7 @@ const nlohmann::json DEFAULT_TOOLS = nlohmann::json::array(
                                              {{"type", "string"},
                                               {"description", "查询内容,仅支持OWNER(群主),ADMIN(管理员),"
                                                               "NOTICE(群公告).除此以外则是OTHER"}}}})),
+        // make_tool_function("get_group_member_list", "查询群成员列表.")
 
      // Fetch URL content tool
      make_tool_function(

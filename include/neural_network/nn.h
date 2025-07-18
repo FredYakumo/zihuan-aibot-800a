@@ -1,13 +1,20 @@
 #ifndef NEURAL_NETWORK_H
 #define NEURAL_NETWORK_H
 
+#include <c10/core/Device.h>
+#include <c10/core/DeviceType.h>
 #include <fstream>
 #include <numeric>
+#ifdef __USE_ONNX_RUNTIME__
 #include <onnxruntime/onnxruntime_cxx_api.h>
+#endif
 #include <spdlog/spdlog.h>
 #include <tokenizers_cpp.h>
 #include <utility>
 #include <vector>
+#ifdef __USE_LIBTORCH__
+#include <torch/torch.h>
+#endif
 
 namespace neural_network {
     using token_id_list_t = std::vector<int32_t>;
@@ -15,6 +22,7 @@ namespace neural_network {
     using emb_vec_t = std::vector<float>;
     using emb_mat_t = std::vector<emb_vec_t>;
 
+#ifdef __USE_ONNX_RUNTIME__
     Ort::Env &get_onnx_runtime();
 
     void init_onnx_runtime();
@@ -26,15 +34,17 @@ namespace neural_network {
     Ort::SessionOptions get_onnx_session_opts_tensorrt();
 
     Ort::SessionOptions get_onnx_session_opts_core_ml();
+#endif
 
     /**
      * @brief Device type for model inference
      *
      */
-    enum class Device { CPU, CUDA, TensorRT, CoreML };
+    enum class Device { CPU, CUDA, TensorRT, CoreML, MPS };
 
     constexpr Device USE_DEVICE = Device::CPU;
 
+#ifndef __USE_LIBTORCH__
     inline Ort::SessionOptions get_session_options(Device device) {
         switch (device) {
         case Device::CUDA:
@@ -47,6 +57,25 @@ namespace neural_network {
             return get_onnx_session_opts_cpu();
         }
     }
+#endif
+
+#ifdef __USE_LIBTORCH__
+    inline torch::Device get_torch_device(Device device) {
+        switch (device) {
+        case Device::CUDA:
+            return torch::kCUDA;
+        case Device::TensorRT:
+            return torch::kCUDA; // TensorRT runs on CUDA
+        case Device::CoreML:
+            return torch::kMPS; // CoreML is not supported by PyTorch
+        case Device::MPS:
+            return torch::kMPS;
+        case Device::CPU:
+        default:
+            return torch::kCPU;
+        }
+    }
+#endif
 
     inline std::string load_bytes_from_file(const std::string &path) {
         std::ifstream fs(path, std::ios::in | std::ios::binary);
@@ -64,6 +93,8 @@ namespace neural_network {
     }
 
     constexpr size_t COSINE_SIMILARITY_INPUT_EMB_SIZE = 1024;
+
+#ifdef __USE_ONNX_RUNTIME__
     /**
      * @brief Cosine similarity ONNX model wrapper
      */
@@ -158,6 +189,8 @@ namespace neural_network {
         std::vector<const char *> m_output_names;
         std::vector<Ort::AllocatedStringPtr> m_output_names_ptr;
     };
+
+#endif // __USE_ONNX_RUNTIME__
 
     namespace cpu {
         inline float dot_product(const float *a, const float *b, size_t size) {

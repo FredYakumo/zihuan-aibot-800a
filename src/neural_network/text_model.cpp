@@ -2,7 +2,14 @@
 #include "neural_network/model_set.h"
 #include "neural_network/nn.h"
 
+#ifdef __USE_LIBTORCH__
+#include <torch/csrc/jit/api/module.h>
+#include <torch/script.h>
+#endif
+
 namespace neural_network {
+
+#ifndef __USE_LIBTORCH__
 
     TextEmbeddingModel::TextEmbeddingModel(const std::string &model_path, Device device)
         : m_session(get_onnx_runtime(), model_path.c_str(), get_session_options(device)) {
@@ -294,4 +301,134 @@ namespace neural_network {
         }
         return result;
     }
+
+#else // __USE_LIBTORCH__
+
+    TextEmbeddingWithMeanPoolingModelTorch::TextEmbeddingWithMeanPoolingModelTorch(const std::string &model_path, Device device) {
+        try {
+            m_module = torch::jit::load(model_path, get_torch_device(device));
+            m_module.eval(); // Set to evaluation mode
+            spdlog::info("Successfully loaded PyTorch model from: {}", model_path);
+        } catch (const std::exception& e) {
+            spdlog::error("Failed to load PyTorch model from {}: {}", model_path, e.what());
+            throw;
+        }
+    }
+
+    /**
+     * @brief Get the sentence embedding for a given text.
+     * @param text Input text
+     * @return A vector representing the sentence embedding.
+     */
+    emb_vec_t TextEmbeddingWithMeanPoolingModelTorch::embed(const std::string &text) {
+        auto token_ids = get_model_set().tokenizer_wrapper.encode(text);
+        attention_mask_list_t attention_mask(token_ids.size(), 1);
+        
+        // Truncate input to maximum length of 512
+        const size_t max_len = 512;
+        auto token_end = token_ids.size() > max_len ? token_ids.begin() + max_len : token_ids.end();
+        auto mask_end = attention_mask.size() > max_len ? attention_mask.begin() + max_len : attention_mask.end();
+        
+        const size_t seq_len = std::distance(token_ids.begin(), token_end);
+        
+        // Convert to tensors
+        std::vector<int64_t> input_ids_vec(token_ids.begin(), token_end);
+        std::vector<int64_t> attention_mask_vec(attention_mask.begin(), mask_end);
+        
+        auto device = (*m_module.parameters().begin()).device();
+        torch::Tensor input_ids_tensor = torch::tensor(input_ids_vec, torch::dtype(torch::kLong)).unsqueeze(0).to(device);
+        torch::Tensor attention_mask_tensor = torch::tensor(attention_mask_vec, torch::dtype(torch::kLong)).unsqueeze(0).to(device);
+        
+        // Run inference
+        std::vector<torch::jit::IValue> inputs;
+        inputs.push_back(input_ids_tensor);
+        inputs.push_back(attention_mask_tensor);
+        
+        torch::jit::IValue output = m_module.forward(inputs);
+        torch::Tensor embedding_tensor = output.toTensor();
+        
+        // Convert back to vector
+        embedding_tensor = embedding_tensor.to(torch::kCPU).squeeze(0);
+        auto embedding_ptr = embedding_tensor.data_ptr<float>();
+        auto hidden_size = embedding_tensor.size(0);
+        
+        return emb_vec_t(embedding_ptr, embedding_ptr + hidden_size);
+    }
+
+    /**
+     * @brief Get the sentence embeddings for multiple texts.
+     * @param texts List of input texts
+     * @return A matrix where each row is a sentence embedding.
+     */
+    emb_mat_t TextEmbeddingWithMeanPoolingModelTorch::embed(const std::vector<std::string> &texts) {
+        if (texts.empty()) {
+            return {};
+        }
+        
+        std::vector<token_id_list_t> token_ids = get_model_set().tokenizer_wrapper.encode_batch(texts);
+        std::vector<attention_mask_list_t> attention_mask_list;
+        attention_mask_list.reserve(token_ids.size());
+        for (const auto &ids : token_ids) {
+            attention_mask_list_t mask(ids.size(), 1);
+            attention_mask_list.push_back(std::move(mask));
+        }
+        
+        const auto batch_size = token_ids.size();
+        const size_t max_len = 512;
+        
+        // Prepare batch data
+        std::vector<int64_t> input_ids_flat;
+        std::vector<int64_t> masks_flat;
+        input_ids_flat.reserve(batch_size * max_len);
+        masks_flat.reserve(batch_size * max_len);
+        
+        for (size_t i = 0; i < batch_size; ++i) {
+            const auto &current_ids = token_ids[i];
+            const size_t trunc_len = std::min(current_ids.size(), max_len);
+            for (size_t j = 0; j < trunc_len; ++j) {
+                input_ids_flat.push_back(current_ids[j]);
+            }
+            input_ids_flat.insert(input_ids_flat.end(), max_len - trunc_len, 0LL);
+            
+            const auto &current_mask = attention_mask_list[i];
+            const size_t mask_trunc_len = std::min(current_mask.size(), max_len);
+            for (size_t j = 0; j < mask_trunc_len; ++j) {
+                masks_flat.push_back(current_mask[j]);
+            }
+            masks_flat.insert(masks_flat.end(), max_len - mask_trunc_len, 0LL);
+        }
+        
+        // Convert to tensors
+        auto device = (*m_module.parameters().begin()).device();
+        torch::Tensor input_ids_tensor = torch::tensor(input_ids_flat, torch::dtype(torch::kLong))
+                                         .view({static_cast<int64_t>(batch_size), static_cast<int64_t>(max_len)}).to(device);
+        torch::Tensor attention_mask_tensor = torch::tensor(masks_flat, torch::dtype(torch::kLong))
+                                             .view({static_cast<int64_t>(batch_size), static_cast<int64_t>(max_len)}).to(device);
+        
+        // Run inference
+        std::vector<torch::jit::IValue> inputs;
+        inputs.push_back(input_ids_tensor);
+        inputs.push_back(attention_mask_tensor);
+        
+        torch::jit::IValue output = m_module.forward(inputs);
+        torch::Tensor embeddings_tensor = output.toTensor();
+        
+        // Convert back to matrix
+        embeddings_tensor = embeddings_tensor.to(torch::kCPU);
+        auto embeddings_ptr = embeddings_tensor.data_ptr<float>();
+        auto hidden_size = embeddings_tensor.size(1);
+        
+        emb_mat_t result;
+        result.reserve(batch_size);
+        
+        for (size_t i = 0; i < batch_size; ++i) {
+            const float *start = embeddings_ptr + i * hidden_size;
+            result.emplace_back(start, start + hidden_size);
+        }
+        
+        return result;
+    }
+        
+#endif // __USE_LIBTORCH__
+
 } // namespace neural_network

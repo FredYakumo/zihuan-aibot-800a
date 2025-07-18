@@ -3,8 +3,13 @@
 #include <string>
 #include <vector>
 
+#ifdef __USE_LIBTORCH__
+#include <torch/script.h>
+#endif
+
 namespace neural_network {
 
+#ifndef __USE_LIBTORCH__
 
     class TextEmbeddingModel {
       public:
@@ -124,6 +129,38 @@ namespace neural_network {
         std::vector<const char *> m_output_names;
         std::vector<Ort::AllocatedStringPtr> m_output_names_ptr;
     };
+
+#else // __USE_LIBTORCH__
+
+    class TextEmbeddingWithMeanPoolingModelTorch {
+        public:
+            /**
+             * @brief Construct a new Text Embedding Model object
+             *
+             * @param model_path Path to torchscript model
+             * @param device Device to run model
+             */
+            TextEmbeddingWithMeanPoolingModelTorch(const std::string &model_path, Device device = Device::CPU);
+    
+            /**
+             * @brief Get the sentence embedding for a given text.
+             * @param text Input text
+             * @return A vector representing the sentence embedding.
+             */
+            emb_vec_t embed(const std::string &text);
+    
+            /**
+             * @brief Get the sentence embeddings for multiple texts.
+             * @param texts List of input texts
+             * @return A matrix where each row is a sentence embedding.
+             */
+            emb_mat_t embed(const std::vector<std::string> &texts);
+    
+        private:
+            torch::jit::script::Module m_module;
+    };
+
+#endif // __USE_LIBTORCH__
 
     struct TokenizerConfig {
         bool add_special_tokens = true;

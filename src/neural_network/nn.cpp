@@ -3,6 +3,8 @@
 #include <memory>
 #include <stdexcept>
 
+#ifdef __USE_ONNX_RUNTIME__
+
 std::unique_ptr<Ort::Env> g_onnx_runtime_ptr;
 
 void neural_network::init_onnx_runtime() {
@@ -61,3 +63,5 @@ Ort::SessionOptions neural_network::get_onnx_session_opts_tensorrt() {
     opts.AppendExecutionProvider_TensorRT(tensorrt_options);
     return opts;
 }
+
+#endif // __USE_ONNX_RUNTIME__
