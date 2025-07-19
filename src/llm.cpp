@@ -229,9 +229,8 @@ std::string get_target_group_chat_history(const bot_adapter::BotAdapter &adapter
             if (size_count > 3000) {
                 break;
             }
-            target_msgs.insert(target_msgs.begin(),
-                               fmt::format("'{}': '{}'", msg.sender_name,
-                                           std::move(text)));
+            target_msgs.insert(target_msgs.begin(), fmt::format("[{}]'{}': '{}'", time_point_to_db_str(msg.send_time),
+                                                                msg.sender_name, std::move(text)));
         }
     }
 
@@ -432,17 +431,17 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &us
                         } else {
 
                             // No target, get group's history
-                            const auto &msg_list =
-                                g_group_message_storage.get_individual_last_msg_list(group_sender->get().group.id, 1000);
+                            const auto &msg_list = g_group_message_storage.get_individual_last_msg_list(
+                                group_sender->get().group.id, 1000);
                             if (msg_list.empty()) {
                                 content = fmt::format("在'{}'群里还没有聊天记录哦", group_sender->get().group.name);
                             } else {
                                 std::string text;
                                 size_t total_length = 0;
                                 for (const auto &msg : msg_list) {
-                                    std::string msg_text = fmt::format("'{}': '{}'", msg.sender_name,
-                                                       bot_adapter::get_text_from_message_chain(
-                                                           *msg.message_chain_list));
+                                    std::string msg_text = fmt::format(
+                                        "[{}]'{}': '{}'", msg.sender_name, time_point_to_db_str(msg.send_time),
+                                        bot_adapter::get_text_from_message_chain(*msg.message_chain_list));
                                     if (total_length + msg_text.length() > 3000) {
                                         break;
                                     }
@@ -452,10 +451,8 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &us
                                     text += msg_text;
                                     total_length += msg_text.length();
                                 }
-                                
-                                content =
-                                    fmt::format("'{}'群的最近消息:\n{}", group_sender->get().group.name,
-                                                text);
+
+                                content = fmt::format("'{}'群的最近消息:\n{}", group_sender->get().group.name, text);
                             }
                         }
                     }
@@ -469,9 +466,9 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &us
                         std::string text;
                         size_t total_length = 0;
                         for (const auto &msg : msg_list) {
-                            std::string msg_text = fmt::format("'{}': '{}'", msg.sender_name,
-                                               bot_adapter::get_text_from_message_chain(
-                                                   *msg.message_chain_list));
+                            std::string msg_text =
+                                fmt::format("'{}': '{}'", msg.sender_name,
+                                            bot_adapter::get_text_from_message_chain(*msg.message_chain_list));
                             if (total_length + msg_text.length() > 3000) {
                                 break;
                             }
@@ -481,9 +478,8 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &us
                             text += msg_text;
                             total_length += msg_text.length();
                         }
-                        
-                        content = fmt::format(
-                            "与'{}'的最近聊天记录:\n{}", context.event->sender_ptr->name, text);
+
+                        content = fmt::format("与'{}'的最近聊天记录:\n{}", context.event->sender_ptr->name, text);
                     }
                 }
                 tool_call_msg = ChatMessage(ROLE_TOOL, content, func_calls.id);
@@ -678,8 +674,7 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &us
             auto llm_output_emb = neural_network::get_model_set().text_embedding_model->embed(replay_content);
             if (const auto &group_sender = bot_adapter::try_group_sender(*context.event->sender_ptr)) {
                 database::get_global_db_connection().insert_message(
-                    message_id,
-                    replay_content,
+                    message_id, replay_content,
                     bot_adapter::GroupSender(
                         config.bot_id, context.adapter.get_bot_profile().name, std::nullopt,
                         to_string(
@@ -688,8 +683,7 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &us
                     std::chrono::system_clock::now(), std::set<uint64_t>{context.event->sender_ptr->id});
             } else {
                 database::get_global_db_connection().insert_message(
-                    message_id,
-                    replay_content,
+                    message_id, replay_content,
                     bot_adapter::Sender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt),
                     std::chrono::system_clock::now(), std::set<uint64_t>{context.event->sender_ptr->id});
             }
