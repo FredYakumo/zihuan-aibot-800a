@@ -403,50 +403,64 @@ namespace neural_network {
             return {};
         }
 
-        size_t max_seq_len = 0;
-        for (const auto &ids : token_ids) {
-            if (ids.size() > max_seq_len) {
-                max_seq_len = ids.size();
+        // For small batches, use sequential processing to save memory
+        if (batch_size <= 4) {
+            std::vector<emb_mat_t> result;
+            result.reserve(batch_size);
+            for (size_t i = 0; i < batch_size; ++i) {
+                result.emplace_back(embed(token_ids[i], attention_mask[i]));
             }
+            return result;
         }
 
-        std::vector<int64_t> input_ids_flat;
-        input_ids_flat.reserve(batch_size * max_seq_len);
-        std::vector<int64_t> masks_flat;
-        masks_flat.reserve(batch_size * max_seq_len);
+        // Find actual max sequence length in this batch (capped at 512)
+        size_t max_seq_len = 0;
+        for (const auto &ids : token_ids) {
+            max_seq_len = std::max(max_seq_len, std::min(ids.size(), static_cast<size_t>(512)));
+        }
+        
+        auto device = (*m_module.parameters().begin()).device();
+
+        // Create tensors with minimal required size
+        torch::Tensor input_ids_tensor = torch::zeros({static_cast<int64_t>(batch_size), static_cast<int64_t>(max_seq_len)}, 
+                                                      torch::dtype(torch::kLong).device(torch::kCPU));
+        torch::Tensor attention_mask_tensor = torch::zeros({static_cast<int64_t>(batch_size), static_cast<int64_t>(max_seq_len)}, 
+                                                           torch::dtype(torch::kLong).device(torch::kCPU));
+
+        // Use tensor accessors to fill data efficiently on CPU
+        auto input_ids_accessor = input_ids_tensor.accessor<int64_t, 2>();
+        auto attention_mask_accessor = attention_mask_tensor.accessor<int64_t, 2>();
 
         for (size_t i = 0; i < batch_size; ++i) {
             const auto &current_ids = token_ids[i];
-            const size_t trunc_len = std::min(current_ids.size(), static_cast<size_t>(512));
+            const size_t trunc_len = std::min(current_ids.size(), max_seq_len);
+            
             for (size_t j = 0; j < trunc_len; ++j) {
-                input_ids_flat.push_back(current_ids[j]);
+                input_ids_accessor[i][j] = static_cast<int64_t>(current_ids[j]);
             }
-            input_ids_flat.insert(input_ids_flat.end(), 512 - trunc_len, 0LL);
 
             const auto &current_mask = attention_mask[i];
-            const size_t mask_trunc_len = std::min(current_mask.size(), static_cast<size_t>(512));
+            const size_t mask_trunc_len = std::min(current_mask.size(), max_seq_len);
+            
             for (size_t j = 0; j < mask_trunc_len; ++j) {
-                masks_flat.push_back(current_mask[j]);
+                attention_mask_accessor[i][j] = static_cast<int64_t>(current_mask[j]);
             }
-            masks_flat.insert(masks_flat.end(), 512 - mask_trunc_len, 0LL);
         }
 
-        // Convert to tensors
-        auto device = (*m_module.parameters().begin()).device();
-        torch::Tensor input_ids_tensor = torch::tensor(input_ids_flat, torch::dtype(torch::kLong))
-                                             .view({static_cast<int64_t>(batch_size), static_cast<int64_t>(max_seq_len)})
-                                             .to(device);
-        torch::Tensor attention_mask_tensor =
-            torch::tensor(masks_flat, torch::dtype(torch::kLong))
-                .view({static_cast<int64_t>(batch_size), static_cast<int64_t>(max_seq_len)})
-                .to(device);
+        // Transfer to device only once
+        input_ids_tensor = input_ids_tensor.to(device);
+        attention_mask_tensor = attention_mask_tensor.to(device);
 
         // Run inference
         std::vector<torch::jit::IValue> inputs;
-        inputs.push_back(input_ids_tensor);
-        inputs.push_back(attention_mask_tensor);
+        inputs.emplace_back(std::move(input_ids_tensor));
+        inputs.emplace_back(std::move(attention_mask_tensor));
 
-        torch::jit::IValue output = m_module.forward(inputs);
+        torch::jit::IValue output;
+        {
+            torch::NoGradGuard no_grad;
+            output = m_module.forward(inputs);
+        }
         torch::Tensor token_embeddings_tensor = output.toTensor();
 
         // Convert back to list of matrices [batch_size, seq_len, hidden_size]
@@ -459,7 +473,7 @@ namespace neural_network {
 
         for (size_t i = 0; i < batch_size; ++i) {
             emb_mat_t current_emb_mat;
-            const size_t original_seq_len = token_ids[i].size();
+            const size_t original_seq_len = std::min(token_ids[i].size(), max_seq_len);
             current_emb_mat.reserve(original_seq_len);
             for (size_t j = 0; j < original_seq_len; ++j) {
                 const float *start = embeddings_ptr + i * max_seq_len * hidden_size + j * hidden_size;
@@ -541,63 +555,8 @@ namespace neural_network {
             attention_mask_list.push_back(std::move(mask));
         }
 
-        const auto batch_size = token_ids.size();
-        const size_t max_len = 512;
-
-        // Prepare batch data
-        std::vector<int64_t> input_ids_flat;
-        std::vector<int64_t> masks_flat;
-        input_ids_flat.reserve(batch_size * max_len);
-        masks_flat.reserve(batch_size * max_len);
-
-        for (size_t i = 0; i < batch_size; ++i) {
-            const auto &current_ids = token_ids[i];
-            const size_t trunc_len = std::min(current_ids.size(), max_len);
-            for (size_t j = 0; j < trunc_len; ++j) {
-                input_ids_flat.push_back(current_ids[j]);
-            }
-            input_ids_flat.insert(input_ids_flat.end(), max_len - trunc_len, 0LL);
-
-            const auto &current_mask = attention_mask_list[i];
-            const size_t mask_trunc_len = std::min(current_mask.size(), max_len);
-            for (size_t j = 0; j < mask_trunc_len; ++j) {
-                masks_flat.push_back(current_mask[j]);
-            }
-            masks_flat.insert(masks_flat.end(), max_len - mask_trunc_len, 0LL);
-        }
-
-        // Convert to tensors
-        auto device = (*m_module.parameters().begin()).device();
-        torch::Tensor input_ids_tensor = torch::tensor(input_ids_flat, torch::dtype(torch::kLong))
-                                             .view({static_cast<int64_t>(batch_size), static_cast<int64_t>(max_len)})
-                                             .to(device);
-        torch::Tensor attention_mask_tensor =
-            torch::tensor(masks_flat, torch::dtype(torch::kLong))
-                .view({static_cast<int64_t>(batch_size), static_cast<int64_t>(max_len)})
-                .to(device);
-
-        // Run inference
-        std::vector<torch::jit::IValue> inputs;
-        inputs.push_back(input_ids_tensor);
-        inputs.push_back(attention_mask_tensor);
-
-        torch::jit::IValue output = m_module.forward(inputs);
-        torch::Tensor embeddings_tensor = output.toTensor();
-
-        // Convert back to matrix
-        embeddings_tensor = embeddings_tensor.to(torch::kCPU);
-        auto embeddings_ptr = embeddings_tensor.data_ptr<float>();
-        auto hidden_size = embeddings_tensor.size(1);
-
-        emb_mat_t result;
-        result.reserve(batch_size);
-
-        for (size_t i = 0; i < batch_size; ++i) {
-            const float *start = embeddings_ptr + i * hidden_size;
-            result.emplace_back(start, start + hidden_size);
-        }
-
-        return result;
+        // Delegate to the optimized batch function
+        return embed(token_ids, attention_mask_list);
     }
 
     /**
@@ -655,46 +614,64 @@ namespace neural_network {
             return {};
         }
 
-        const size_t max_len = 512;
+        // For small batches, use sequential processing to save memory
+        if (batch_size <= 4) {
+            emb_mat_t result;
+            result.reserve(batch_size);
+            for (size_t i = 0; i < batch_size; ++i) {
+                result.emplace_back(embed(token_ids[i], attention_mask[i]));
+            }
+            return result;
+        }
 
-        // Prepare batch data
-        std::vector<int64_t> input_ids_flat;
-        std::vector<int64_t> masks_flat;
-        input_ids_flat.reserve(batch_size * max_len);
-        masks_flat.reserve(batch_size * max_len);
+        // Find actual max sequence length in this batch (capped at 512)
+        size_t max_len = 0;
+        for (const auto &ids : token_ids) {
+            max_len = std::max(max_len, std::min(ids.size(), static_cast<size_t>(512)));
+        }
+        
+        auto device = (*m_module.parameters().begin()).device();
+
+        // Create tensors with minimal required size on CPU first
+        torch::Tensor input_ids_tensor = torch::zeros({static_cast<int64_t>(batch_size), static_cast<int64_t>(max_len)}, 
+                                                      torch::dtype(torch::kLong).device(torch::kCPU));
+        torch::Tensor attention_mask_tensor = torch::zeros({static_cast<int64_t>(batch_size), static_cast<int64_t>(max_len)}, 
+                                                           torch::dtype(torch::kLong).device(torch::kCPU));
+
+        // Use tensor accessors to fill data efficiently on CPU
+        auto input_ids_accessor = input_ids_tensor.accessor<int64_t, 2>();
+        auto attention_mask_accessor = attention_mask_tensor.accessor<int64_t, 2>();
 
         for (size_t i = 0; i < batch_size; ++i) {
             const auto &current_ids = token_ids[i];
             const size_t trunc_len = std::min(current_ids.size(), max_len);
+            
             for (size_t j = 0; j < trunc_len; ++j) {
-                input_ids_flat.push_back(current_ids[j]);
+                input_ids_accessor[i][j] = static_cast<int64_t>(current_ids[j]);
             }
-            input_ids_flat.insert(input_ids_flat.end(), max_len - trunc_len, 0LL);
 
             const auto &current_mask = attention_mask[i];
             const size_t mask_trunc_len = std::min(current_mask.size(), max_len);
+            
             for (size_t j = 0; j < mask_trunc_len; ++j) {
-                masks_flat.push_back(current_mask[j]);
+                attention_mask_accessor[i][j] = static_cast<int64_t>(current_mask[j]);
             }
-            masks_flat.insert(masks_flat.end(), max_len - mask_trunc_len, 0LL);
         }
 
-        // Convert to tensors
-        auto device = (*m_module.parameters().begin()).device();
-        torch::Tensor input_ids_tensor = torch::tensor(input_ids_flat, torch::dtype(torch::kLong))
-                                             .view({static_cast<int64_t>(batch_size), static_cast<int64_t>(max_len)})
-                                             .to(device);
-        torch::Tensor attention_mask_tensor =
-            torch::tensor(masks_flat, torch::dtype(torch::kLong))
-                .view({static_cast<int64_t>(batch_size), static_cast<int64_t>(max_len)})
-                .to(device);
+        // Transfer to device only once
+        input_ids_tensor = input_ids_tensor.to(device);
+        attention_mask_tensor = attention_mask_tensor.to(device);
 
         // Run inference
         std::vector<torch::jit::IValue> inputs;
-        inputs.push_back(input_ids_tensor);
-        inputs.push_back(attention_mask_tensor);
+        inputs.emplace_back(std::move(input_ids_tensor));
+        inputs.emplace_back(std::move(attention_mask_tensor));
 
-        torch::jit::IValue output = m_module.forward(inputs);
+        torch::jit::IValue output;
+        {
+            torch::NoGradGuard no_grad;
+            output = m_module.forward(inputs);
+        }
         torch::Tensor embeddings_tensor = output.toTensor();
 
         // Convert back to matrix

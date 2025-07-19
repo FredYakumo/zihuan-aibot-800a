@@ -1,8 +1,6 @@
 #ifndef NEURAL_NETWORK_H
 #define NEURAL_NETWORK_H
 
-#include <c10/core/Device.h>
-#include <c10/core/DeviceType.h>
 #include <fstream>
 #include <numeric>
 #ifdef __USE_ONNX_RUNTIME__
@@ -14,6 +12,8 @@
 #include <vector>
 #ifdef __USE_LIBTORCH__
 #include <torch/torch.h>
+#include <c10/core/Device.h>
+#include <c10/core/DeviceType.h>
 #endif
 
 namespace neural_network {
