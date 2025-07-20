@@ -92,6 +92,7 @@ namespace neural_network {
         return data;
     }
 
+    constexpr size_t DEFAULT_MAX_BATCH_SIZE = 512;
     constexpr size_t COSINE_SIMILARITY_INPUT_EMB_SIZE = 1024;
 
 #ifdef __USE_ONNX_RUNTIME__

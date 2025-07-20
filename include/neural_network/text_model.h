@@ -31,9 +31,10 @@ namespace neural_network {
         /**
          * @brief Get the token embeddings for multiple texts.
          * @param texts List of input texts
+         * @param max_batch_size Maximum batch size for processing (default: DEFAULT_MAX_BATCH_SIZE)
          * @return A list of matrices representing the embeddings for each text.
          */
-        std::vector<emb_mat_t> embed(const std::vector<std::string> &texts);
+        std::vector<emb_mat_t> embed(const std::vector<std::string> &texts, size_t max_batch_size = DEFAULT_MAX_BATCH_SIZE);
         /**
          * @brief Get the token embeddings for a given text.
          * @return A matrix representing the embeddings for each token.
@@ -44,10 +45,11 @@ namespace neural_network {
          * @brief Get the token embeddings for multiple texts.
          * @param token_ids List of token ID sequences
          * @param attention_mask List of attention mask sequences
+         * @param max_batch_size Maximum batch size for processing (default: DEFAULT_MAX_BATCH_SIZE)
          * @return A list of matrices representing the embeddings for each text
          */
         std::vector<emb_mat_t> embed(const std::vector<token_id_list_t> &token_ids,
-                                     const std::vector<attention_mask_list_t> &attention_mask);
+                                     const std::vector<attention_mask_list_t> &attention_mask, size_t max_batch_size = DEFAULT_MAX_BATCH_SIZE);
 
         // /**
         //  * @brief Get the sentence embedding for a given text using mean pooling.
@@ -90,9 +92,10 @@ namespace neural_network {
         /**
          * @brief Get the sentence embeddings for multiple texts.
          * @param texts List of input texts
+         * @param max_batch_size Maximum batch size for processing (default: DEFAULT_MAX_BATCH_SIZE)
          * @return A matrix where each row is a sentence embedding.
          */
-        emb_mat_t embed(const std::vector<std::string> &texts);
+        emb_mat_t embed(const std::vector<std::string> &texts, size_t max_batch_size = DEFAULT_MAX_BATCH_SIZE);
 
         /**
          * @brief Get the sentence embedding for a given tokenized text.
@@ -104,10 +107,11 @@ namespace neural_network {
          * @brief Get the sentence embeddings for multiple tokenized texts.
          * @param token_ids List of token ID sequences
          * @param attention_mask List of attention mask sequences
+         * @param max_batch_size Maximum batch size for processing (default: DEFAULT_MAX_BATCH_SIZE)
          * @return A matrix where each row is a sentence embedding.
          */
         emb_mat_t embed(const std::vector<token_id_list_t> &token_ids,
-                        const std::vector<attention_mask_list_t> &attention_mask);
+                        const std::vector<attention_mask_list_t> &attention_mask, size_t max_batch_size = DEFAULT_MAX_BATCH_SIZE);
 
         // /**
         //  * @brief Get the sentence embedding for a given text using mean pooling.
@@ -152,9 +156,10 @@ namespace neural_network {
         /**
          * @brief Get the token embeddings for multiple texts.
          * @param texts List of input texts
+         * @param max_batch_size Maximum batch size for processing (default: DEFAULT_MAX_BATCH_SIZE)
          * @return A list of matrices representing the embeddings for each text.
          */
-        std::vector<emb_mat_t> embed(const std::vector<std::string> &texts);
+        std::vector<emb_mat_t> embed(const std::vector<std::string> &texts, size_t max_batch_size = DEFAULT_MAX_BATCH_SIZE);
 
         /**
          * @brief Get the token embeddings for a given tokenized text.
@@ -166,10 +171,11 @@ namespace neural_network {
          * @brief Get the token embeddings for multiple tokenized texts.
          * @param token_ids List of token ID sequences
          * @param attention_mask List of attention mask sequences
+         * @param max_batch_size Maximum batch size for processing (default: DEFAULT_MAX_BATCH_SIZE)
          * @return A list of matrices representing the embeddings for each text
          */
         std::vector<emb_mat_t> embed(const std::vector<token_id_list_t> &token_ids,
-                                     const std::vector<attention_mask_list_t> &attention_mask);
+                                     const std::vector<attention_mask_list_t> &attention_mask, size_t max_batch_size = DEFAULT_MAX_BATCH_SIZE);
 
       private:
         torch::jit::script::Module m_module;
@@ -195,9 +201,10 @@ namespace neural_network {
         /**
          * @brief Get the sentence embeddings for multiple texts.
          * @param texts List of input texts
+         * @param max_batch_size Maximum batch size for processing (default: DEFAULT_MAX_BATCH_SIZE)
          * @return A matrix where each row is a sentence embedding.
          */
-        emb_mat_t embed(const std::vector<std::string> &texts);
+        emb_mat_t embed(const std::vector<std::string> &texts, size_t max_batch_size = DEFAULT_MAX_BATCH_SIZE);
 
         /**
          * @brief Get the sentence embedding for a given tokenized text.
@@ -209,10 +216,11 @@ namespace neural_network {
          * @brief Get the sentence embeddings for multiple tokenized texts.
          * @param token_ids List of token ID sequences
          * @param attention_mask List of attention mask sequences
+         * @param max_batch_size Maximum batch size for processing (default: DEFAULT_MAX_BATCH_SIZE)
          * @return A matrix where each row is a sentence embedding.
          */
         emb_mat_t embed(const std::vector<token_id_list_t> &token_ids,
-                        const std::vector<attention_mask_list_t> &attention_mask);
+                        const std::vector<attention_mask_list_t> &attention_mask, size_t max_batch_size = DEFAULT_MAX_BATCH_SIZE);
 
       private:
         torch::jit::script::Module m_module;
