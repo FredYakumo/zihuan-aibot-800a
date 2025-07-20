@@ -215,6 +215,7 @@ namespace neural_network {
 
       private:
         torch::jit::script::Module m_module;
+        torch::Device m_device;
     };
 #endif // __USE_LIBTORCH__
 

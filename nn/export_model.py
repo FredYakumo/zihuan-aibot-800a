@@ -96,8 +96,8 @@ if __name__ == "__main__":
     # Export TorchScript model for cosine similarity
     model.eval()
     traced_cosine_model = torch.jit.trace(model, (input_target, input_value_list))
-    traced_cosine_model.save("exported_model/cosine_sim.bin")
-    print("   ✓ Saved TorchScript to exported_model/cosine_sim.bin")
+    traced_cosine_model.save("exported_model/cosine_sim.pt")
+    print("   ✓ Saved TorchScript to exported_model/cosine_sim.pt")
     
     print("All models exported successfully!")
     print("ONNX models for ONNX Runtime backend:")
@@ -107,5 +107,5 @@ if __name__ == "__main__":
     print("TorchScript models for LibTorch backend:")
     print("  - exported_model/text_embedding.pt")
     print("  - exported_model/text_embedding_mean_pooling.pt")
-    print("  - exported_model/cosine_sim.bin")
+    print("  - exported_model/cosine_sim.pt")
     print("  - exported_model/model.pt")

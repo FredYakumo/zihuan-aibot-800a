@@ -11,7 +11,7 @@ constexpr const char *TEXT_EMBEDDING_MEAN_POOLING_MODEL_PATH = "exported_model/t
 constexpr const char *COSINE_SIMILARITY_MODEL_PATH = "exported_model/cosine_sim.onnx";
 #elif defined(__USE_LIBTORCH__)
 constexpr const char *TEXT_EMBEDDING_MEAN_POOLING_MODEL_PATH = "exported_model/text_embedding_mean_pooling.pt";
-constexpr const char *COSINE_SIMILARITY_MODEL_PATH = "exported_model/cosine_sim.bin";
+constexpr const char *COSINE_SIMILARITY_MODEL_PATH = "exported_model/cosine_sim.pt";
 #endif
 
 namespace neural_network {

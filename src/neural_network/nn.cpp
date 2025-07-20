@@ -74,11 +74,34 @@ Ort::SessionOptions neural_network::get_onnx_session_opts_tensorrt() {
 
 #ifdef __USE_LIBTORCH__
 
-neural_network::CosineSimilarityModel::CosineSimilarityModel(const std::string &model_path, Device device) {
+neural_network::CosineSimilarityModel::CosineSimilarityModel(const std::string &model_path, Device device) 
+    : m_device(get_torch_device(device)) {
     try {
-        m_module = torch::jit::load(model_path, get_torch_device(device));
+        m_module = torch::jit::load(model_path, m_device);
         m_module.eval(); // Set to evaluation mode
+        
+        // Log model information for debugging
+        auto parameters = m_module.parameters();
+        auto param_iter = parameters.begin();
+        size_t param_count = 0;
+        for (auto iter = parameters.begin(); iter != parameters.end(); ++iter) {
+            param_count++;
+        }
+        
+        auto buffers = m_module.buffers();
+        size_t buffer_count = 0;
+        for (auto iter = buffers.begin(); iter != buffers.end(); ++iter) {
+            buffer_count++;
+        }
+        
         spdlog::info("Successfully loaded PyTorch CosineSimilarityModel from: {}", model_path);
+        spdlog::info("Model has {} parameters and {} buffers", param_count, buffer_count);
+        
+        // For CosineSimilarityModel, having no parameters is normal since it only performs mathematical operations
+        if (param_count == 0 && buffer_count == 0) {
+            spdlog::debug("Model has no parameters or buffers - this is normal for mathematical operation models like CosineSimilarityModel");
+        }
+        
     } catch (const std::exception &e) {
         spdlog::error("Failed to load PyTorch CosineSimilarityModel from {}: {}", model_path, e.what());
         throw;
@@ -104,12 +127,12 @@ neural_network::emb_vec_t neural_network::CosineSimilarityModel::inference(emb_v
     }
 
     // Prepare input tensors
-    auto device = (*m_module.parameters().begin()).device();
+    // Use the device from constructor
     
     // Create target tensor (shape: [1, COSINE_SIMILARITY_INPUT_EMB_SIZE])
     torch::Tensor target_tensor = torch::tensor(target, torch::dtype(torch::kFloat32))
                                     .unsqueeze(0)  // Add batch dimension
-                                    .to(device);
+                                    .to(m_device);
 
     // Create value tensor (shape: [num_samples, COSINE_SIMILARITY_INPUT_EMB_SIZE])
     std::vector<float> flattened_values;
@@ -121,7 +144,7 @@ neural_network::emb_vec_t neural_network::CosineSimilarityModel::inference(emb_v
     torch::Tensor value_tensor = torch::tensor(flattened_values, torch::dtype(torch::kFloat32))
                                    .view({static_cast<int64_t>(value_list.size()), 
                                          static_cast<int64_t>(COSINE_SIMILARITY_INPUT_EMB_SIZE)})
-                                   .to(device);
+                                   .to(m_device);
 
     // Run inference
     std::vector<torch::jit::IValue> inputs;
