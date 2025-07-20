@@ -10,6 +10,7 @@
 #include "easywsclient.hpp"
 #include "get_optional.hpp"
 #include "global_data.h"
+#include "neural_network/model_set.h"
 #include "neural_network/text_model.h"
 #include "nlohmann/json_fwd.hpp"
 #include "time_utils.h"
@@ -848,6 +849,16 @@ namespace bot_adapter {
             }
 
             group_wrapper_map.insert(std::make_pair(group_info.group_id, std::move(group_wrapper)));
+
+            spdlog::info("计算member list的member name embedding matrix");
+            std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
+            auto member_name_embedding_matrix = neural_network::get_model_set().text_embedding_model->embed(member_name_list);
+            std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
+            spdlog::info("计算member name embedding matrix cost: {}ms",
+                         std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
+            group_member_name_embedding_map.get_or_emplace_value(group_info.group_id,
+                                                              std::move(member_name_embedding_matrix));
+
         }
         spdlog::info("Fetch group info list successed.");
         group_info_map = std::move(group_wrapper_map);
