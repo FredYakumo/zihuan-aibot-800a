@@ -10,6 +10,7 @@
 #include <cstring>
 #include <exception>
 #include <spdlog/sinks/daily_file_sink.h>
+#include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
 int main(int argc, char *argv[]) {
@@ -18,11 +19,25 @@ int main(int argc, char *argv[]) {
     int rotation_hour = 0;
     int rotation_minute = 0;
 
+    // Daily rotating file sink with size limit
     auto daily_file_sink =
         std::make_shared<spdlog::sinks::daily_file_sink_mt>("logs/aibot/aibot_800a.txt",
                                                             rotation_hour, rotation_minute);
+    
+    // Size-based rotating file sink (1MB max, keep 10 files)
+    auto rotating_file_sink = 
+        std::make_shared<spdlog::sinks::rotating_file_sink_mt>("logs/aibot/aibot_800a_rotating.txt", 
+                                                               1024 * 1024, 10);
+    
+    // Latest log file for current run (1MB max, keep 3 files)
+    auto latest_file_sink = 
+        std::make_shared<spdlog::sinks::rotating_file_sink_mt>("logs/aibot/latest.txt", 
+                                                               1024 * 1024, 3);
+    
+    // Console output
     auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-    std::vector<spdlog::sink_ptr> sinks {console_sink, daily_file_sink};
+    
+    std::vector<spdlog::sink_ptr> sinks {console_sink, daily_file_sink, rotating_file_sink, latest_file_sink};
     auto logger = std::make_shared<spdlog::logger>("aibot_800a", sinks.begin(), sinks.end());
     spdlog::set_default_logger(logger);
     

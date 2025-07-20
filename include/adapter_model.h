@@ -406,6 +406,16 @@ namespace bot_adapter {
         GroupMemberNameEmbeddngMatrix& operator=(const GroupMemberNameEmbeddngMatrix&) = default;
         GroupMemberNameEmbeddngMatrix(GroupMemberNameEmbeddngMatrix&&) noexcept = default;
         GroupMemberNameEmbeddngMatrix& operator=(GroupMemberNameEmbeddngMatrix&&) noexcept = default;
+        
+        /**
+         * @brief Constructs GroupMemberNameEmbeddngMatrix with pre-computed embedding matrix
+         * @param embedding_matrix Pre-computed embedding matrix
+         */
+        explicit GroupMemberNameEmbeddngMatrix(neural_network::emb_mat_t embedding_matrix)
+            : member_name_embedding_matrix(std::move(embedding_matrix)) {
+            // Note: This constructor assumes the embedding matrix corresponds to members
+            // but doesn't populate member_ids or contain_member_ids as we don't have that info
+        }
 
         /**
          * @brief Adds a member to the embedding matrix.
