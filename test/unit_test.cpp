@@ -255,6 +255,22 @@ TEST(UnitTest, TestTextEmbeddingLibTorchMPS) {
     spdlog::info("Batch embedding total time: {} ms", duration_batch);
 }
 
+TEST(UnitTest, TestTextEmbeddingLibTorchMPSLargeBatch) {
+    neural_network::init_model_set(neural_network::Device::MPS);
+    auto &model_set = neural_network::get_model_set();
+    
+    std::vector<std::string> test_texts;
+    const std::vector<std::string> base_texts{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"};
+    for (int i = 0; i < 2000; ++i) {
+        test_texts.insert(test_texts.end(), base_texts.begin(), base_texts.end());
+    }
+    auto start_batch = std::chrono::high_resolution_clock::now();
+    model_set.text_embedding_model->embed(test_texts);
+    auto end_batch = std::chrono::high_resolution_clock::now();
+    auto duration_batch = std::chrono::duration_cast<std::chrono::milliseconds>(end_batch - start_batch).count();
+    spdlog::info("Batch embedding total time: {} ms", duration_batch);
+}
+
 TEST(UnitTest, TestTextEmbeddingLibTorchCPU) {
     neural_network::init_model_set(neural_network::Device::CPU);
     auto &model_set = neural_network::get_model_set();

@@ -145,27 +145,32 @@ namespace database {
         }
 
         std::optional<UserPreference> get_user_preference(qq_id_t id) {
-            auto table = get_user_preference_table();
-            auto result = table.select("render_markdown_output", "text_output", "auto_new_chat_session")
-                              .where("user_id = :user_id")
-                              .bind("user_id", std::to_string(id))
-                              .execute();
+            try {
+                auto table = get_user_preference_table();
+                auto result = table.select("render_markdown_output", "text_output", "auto_new_chat_session")
+                                  .where("user_id = :user_id")
+                                  .bind("user_id", std::to_string(id))
+                                  .execute();
 
-            if (auto row = result.fetchOne()) {
-                // The C++ connector returns tinyint as integer.
-                UserPreference pref{
-                    static_cast<bool>(row[0].get<int>()), static_cast<bool>(row[1].get<int>()),
-                    std::nullopt // 默认为 nullopt
-                };
+                if (auto row = result.fetchOne()) {
+                    // The C++ connector returns tinyint as integer.
+                    UserPreference pref{
+                        static_cast<bool>(row[0].get<int>()), static_cast<bool>(row[1].get<int>()),
+                        std::nullopt // 默认为 nullopt
+                    };
 
-                // 如果 auto_new_chat_session 不为 NULL，则设置具体值
-                if (!row[2].isNull()) {
-                    pref.auto_new_chat_session_sec = row[2].get<int64_t>();
+                    // 如果 auto_new_chat_session 不为 NULL，则设置具体值
+                    if (!row[2].isNull()) {
+                        pref.auto_new_chat_session_sec = row[2].get<int64_t>();
+                    }
+
+                    return pref;
                 }
-
-                return pref;
+                return std::nullopt;
+            } catch (const mysqlx::Error &e) {
+                spdlog::error("Failed to get user preference for user {}: {}", id, e.what());
+                return std::nullopt;
             }
-            return std::nullopt;
         }
 
         /**
@@ -220,27 +225,48 @@ namespace database {
         std::optional<mysqlx::Table> tool_calls_record_table = std::nullopt;
         std::optional<mysqlx::Table> user_protait_table = std::nullopt;
 
+        /**
+         * @brief Generic table retrieval method with retry mechanism for handling connection issues
+         * @param table_name The name of the table to retrieve
+         * @return mysqlx::Table object for the specified table
+         */
+        inline mysqlx::Table get_table_with_retry(const std::string &table_name) {
+            try {
+                return schema.getTable(table_name, true);
+            } catch (const mysqlx::Error &e) {
+                spdlog::error("Failed to get table '{}': {}. Attempting to refresh schema...", table_name, e.what());
+                try {
+                    // Refresh schema to handle potential session issues
+                    schema = session.getSchema(schema.getName(), true);
+                    return schema.getTable(table_name, true);
+                } catch (const mysqlx::Error &retry_e) {
+                    spdlog::error("Failed to get table '{}' after schema refresh: {}", table_name, retry_e.what());
+                    throw;
+                }
+            }
+        }
+
         inline mysqlx::Table &get_message_record_table() {
             if (!message_record_table) {
-                message_record_table = schema.getTable(std::string(DEFAULT_MESSAGE_RECORD_TABLE_NAME), true);
+                message_record_table = get_table_with_retry(std::string(DEFAULT_MESSAGE_RECORD_TABLE_NAME));
             }
             return *message_record_table;
         }
 
         inline mysqlx::Table &get_tool_calls_record_table() {
             if (!tool_calls_record_table) {
-                tool_calls_record_table = schema.getTable(std::string(DEFAULT_TOOLS_CALL_RECORD_TABLE), true);
+                tool_calls_record_table = get_table_with_retry(std::string(DEFAULT_TOOLS_CALL_RECORD_TABLE));
             }
             return *tool_calls_record_table;
         }
 
         inline mysqlx::Table get_user_preference_table() {
-            return schema.getTable(std::string(DEFAULT_USER_PREFERENCE_TABLE_NAME), true);
+            return get_table_with_retry(std::string(DEFAULT_USER_PREFERENCE_TABLE_NAME));
         }
 
         inline mysqlx::Table &get_user_protait_table() {
             if (!user_protait_table) {
-                user_protait_table = schema.getTable(std::string(DEFAULT_USER_PORTAIT_TABLE_NAME), true);
+                user_protait_table = get_table_with_retry(std::string(DEFAULT_USER_PORTAIT_TABLE_NAME));
             }
             return *user_protait_table;
         }
