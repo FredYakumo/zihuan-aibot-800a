@@ -437,6 +437,58 @@ namespace bot_adapter {
         }
 
         /**
+         * @brief Batch adds multiple members to the embedding matrix using batch inference.
+         *
+         * This function efficiently processes multiple members at once by using the model's
+         * batch inference capability. It filters out members that already exist and only
+         * computes embeddings for new members.
+         *
+         * @param members A vector of pairs containing member ID and member name.
+         */
+        inline void batch_add_member(const std::vector<std::pair<qq_id_t, std::string>> &members) {
+            if (members.empty()) {
+                return;
+            }
+
+            // Filter out members that already exist
+            std::vector<std::pair<qq_id_t, std::string>> new_members;
+            std::vector<std::string> new_member_names;
+            
+            for (const auto &[member_id, member_name] : members) {
+                if (!contain_member_ids.contains(member_id)) {
+                    new_members.emplace_back(member_id, member_name);
+                    new_member_names.push_back(member_name);
+                }
+            }
+
+            if (new_members.empty()) {
+                spdlog::info("[GroupMemberNameEmbeddngMatrix] All {} members already exist, skipping batch computation", members.size());
+                return;
+            }
+
+            spdlog::info("[GroupMemberNameEmbeddngMatrix] Batch computing embeddings for {} new members out of {} total", 
+                        new_members.size(), members.size());
+            auto start_time = std::chrono::high_resolution_clock::now();
+
+            // Use batch inference for efficiency
+            auto embeddings = neural_network::get_model_set().text_embedding_model->embed(new_member_names);
+
+            auto end_time = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+            spdlog::info("[GroupMemberNameEmbeddngMatrix] Batch embedding computation took {} ms for {} members (avg: {:.2f} ms/member)", 
+                        duration.count(), new_members.size(), 
+                        static_cast<double>(duration.count()) / new_members.size());
+
+            // Add all new members to the containers
+            for (size_t i = 0; i < new_members.size(); ++i) {
+                const auto &[member_id, member_name] = new_members[i];
+                contain_member_ids.insert(member_id);
+                member_ids.push_back(member_id);
+                member_name_embedding_matrix.push_back(embeddings[i]);
+            }
+        }
+
+        /**
          * @brief Retrieves similar member names based on a query string.
          *
          * This function uses a text embedding model to find members whose names
