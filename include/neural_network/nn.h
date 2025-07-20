@@ -11,9 +11,9 @@
 #include <utility>
 #include <vector>
 #ifdef __USE_LIBTORCH__
-#include <torch/torch.h>
 #include <c10/core/Device.h>
 #include <c10/core/DeviceType.h>
+#include <torch/torch.h>
 #endif
 
 namespace neural_network {
@@ -21,6 +21,9 @@ namespace neural_network {
     using attention_mask_list_t = std::vector<int32_t>;
     using emb_vec_t = std::vector<float>;
     using emb_mat_t = std::vector<emb_vec_t>;
+
+    constexpr size_t DEFAULT_MAX_BATCH_SIZE = 1024;
+    constexpr size_t COSINE_SIMILARITY_INPUT_EMB_SIZE = 1024;
 
 #ifdef __USE_ONNX_RUNTIME__
     Ort::Env &get_onnx_runtime();
@@ -92,9 +95,6 @@ namespace neural_network {
         return data;
     }
 
-    constexpr size_t DEFAULT_MAX_BATCH_SIZE = 512;
-    constexpr size_t COSINE_SIMILARITY_INPUT_EMB_SIZE = 1024;
-
 #ifdef __USE_ONNX_RUNTIME__
     /**
      * @brief Cosine similarity ONNX model wrapper
@@ -159,15 +159,12 @@ namespace neural_network {
             auto output_tensors = m_session.Run(Ort::RunOptions{nullptr}, m_input_names.data(), input_tensors.data(),
                                                 input_tensors.size(), m_output_names.data(), m_output_names.size());
 
-
             if (output_tensors.empty() || !output_tensors[0].IsTensor()) {
                 throw std::runtime_error("Inference failed: invalid output tensors");
             }
 
-
             float *output_data = output_tensors[0].GetTensorMutableData<float>();
             auto output_shape = output_tensors[0].GetTensorTypeAndShapeInfo().GetShape();
-
 
             size_t output_size = 1;
             for (auto dim : output_shape) {
@@ -176,7 +173,6 @@ namespace neural_network {
                 }
                 output_size *= dim;
             }
-
 
             return std::vector<float>(output_data, output_data + output_size);
         }

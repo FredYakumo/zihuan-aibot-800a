@@ -255,6 +255,8 @@ TEST(UnitTest, TestTextEmbeddingLibTorchMPS) {
     spdlog::info("Batch embedding total time: {} ms", duration_batch);
 }
 
+
+
 TEST(UnitTest, TestTextEmbeddingLibTorchMPSLargeBatch) {
     neural_network::init_model_set(neural_network::Device::MPS);
     auto &model_set = neural_network::get_model_set();
@@ -296,6 +298,65 @@ TEST(UnitTest, TestTextEmbeddingLibTorchCPU) {
     auto end_batch = std::chrono::high_resolution_clock::now();
     auto duration_batch = std::chrono::duration_cast<std::chrono::milliseconds>(end_batch - start_batch).count();
     spdlog::info("Batch embedding total time: {} ms", duration_batch);
+}
+
+TEST(UnitTest, TestCosineSimilarityLibTorch) {
+    neural_network::init_model_set(neural_network::Device::CPU);
+    auto &model_set = neural_network::get_model_set();
+    
+    const std::vector<std::string> batch_text{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"};
+    const std::string target_text = "杀猪";
+    
+    spdlog::info("Computing embeddings for similarity test...");
+    
+    // 计算目标文本的嵌入向量
+    auto target_embedding = model_set.text_embedding_model->embed(target_text);
+    spdlog::info("Target embedding dim: {}", target_embedding.size());
+    
+    // 使用批量嵌入函数计算候选文本的嵌入向量
+    auto start_embed = std::chrono::high_resolution_clock::now();
+    auto batch_embeddings = model_set.text_embedding_model->embed(batch_text);
+    auto end_embed = std::chrono::high_resolution_clock::now();
+    auto embed_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_embed - start_embed).count();
+    
+    spdlog::info("Batch embedding computation took {} ms", embed_duration);
+    spdlog::info("Generated {} embeddings with dimension {}", batch_embeddings.size(), 
+                 batch_embeddings.empty() ? 0 : batch_embeddings[0].size());
+    
+    for (size_t i = 0; i < batch_text.size() && i < batch_embeddings.size(); ++i) {
+        spdlog::info("Text: \"{}\" - Embedding dim: {}", batch_text[i], batch_embeddings[i].size());
+    }
+    
+    spdlog::info("Computing cosine similarities using LibTorch model...");
+    
+    // 使用LibTorch余弦相似度模型计算相似度
+    auto start_time = std::chrono::high_resolution_clock::now();
+    auto similarity_scores = model_set.cosine_similarity_model->inference(target_embedding, batch_embeddings);
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+    
+    spdlog::info("LibTorch cosine similarity computation took {} ms", duration);
+    spdlog::info("Similarity results:");
+    
+    for (size_t i = 0; i < batch_text.size() && i < similarity_scores.size(); ++i) {
+        spdlog::info("  \"{}\" <-> \"{}\": {:.6f}", target_text, batch_text[i], similarity_scores[i]);
+    }
+    
+    // 验证结果
+    EXPECT_EQ(similarity_scores.size(), batch_text.size());
+    
+    // 验证相似度范围在[-1, 1]之间
+    for (const auto &score : similarity_scores) {
+        EXPECT_GE(score, -1.0f);
+        EXPECT_LE(score, 1.0f);
+    }
+    
+    // 验证"杀猪"与自身的相似度最高
+    auto max_score_it = std::max_element(similarity_scores.begin(), similarity_scores.end());
+    size_t max_index = std::distance(similarity_scores.begin(), max_score_it);
+    EXPECT_EQ(batch_text[max_index], "杀猪");
+    
+    spdlog::info("LibTorch cosine similarity test completed successfully!");
 }
 
 #endif
