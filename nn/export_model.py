@@ -28,15 +28,16 @@ if __name__ == "__main__":
     
     print("Exporting text embedding model (without mean pooling)...")
     embedder = TextEmbedder(mean_pooling=False, device="cpu")
-    token = embedder.tokenizer("0" * 1024, return_tensors='pt', padding=True, truncation=True)
-    print(token)
+    # Use 512 length to match C++ EMBEDDING_MAX_INPUT_LENGTH constant  
+    token = embedder.tokenizer("0" * 512, return_tensors='pt', padding=True, truncation=True, max_length=512)
+    print(f"Token shapes - input_ids: {token['input_ids'].shape}, attention_mask: {token['attention_mask'].shape}")
     torch.onnx.export(embedder.model, (token["input_ids"], token["attention_mask"])
                       , "exported_model/text_embedding.onnx" , opset_version=14, input_names=["input_ids", "attention_mask"],
                       output_names=["output"],
                       dynamic_axes={
         "input_ids": {0: "batch_size", 1: "seq_len"},
         "attention_mask": {0: "batch_size", 1: "seq_len"},
-        "output": {0: "batch_size", 1: "seq_len"}
+        "output": {0: "batch_size", 1: "seq_len", 2: "hidden_size"}  # Token embeddings: [batch, seq_len, hidden_size]
     })
     print("   ✓ Saved ONNX to exported_model/text_embedding.onnx")
     
@@ -51,15 +52,16 @@ if __name__ == "__main__":
     
     print("Exporting text embedding model with mean pooling...")
     embedder = TextEmbedder(mean_pooling=True)
-    token = embedder.tokenizer("0" * 1024, return_tensors='pt', padding=True, truncation=True)
-    print(token)
+    # Use 512 length to match C++ EMBEDDING_MAX_INPUT_LENGTH constant
+    token = embedder.tokenizer("0" * 512, return_tensors='pt', padding=True, truncation=True, max_length=512)
+    print(f"Token shapes - input_ids: {token['input_ids'].shape}, attention_mask: {token['attention_mask'].shape}")
     torch.onnx.export(embedder.model, (token["input_ids"], token["attention_mask"])
                       , "exported_model/text_embedding_mean_pooling.onnx" , opset_version=14, input_names=["input_ids", "attention_mask"],
                       output_names=["output"],
                       dynamic_axes={
         "input_ids": {0: "batch_size", 1: "seq_len"},
         "attention_mask": {0: "batch_size", 1: "seq_len"},
-        "output": {0: "batch_size", 1: "seq_len"}
+        "output": {0: "batch_size"}  # Fixed: mean pooling output should be [batch_size, hidden_size]
     })
     print("   ✓ Saved ONNX to exported_model/text_embedding_mean_pooling.onnx")
     

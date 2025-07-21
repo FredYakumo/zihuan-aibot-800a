@@ -73,12 +73,14 @@ class TextEmbeddingModel(nn.Module):
 
     def forward(self, input_ids, attention_mask):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
-        # Assume you want to mean-pool the output embeddings.
+        # Always return tensor embeddings only, not the full outputs object
         if self.mean_pooling:
+            # Return mean-pooled sentence embeddings [batch_size, hidden_size]
             embeddings = outputs.last_hidden_state.mean(dim=1)
             return embeddings
         else:
-            return outputs
+            # Return token-level embeddings [batch_size, seq_len, hidden_size]
+            return outputs.last_hidden_state
 
 class TextEmbedder:
     """Generate text embeddings using a pre-trained model."""
@@ -105,13 +107,10 @@ class TextEmbedder:
             return_tensors="pt"
         ).to(self.model.device)
         with torch.no_grad():
-            outputs = self.model(inputs['input_ids'], inputs['attention_mask'])
+            embeddings = self.model(inputs['input_ids'], inputs['attention_mask'])
         
-        if self.model.mean_pooling:
-            return outputs
-        else:
-            last_hidden_state = outputs.last_hidden_state
-            return last_hidden_state
+        # Model now always returns tensor embeddings directly
+        return embeddings
     
 def load_reply_intent_classifier_model(model_path):
     """Load the trained model"""

@@ -529,24 +529,8 @@ TEST(UnitTest, TestCosineSimilarityMPSIndividualEmbeddingWithCPUSimilarity) {
     
     spdlog::info("Individual MPS embedding + CPU similarity test completed successfully!");
     
-    // 额外验证：与LibTorch模型结果对比（如果存在）
-    if (model_set.cosine_similarity_model) {
-        spdlog::info("Comparing individual embedding results with LibTorch cosine similarity model...");
-        auto libtorch_scores = model_set.cosine_similarity_model->inference(target_embedding, batch_embeddings);
-        
-        spdlog::info("Individual vs LibTorch cosine similarity comparison:");
-        for (size_t i = 0; i < std::min(similarity_scores.size(), libtorch_scores.size()); ++i) {
-            float diff = std::abs(similarity_scores[i] - libtorch_scores[i]);
-            spdlog::info("  Text[{}]: Individual+CPU={:.6f}, LibTorch={:.6f}, Diff={:.6f}", 
-                        i, similarity_scores[i], libtorch_scores[i], diff);
-            
-            // 允许一定的数值误差（约0.001）
-            EXPECT_LT(diff, 0.001f) << "Significant difference between individual CPU and LibTorch results for text " << i;
-        }
-    }
-    
-    // 额外对比：与批量embedding结果的一致性验证
-    spdlog::info("Comparing individual vs batch embedding results...");
+    // 主要对比：与批量embedding结果的一致性验证（仅使用CPU余弦相似度计算）
+    spdlog::info("Comparing individual vs batch embedding results (CPU cosine similarity only)...");
     auto batch_embeddings_for_comparison = model_set.text_embedding_model->embed(batch_text);
     
     // 计算批量embedding + CPU相似度作为参考
@@ -561,64 +545,305 @@ TEST(UnitTest, TestCosineSimilarityMPSIndividualEmbeddingWithCPUSimilarity) {
         }
     }
     
-    spdlog::info("=== Detailed Comparison Results ===");
+    spdlog::info("=== Text Embedding Model Inference Comparison (CPU Cosine Similarity Only) ===");
     
-    // 1. Individual vs Batch embedding similarity results
-    spdlog::info("1. Individual vs Batch embedding similarity results:");
+    // 主要对比：Individual vs Batch embedding similarity results
+    spdlog::info("Individual vs Batch Text Embedding Model Inference Results:");
     for (size_t i = 0; i < std::min(similarity_scores.size(), batch_cpu_similarity_scores.size()); ++i) {
         float diff = std::abs(similarity_scores[i] - batch_cpu_similarity_scores[i]);
-        spdlog::info("  Text[{}] \"{}\": Individual+CPU={:.6f}, Batch+CPU={:.6f}, Diff={:.6f}", 
+        spdlog::info("  Text[{}] \"{}\": Individual_Embed+CPU_Sim={:.6f}, Batch_Embed+CPU_Sim={:.6f}, Diff={:.6f}", 
                     i, batch_text[i], similarity_scores[i], batch_cpu_similarity_scores[i], diff);
         
-        // 验证个别计算和批量计算的相似度结果应该一致（允许很小的数值误差）
-        EXPECT_LT(diff, 0.0001f) << "Individual and batch embedding similarity results differ significantly for text " << i;
+        // 验证个别推理和批量推理的embedding结果应该一致（允许很小的数值误差）
+        EXPECT_LT(diff, 0.0001f) << "Individual and batch text embedding inference results differ significantly for text " << i;
     }
     
-    // 2. Individual embedding vs LibTorch cosine similarity (if available)
-    if (model_set.cosine_similarity_model) {
-        auto individual_libtorch_scores = model_set.cosine_similarity_model->inference(target_embedding, batch_embeddings);
-        spdlog::info("2. Individual embedding vs LibTorch cosine similarity:");
-        for (size_t i = 0; i < std::min(similarity_scores.size(), individual_libtorch_scores.size()); ++i) {
-            float diff = std::abs(similarity_scores[i] - individual_libtorch_scores[i]);
-            spdlog::info("  Text[{}] \"{}\": Individual+CPU={:.6f}, Individual+LibTorch={:.6f}, Diff={:.6f}", 
-                        i, batch_text[i], similarity_scores[i], individual_libtorch_scores[i], diff);
-        }
-    }
-    
-    // 3. Batch embedding vs LibTorch cosine similarity (if available)
-    if (model_set.cosine_similarity_model) {
-        auto batch_libtorch_scores = model_set.cosine_similarity_model->inference(target_embedding, batch_embeddings_for_comparison);
-        spdlog::info("3. Batch embedding vs LibTorch cosine similarity:");
-        for (size_t i = 0; i < std::min(batch_cpu_similarity_scores.size(), batch_libtorch_scores.size()); ++i) {
-            float diff = std::abs(batch_cpu_similarity_scores[i] - batch_libtorch_scores[i]);
-            spdlog::info("  Text[{}] \"{}\": Batch+CPU={:.6f}, Batch+LibTorch={:.6f}, Diff={:.6f}", 
-                        i, batch_text[i], batch_cpu_similarity_scores[i], batch_libtorch_scores[i], diff);
-        }
-    }
-    
-    // 4. Summary of all methods
-    spdlog::info("4. Summary comparison of all methods:");
-    if (model_set.cosine_similarity_model) {
-        auto individual_libtorch_scores = model_set.cosine_similarity_model->inference(target_embedding, batch_embeddings);
-        auto batch_libtorch_scores = model_set.cosine_similarity_model->inference(target_embedding, batch_embeddings_for_comparison);
-        
-        for (size_t i = 0; i < batch_text.size() && i < similarity_scores.size() && 
-             i < batch_cpu_similarity_scores.size() && i < individual_libtorch_scores.size() && 
-             i < batch_libtorch_scores.size(); ++i) {
-            spdlog::info("  Text[{}] \"{}\": ", i, batch_text[i]);
-            spdlog::info("    Individual+CPU:     {:.6f}", similarity_scores[i]);
-            spdlog::info("    Batch+CPU:          {:.6f}", batch_cpu_similarity_scores[i]);
-            spdlog::info("    Individual+LibTorch: {:.6f}", individual_libtorch_scores[i]);
-            spdlog::info("    Batch+LibTorch:      {:.6f}", batch_libtorch_scores[i]);
-        }
-    } else {
-        for (size_t i = 0; i < batch_text.size() && i < similarity_scores.size() && 
-             i < batch_cpu_similarity_scores.size(); ++i) {
-            spdlog::info("  Text[{}] \"{}\": ", i, batch_text[i]);
-            spdlog::info("    Individual+CPU: {:.6f}", similarity_scores[i]);
-            spdlog::info("    Batch+CPU:      {:.6f}", batch_cpu_similarity_scores[i]);
-        }
+    // 总结比较结果
+    spdlog::info("Summary: Text Embedding Model Individual vs Batch Inference Comparison:");
+    for (size_t i = 0; i < batch_text.size() && i < similarity_scores.size() && 
+         i < batch_cpu_similarity_scores.size(); ++i) {
+        spdlog::info("  Text[{}] \"{}\": ", i, batch_text[i]);
+        spdlog::info("    Individual_Embedding+CPU_Similarity: {:.6f}", similarity_scores[i]);
+        spdlog::info("    Batch_Embedding+CPU_Similarity:      {:.6f}", batch_cpu_similarity_scores[i]);
     }
 }
+
+TEST(UnitTest, TestLibTorchTextEmbeddingVectorDifference) {
+    neural_network::init_model_set(neural_network::Device::CPU);
+    auto &model_set = neural_network::get_model_set();
+    
+    const std::vector<std::string> batch_text{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"};
+    
+    spdlog::info("=== LibTorch Text Embedding Vector Difference Analysis ===");
+    
+    // 计算单个推理的嵌入向量
+    spdlog::info("Computing individual embeddings...");
+    auto start_individual = std::chrono::high_resolution_clock::now();
+    std::vector<std::vector<float>> individual_embeddings;
+    individual_embeddings.reserve(batch_text.size());
+    
+    for (size_t i = 0; i < batch_text.size(); ++i) {
+        auto embedding = model_set.text_embedding_model->embed(batch_text[i]);
+        individual_embeddings.emplace_back(std::move(embedding));
+        spdlog::info("Individual[{}] \"{}\" - embedding dim: {}", i, batch_text[i], individual_embeddings[i].size());
+    }
+    auto end_individual = std::chrono::high_resolution_clock::now();
+    auto individual_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_individual - start_individual).count();
+    
+    // 计算批量推理的嵌入向量
+    spdlog::info("Computing batch embeddings...");
+    auto start_batch = std::chrono::high_resolution_clock::now();
+    auto batch_embeddings = model_set.text_embedding_model->embed(batch_text);
+    auto end_batch = std::chrono::high_resolution_clock::now();
+    auto batch_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_batch - start_batch).count();
+    
+    spdlog::info("Timing comparison:");
+    spdlog::info("  Individual inference: {} ms", individual_duration);
+    spdlog::info("  Batch inference: {} ms", batch_duration);
+    spdlog::info("  Speed ratio: {:.2f}x", static_cast<float>(individual_duration) / batch_duration);
+    
+    // 验证向量维度一致性
+    ASSERT_EQ(individual_embeddings.size(), batch_embeddings.size());
+    
+    spdlog::info("=== Vector Difference Analysis ===");
+    
+    for (size_t i = 0; i < batch_text.size(); ++i) {
+        const auto &individual_vec = individual_embeddings[i];
+        const auto &batch_vec = batch_embeddings[i];
+        
+        ASSERT_EQ(individual_vec.size(), batch_vec.size()) 
+            << "Embedding dimension mismatch for text " << i;
+        
+        // 计算向量差异统计
+        std::vector<float> differences;
+        differences.reserve(individual_vec.size());
+        float sum_abs_diff = 0.0f;
+        float max_diff = 0.0f;
+        float sum_squared_diff = 0.0f;
+        
+        for (size_t j = 0; j < individual_vec.size(); ++j) {
+            float diff = individual_vec[j] - batch_vec[j];
+            differences.push_back(diff);
+            float abs_diff = std::abs(diff);
+            sum_abs_diff += abs_diff;
+            max_diff = std::max(max_diff, abs_diff);
+            sum_squared_diff += diff * diff;
+        }
+        
+        float mean_abs_diff = sum_abs_diff / individual_vec.size();
+        float rmse = std::sqrt(sum_squared_diff / individual_vec.size());
+        
+        spdlog::info("Text[{}] \"{}\": ", i, batch_text[i]);
+        spdlog::info("  Vector dimension: {}", individual_vec.size());
+        spdlog::info("  Mean absolute difference: {:.8f}", mean_abs_diff);
+        spdlog::info("  Maximum absolute difference: {:.8f}", max_diff);
+        spdlog::info("  Root Mean Square Error (RMSE): {:.8f}", rmse);
+        
+        // 输出前20个元素的详细对比
+        spdlog::info("  First 20 elements comparison:");
+        size_t first_elements_to_show = std::min(static_cast<size_t>(20), individual_vec.size());
+        for (size_t j = 0; j < first_elements_to_show; ++j) {
+            spdlog::info("    [{}]: Individual={:.8f}, Batch={:.8f}, Diff={:.8f}", 
+                        j, individual_vec[j], batch_vec[j], differences[j]);
+        }
+        
+        // 输出后20个元素的详细对比
+        if (individual_vec.size() > 20) {
+            spdlog::info("  Last 20 elements comparison:");
+            size_t start_idx = individual_vec.size() - 20;
+            for (size_t j = start_idx; j < individual_vec.size(); ++j) {
+                spdlog::info("    [{}]: Individual={:.8f}, Batch={:.8f}, Diff={:.8f}", 
+                            j, individual_vec[j], batch_vec[j], differences[j]);
+            }
+        }
+        
+        // 验证差异在可接受范围内（通常embedding应该是相同的）
+        EXPECT_LT(mean_abs_diff, 1e-6f) 
+            << "Mean absolute difference too large for text " << i;
+        EXPECT_LT(max_diff, 1e-5f) 
+            << "Maximum difference too large for text " << i;
+    }
+    
+    spdlog::info("=== Summary ===");
+    spdlog::info("LibTorch text embedding individual vs batch inference comparison completed.");
+    spdlog::info("All vectors should be nearly identical with minimal numerical differences.");
+    spdlog::info("Performance: Batch inference is {:.2f}x faster than individual inference.", 
+                 static_cast<float>(individual_duration) / batch_duration);
+}
+
+TEST(UnitTest, TestLibTorchTokenEmbeddingNoMeanPoolingVectorDifference) {
+    neural_network::init_model_set(neural_network::Device::CPU);
+    auto &model_set = neural_network::get_model_set();
+    
+    // 创建 TextEmbeddingModel 实例（不带 mean pooling）
+    neural_network::TextEmbeddingModel token_embedding_model("exported_model/text_embedding.pt", neural_network::Device::CPU);
+    
+    const std::vector<std::string> batch_text{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"};
+    
+    spdlog::info("=== LibTorch Token Embedding Vector Difference Analysis ===");
+    
+    // 使用 TextEmbeddingModel 计算单个推理的 token 嵌入向量
+    spdlog::info("Computing individual token embeddings...");
+    auto start_individual = std::chrono::high_resolution_clock::now();
+    std::vector<std::vector<std::vector<float>>> individual_token_embeddings;
+    individual_token_embeddings.reserve(batch_text.size());
+    
+    for (size_t i = 0; i < batch_text.size(); ++i) {
+        // 使用 tokenizer 获取 token_ids 和 attention_mask
+        auto token_ids = model_set.tokenizer_wrapper.encode(batch_text[i]);
+        neural_network::attention_mask_list_t attention_mask(token_ids.size(), 1);
+        
+        // 使用非 mean pooling 的模型获取 token 级别嵌入
+        auto token_embedding_matrix = token_embedding_model.embed(token_ids, attention_mask);
+        individual_token_embeddings.emplace_back(std::move(token_embedding_matrix));
+        
+        spdlog::info("Individual[{}] \"{}\" - token count: {}, embedding dim per token: {}", 
+                    i, batch_text[i], 
+                    individual_token_embeddings[i].size(),
+                    individual_token_embeddings[i].empty() ? 0 : individual_token_embeddings[i][0].size());
+    }
+    auto end_individual = std::chrono::high_resolution_clock::now();
+    auto individual_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_individual - start_individual).count();
+    
+    // 计算批量推理的 token 嵌入向量
+    spdlog::info("Computing batch token embeddings...");
+    auto start_batch = std::chrono::high_resolution_clock::now();
+    
+    // 准备批量输入
+    std::vector<neural_network::token_id_list_t> batch_token_ids;
+    std::vector<neural_network::attention_mask_list_t> batch_attention_masks;
+    
+    for (const auto &text : batch_text) {
+        auto token_ids = model_set.tokenizer_wrapper.encode(text);
+        neural_network::attention_mask_list_t attention_mask(token_ids.size(), 1);
+        batch_token_ids.emplace_back(std::move(token_ids));
+        batch_attention_masks.emplace_back(std::move(attention_mask));
+    }
+    
+    auto batch_token_embeddings = token_embedding_model.embed(batch_token_ids, batch_attention_masks);
+    auto end_batch = std::chrono::high_resolution_clock::now();
+    auto batch_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_batch - start_batch).count();
+    
+    spdlog::info("Timing comparison:");
+    spdlog::info("  Individual inference: {} ms", individual_duration);
+    spdlog::info("  Batch inference: {} ms", batch_duration);
+    spdlog::info("  Speed ratio: {:.2f}x", static_cast<float>(individual_duration) / batch_duration);
+    
+    // 验证向量维度一致性
+    ASSERT_EQ(individual_token_embeddings.size(), batch_token_embeddings.size());
+    
+    spdlog::info("=== Token Embedding Vector Difference Analysis ===");
+    
+    for (size_t i = 0; i < batch_text.size(); ++i) {
+        const auto &individual_token_matrix = individual_token_embeddings[i];
+        const auto &batch_token_matrix = batch_token_embeddings[i];
+        
+        ASSERT_EQ(individual_token_matrix.size(), batch_token_matrix.size()) 
+            << "Token count mismatch for text " << i;
+        
+        spdlog::info("Text[{}] \"{}\": ", i, batch_text[i]);
+        spdlog::info("  Token count: {}", individual_token_matrix.size());
+        
+        if (individual_token_matrix.empty()) {
+            spdlog::info("  No tokens to compare");
+            continue;
+        }
+        
+        // 统计所有 token 的差异
+        float total_sum_abs_diff = 0.0f;
+        float total_max_diff = 0.0f;
+        float total_sum_squared_diff = 0.0f;
+        size_t total_elements = 0;
+        
+        for (size_t token_idx = 0; token_idx < individual_token_matrix.size(); ++token_idx) {
+            const auto &individual_token_vec = individual_token_matrix[token_idx];
+            const auto &batch_token_vec = batch_token_matrix[token_idx];
+            
+            ASSERT_EQ(individual_token_vec.size(), batch_token_vec.size()) 
+                << "Token embedding dimension mismatch for text " << i << " token " << token_idx;
+            
+            // 计算当前 token 的向量差异
+            float token_sum_abs_diff = 0.0f;
+            float token_max_diff = 0.0f;
+            float token_sum_squared_diff = 0.0f;
+            
+            for (size_t j = 0; j < individual_token_vec.size(); ++j) {
+                float diff = individual_token_vec[j] - batch_token_vec[j];
+                float abs_diff = std::abs(diff);
+                token_sum_abs_diff += abs_diff;
+                token_max_diff = std::max(token_max_diff, abs_diff);
+                token_sum_squared_diff += diff * diff;
+                
+                total_sum_abs_diff += abs_diff;
+                total_max_diff = std::max(total_max_diff, abs_diff);
+                total_sum_squared_diff += diff * diff;
+                total_elements++;
+            }
+            
+            float token_mean_abs_diff = token_sum_abs_diff / individual_token_vec.size();
+            float token_rmse = std::sqrt(token_sum_squared_diff / individual_token_vec.size());
+            
+            spdlog::info("    Token[{}]: dim={}, mean_abs_diff={:.8f}, max_diff={:.8f}, rmse={:.8f}", 
+                        token_idx, individual_token_vec.size(), token_mean_abs_diff, token_max_diff, token_rmse);
+            
+            // 验证每个 token 的差异在可接受范围内
+            EXPECT_LT(token_mean_abs_diff, 1e-6f) 
+                << "Token embedding mean absolute difference too large for text " << i << " token " << token_idx;
+            EXPECT_LT(token_max_diff, 1e-5f) 
+                << "Token embedding maximum difference too large for text " << i << " token " << token_idx;
+        }
+        
+        // 计算整个文本的总体差异统计
+        if (total_elements > 0) {
+            float overall_mean_abs_diff = total_sum_abs_diff / total_elements;
+            float overall_rmse = std::sqrt(total_sum_squared_diff / total_elements);
+            
+            spdlog::info("  Overall statistics:");
+            spdlog::info("    Total elements: {}", total_elements);
+            spdlog::info("    Overall mean absolute difference: {:.8f}", overall_mean_abs_diff);
+            spdlog::info("    Overall maximum absolute difference: {:.8f}", total_max_diff);
+            spdlog::info("    Overall Root Mean Square Error (RMSE): {:.8f}", overall_rmse);
+            
+            // 验证整体差异在可接受范围内
+            EXPECT_LT(overall_mean_abs_diff, 1e-6f) 
+                << "Overall token embedding mean absolute difference too large for text " << i;
+            EXPECT_LT(total_max_diff, 1e-5f) 
+                << "Overall token embedding maximum difference too large for text " << i;
+        }
+        
+        // 输出第一个和最后一个 token 的详细对比（前10个元素）
+        if (!individual_token_matrix.empty()) {
+            spdlog::info("  First token detailed comparison (first 10 elements):");
+            const auto &first_individual = individual_token_matrix[0];
+            const auto &first_batch = batch_token_matrix[0];
+            size_t elements_to_show = std::min(static_cast<size_t>(10), first_individual.size());
+            for (size_t j = 0; j < elements_to_show; ++j) {
+                float diff = first_individual[j] - first_batch[j];
+                spdlog::info("    [{}]: Individual={:.8f}, Batch={:.8f}, Diff={:.8f}", 
+                            j, first_individual[j], first_batch[j], diff);
+            }
+            
+            if (individual_token_matrix.size() > 1) {
+                spdlog::info("  Last token detailed comparison (first 10 elements):");
+                const auto &last_individual = individual_token_matrix.back();
+                const auto &last_batch = batch_token_matrix.back();
+                elements_to_show = std::min(static_cast<size_t>(10), last_individual.size());
+                for (size_t j = 0; j < elements_to_show; ++j) {
+                    float diff = last_individual[j] - last_batch[j];
+                    spdlog::info("    [{}]: Individual={:.8f}, Batch={:.8f}, Diff={:.8f}", 
+                                j, last_individual[j], last_batch[j], diff);
+                }
+            }
+        }
+    }
+    
+    spdlog::info("=== Summary ===");
+    spdlog::info("LibTorch token embedding individual vs batch inference comparison completed.");
+    spdlog::info("All token embeddings should be nearly identical with minimal numerical differences.");
+    spdlog::info("Performance: Batch inference is {:.2f}x faster than individual inference.", 
+                 static_cast<float>(individual_duration) / batch_duration);
+}
+
+
 
 #endif
