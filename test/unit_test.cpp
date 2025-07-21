@@ -163,7 +163,7 @@ TEST(UnitTest, TestCosineSimilarity) {
 TEST(UnitTest, TestCosineSimilarityONNX) {
     neural_network::init_onnx_runtime();
 
-    neural_network::TextEmbeddingWithMeanPoolingModel embedder("embedding.onnx");
+    neural_network::TextEmbeddingWithMeanPoolingModel embedder("exported_model/text_embedding_mean_pooling.onnx");
     const auto tokenizer = neural_network::load_tokenizers("tokenizer/tokenizer.json");
     const auto tokenizer_wrapper = neural_network::TokenizerWrapper(tokenizer, neural_network::TokenizerConfig());
 
@@ -216,10 +216,10 @@ TEST(UnitTest, TestCosineSimilarityONNX) {
     // 验证结果
     EXPECT_EQ(similarity_scores.size(), batch_text.size());
     
-    // 验证相似度范围在[-1, 1]之间
+    // 验证相似度范围在[-1, 1]之间, 容许误差
     for (const auto &score : similarity_scores) {
-        EXPECT_GE(score, -1.0f);
-        EXPECT_LE(score, 1.0f);
+        EXPECT_GE(score, -1.0f - 1e-6);
+        EXPECT_LE(score, 1.0f + 1e-6);
     }
     
     // 验证"杀猪"与自身的相似度最高
