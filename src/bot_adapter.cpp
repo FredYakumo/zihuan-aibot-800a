@@ -39,6 +39,7 @@ namespace bot_adapter {
         spdlog::info("从Database中获取1000条消息记录");
         spdlog::info("获取Bot的所有群信息");
         const auto group_list = adapter.get_bot_all_group_info();
+        
         for (auto group : group_list) {
             spdlog::info("Fetch message list in group '{}'({})", group.name, group.group_id);
             auto message_list =
@@ -53,12 +54,16 @@ namespace bot_adapter {
             message_id_t padding_message_id = 0;
             std::vector<std::shared_ptr<MessageStorageEntry>> this_msg_entry_ptr_vec;
             this_msg_entry_ptr_vec.reserve(message_list.size());
+
+            std::unordered_map<qq_id_t, std::string> member_name_map;
+
             for (const auto &msg : message_list) {
                 message_id_t msg_id = msg.message_id_opt.value_or(padding_message_id++);
                 this_message_id_vec.push_back(msg_id);
                 this_msg_entry_ptr_vec.push_back(std::make_shared<MessageStorageEntry>(
                     msg_id, msg.sender.name, msg.sender.id, msg.send_time,
                     std::make_shared<MessageChainPtrList>(make_message_chain_list(PlainTextMessage(msg.content)))));
+                member_name_map.insert({msg.sender.id, msg.sender.name});
             }
             std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
             spdlog::info("Prepare batch add message storage data cost: {}ms",
@@ -68,6 +73,16 @@ namespace bot_adapter {
             g_group_message_storage.batch_add_message(this_group_id_vec, this_message_id_vec, this_msg_entry_ptr_vec);
             end_time = std::chrono::high_resolution_clock::now();
             spdlog::info("Batch add database message records cost: {}ms",
+                         std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
+            
+            spdlog::info("Calculate group member name embedding matrix");
+            start_time = std::chrono::high_resolution_clock::now();
+            auto embedding_map = adapter.group_member_name_embedding_map.get_or_emplace_value(group.group_id, bot_adapter::GroupMemberNameEmbeddngMatrix{});
+            for (const auto &[member_id, member_name] : member_name_map) {
+                embedding_map->add_member(member_id, member_name);
+            }
+            end_time = std::chrono::high_resolution_clock::now();
+            spdlog::info("Calculate group member name embedding matrix cost: {}ms",
                          std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
         }
 
