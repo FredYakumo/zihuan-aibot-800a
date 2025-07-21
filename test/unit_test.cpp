@@ -162,7 +162,7 @@ TEST(UnitTest, TestBatchTextEmbeddingONNX) {
     neural_network::init_onnx_runtime();
     neural_network::init_model_set(neural_network::Device::CPU);
     neural_network::TextEmbeddingWithMeanPoolingModel embedder("exported_model/text_embedding_mean_pooling.onnx");
-    const auto tokenizer = neural_network::load_tokenizers("tokenizer/tokenizer.json");
+    const auto tokenizer = neural_network::load_tokenizers("exported_model/tokenizer/tokenizer.json");
     const auto tokenizer_wrapper = neural_network::TokenizerWrapper(tokenizer, neural_network::TokenizerConfig());
 
     const std::vector<std::string> batch_text{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"};
