@@ -124,7 +124,7 @@ namespace bot_adapter {
             spdlog::info("从Database中获取持久化的消息记录并初始化到内存中");
             fetch_message_list_from_db(*this);
             spdlog::info("完成从Database中获取消息记录");
-            
+
             spdlog::info("等待{}秒后再次运行update_group_info()", config.update_group_info_period_sec);
             std::this_thread::sleep_for(std::chrono::seconds(config.update_group_info_period_sec));
             while (is_running) {
@@ -635,8 +635,7 @@ namespace bot_adapter {
         // Check if it's simple text (not markdown blocks)
         if (markdown_node.empty() || (markdown_node.size() == 1 && !markdown_node[0].render_html_text.has_value())) {
             spdlog::info("Markdown text is short and no render HTML.");
-            send_replay_msg(sender, make_message_chain_list(PlainTextMessage(text)), true,
-                            out_message_id_option);
+            send_replay_msg(sender, make_message_chain_list(PlainTextMessage(text)), true, out_message_id_option);
             return;
         }
 
@@ -850,15 +849,17 @@ namespace bot_adapter {
 
             group_wrapper_map.insert(std::make_pair(group_info.group_id, std::move(group_wrapper)));
 
+#ifdef __USE_LIBTORCH__
             spdlog::info("计算member list的member name embedding matrix");
             std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
-            auto member_name_embedding_matrix = neural_network::get_model_set().text_embedding_model->embed(member_name_list);
+            auto member_name_embedding_matrix =
+                neural_network::get_model_set().text_embedding_model->embed(member_name_list);
             std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
             spdlog::info("计算member name embedding matrix cost: {}ms",
                          std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
             group_member_name_embedding_map.get_or_emplace_value(group_info.group_id,
-                                                              std::move(member_name_embedding_matrix));
-
+                                                                 std::move(member_name_embedding_matrix));
+#endif // __USE_LIBTORCH__
         }
         spdlog::info("Fetch group info list successed.");
         group_info_map = std::move(group_wrapper_map);

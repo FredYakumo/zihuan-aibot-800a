@@ -406,7 +406,8 @@ namespace bot_adapter {
         GroupMemberNameEmbeddngMatrix& operator=(const GroupMemberNameEmbeddngMatrix&) = default;
         GroupMemberNameEmbeddngMatrix(GroupMemberNameEmbeddngMatrix&&) noexcept = default;
         GroupMemberNameEmbeddngMatrix& operator=(GroupMemberNameEmbeddngMatrix&&) noexcept = default;
-        
+
+
         /**
          * @brief Constructs GroupMemberNameEmbeddngMatrix with pre-computed embedding matrix
          * @param embedding_matrix Pre-computed embedding matrix
