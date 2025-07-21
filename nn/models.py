@@ -1,5 +1,8 @@
 from transformers.models.auto.tokenization_auto import AutoTokenizer
-from transformers.models.auto.modeling_auto import AutoModel, AutoModelForSequenceClassification
+from transformers.models.auto.modeling_auto import (
+    AutoModel,
+    AutoModelForSequenceClassification,
+)
 from transformers.models.auto.configuration_auto import AutoConfig
 import torch
 import torch.nn as nn
@@ -7,45 +10,49 @@ import torch.nn.functional as F
 from utils.logging_config import logger
 from transformers.pipelines import pipeline
 
+
 def get_device() -> torch.device:
-    device = torch.device('cpu')
+    device = torch.device("cpu")
     if torch.cuda.is_available():
         logger.info(f"Using GPU: {torch.cuda.get_device_name(0)}")
-        device = torch.device('cuda')
+        device = torch.device("cuda")
     elif torch.backends.mps.is_available():
         logger.info("Using Apple Silicon GPU")
-        device = torch.device('mps')
+        device = torch.device("mps")
     else:
         logger.info("Using CPU")
     return device
+
 
 class CosineSimilarityModel(nn.Module):
     def forward(self, a: torch.Tensor, B: torch.Tensor):
         assert a.dim() == 2 and a.shape[0] == 1, "a must be a [1, D] vector"
         assert B.dim() == 2, "B must be a [N, D] matrix"
-        
+
         # avoid div 0
         eps = 1e-8
-        
+
         a_norm = a.norm(dim=1, keepdim=True)  # [1,1]
-        
+
         B_norm = B.norm(dim=1, keepdim=True)  # [N,1]
         B_norm = torch.max(B_norm, torch.tensor(eps))
-        
+
         # a_norm = torch.sqrt(torch.sum(a ** 2, dim=1, keepdim=True))   # shape: [1, 1]
         # B_norm = torch.sqrt(torch.sum(B ** 2, dim=1, keepdim=True))   # shape: [N, 1]
         # 避免除以 0
         B_norm = B_norm.clamp(min=eps)
-        
+
         dot_product = torch.matmul(a, B.t())  # [1,N]
-        
+
         similarity = dot_product / (a_norm * B_norm.t())
-        
+
         # [N]
         return similarity.squeeze(0)
 
+
 class ReplyIntentClassifierModel(nn.Module):
     """Neural network model for classification."""
+
     def __init__(self, input_dim):
         super().__init__()
         self.net = nn.Sequential(
@@ -56,16 +63,24 @@ class ReplyIntentClassifierModel(nn.Module):
             nn.ReLU(),
             nn.Dropout(0.1),
             nn.Linear(128, 1),
-            nn.Sigmoid()
+            nn.Sigmoid(),
         )
-        
+
     def forward(self, x):
         return self.net(x).squeeze()
-    
+
+
 class TextEmbeddingModel(nn.Module):
-    def __init__(self, model_name='GanymedeNil/text2vec-large-chinese', mean_pooling=True, device=torch.device('cpu')):
+    def __init__(
+        self,
+        model_name="GanymedeNil/text2vec-large-chinese",
+        mean_pooling=True,
+        device=torch.device("cpu"),
+    ):
         super().__init__()
-        self.model = AutoModel.from_pretrained(model_name).to(device)  # This should be your Hugging Face model that accepts tokenized inputs.
+        self.model = AutoModel.from_pretrained(model_name).to(
+            device
+        )  # This should be your Hugging Face model that accepts tokenized inputs.
         self.config = AutoConfig.from_pretrained(model_name)
         print(f"Max position embedding: {self.config.max_position_embeddings}")
         self.mean_pooling = mean_pooling
@@ -76,18 +91,33 @@ class TextEmbeddingModel(nn.Module):
         # Always return tensor embeddings only, not the full outputs object
         if self.mean_pooling:
             # Return mean-pooled sentence embeddings [batch_size, hidden_size]
-            embeddings = outputs.last_hidden_state.mean(dim=1)
-            return embeddings
+            # Use attention mask to properly handle padding tokens
+            token_embeddings = outputs.last_hidden_state
+            attention_mask_expanded = attention_mask.unsqueeze(-1).float()
+            masked_embeddings = token_embeddings * attention_mask_expanded
+            sum_embeddings = masked_embeddings.sum(dim=1)
+            seq_lengths = attention_mask.sum(dim=1, keepdim=True).float()
+            # Avoid /0
+            seq_lengths = torch.clamp(seq_lengths, min=1.0)
+
+            return sum_embeddings / seq_lengths
         else:
             # Return token-level embeddings [batch_size, seq_len, hidden_size]
             return outputs.last_hidden_state
 
+
 class TextEmbedder:
     """Generate text embeddings using a pre-trained model."""
-    def __init__(self, model_name='GanymedeNil/text2vec-large-chinese', device=torch.device('cpu'),mean_pooling=True):
+
+    def __init__(
+        self,
+        model_name="GanymedeNil/text2vec-large-chinese",
+        device=torch.device("cpu"),
+        mean_pooling=True,
+    ):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = TextEmbeddingModel(model_name, mean_pooling, device)
-        
+
     def embed(self, texts):
         """Generate text embedding vectors.
 
@@ -100,18 +130,19 @@ class TextEmbedder:
             torch.Tensor: The embedding vectors.
         """
         inputs = self.tokenizer(
-            texts, 
-            padding=True, 
-            truncation=True, 
-            max_length=1024, 
-            return_tensors="pt"
+            texts,
+            padding="max_length",
+            truncation=True,
+            max_length=512,
+            return_tensors="pt",
         ).to(self.model.device)
         with torch.no_grad():
-            embeddings = self.model(inputs['input_ids'], inputs['attention_mask'])
-        
+            embeddings = self.model(inputs["input_ids"], inputs["attention_mask"])
+
         # Model now always returns tensor embeddings directly
         return embeddings
-    
+
+
 def load_reply_intent_classifier_model(model_path):
     """Load the trained model"""
     embedder = TextEmbedder()
@@ -121,7 +152,7 @@ def load_reply_intent_classifier_model(model_path):
     model.eval()
     return model, embedder
 
-    
+
 class MultiLabelClassifier(nn.Module):
     """
     A multi-label classifier using a pre-trained transformer model and CNN layers.
@@ -133,7 +164,15 @@ class MultiLabelClassifier(nn.Module):
     passed through a dropout layer, and a fully connected layer to produce the
     final logits for each label. This architecture is inspired by TextCNN.
     """
-    def __init__(self, embedding_model, num_labels, num_filters=128, filter_sizes=[3, 4, 5], dropout=0.2):
+
+    def __init__(
+        self,
+        embedding_model,
+        num_labels,
+        num_filters=128,
+        filter_sizes=[3, 4, 5],
+        dropout=0.2,
+    ):
         """
         @param embedding_model The pre-trained transformer model.
         @param num_labels The number of labels for classification.
@@ -145,12 +184,16 @@ class MultiLabelClassifier(nn.Module):
         self.embedding_model = embedding_model
         bert_hidden_size = self.embedding_model.config.hidden_size
 
-        self.convs = nn.ModuleList([
-            nn.Conv1d(in_channels=bert_hidden_size,
-                      out_channels=num_filters,
-                      kernel_size=k)
-            for k in filter_sizes
-        ])
+        self.convs = nn.ModuleList(
+            [
+                nn.Conv1d(
+                    in_channels=bert_hidden_size,
+                    out_channels=num_filters,
+                    kernel_size=k,
+                )
+                for k in filter_sizes
+            ]
+        )
 
         self.fc = nn.Linear(len(filter_sizes) * num_filters, num_labels)
         self.dropout = nn.Dropout(dropout)
@@ -163,7 +206,9 @@ class MultiLabelClassifier(nn.Module):
         """
         # Get embeddings from the transformer model
         # outputs.last_hidden_state shape: (batch_size, sequence_length, embedding_dim)
-        outputs = self.embedding_model(input_ids=input_ids, attention_mask=attention_mask)
+        outputs = self.embedding_model(
+            input_ids=input_ids, attention_mask=attention_mask
+        )
         embedded = outputs.last_hidden_state
 
         # Conv1d expects input of shape (batch_size, in_channels, sequence_length)
