@@ -87,78 +87,6 @@ TEST(UnitTest, GetMessageIdTest) {
 //     adapter.start();
 // }
 
-
-#ifdef __USE_ONNX_RUNTIME__
-TEST(UnitTest, TestCosineSimilarity) {
-    neural_network::init_onnx_runtime();
-
-    neural_network::TextEmbeddingWithMeanPoolingModel embedder("embedding.onnx");
-    const auto tokenizer = neural_network::load_tokenizers("tokenizer/tokenizer.json");
-    const auto tokenizer_wrapper = neural_network::TokenizerWrapper(tokenizer, neural_network::TokenizerConfig());
-
-    const std::vector<std::string> batch_text{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"};
-    std::vector<neural_network::token_id_vec_with_mask_t> batch_token;
-    std::vector<std::vector<float>> batch_embedding;
-    for (const auto &text : batch_text) {
-        auto token_mask = tokenizer_wrapper.encode_with_mask(text);
-        spdlog::info("\"{}\" tokens: [{}], mask: [{}]", text,
-                     join_str(std::cbegin(token_mask.first), std::cend(token_mask.first), ",",
-                              [](auto i) { return std::to_string(i); }),
-                     join_str(std::cbegin(token_mask.second), std::cend(token_mask.second), ",",
-                              [](auto i) { return std::to_string(i); }));
-        auto embedding = embedder.embed(token_mask.first, token_mask.second);
-        batch_token.emplace_back(std::move(token_mask));
-        spdlog::info("Embedding dim: {}", embedding.size());
-        spdlog::info("embedding:\n[{}]...", join_str(std::cbegin(embedding), std::cbegin(embedding) + 100, ",",
-                                                     [](auto f) { return std::to_string(f); }));
-        batch_embedding.emplace_back(std::move(embedding));
-    }
-
-    neural_network::token_id_vec_with_mask_t target_token = tokenizer_wrapper.encode_with_mask("杀猪盘");
-    auto target_embedding = embedder.embed(target_token.first, target_token.second);
-
-    ncnn::Net cos_similarity_net;
-    cos_similarity_net.load_param("cosine_sim.ncnn.param");
-    cos_similarity_net.load_model("cosine_sim.ncnn.bin");
-
-    std::vector<float> &target_emb = target_embedding;
-    ncnn::Mat in0(1, target_emb.size(), target_emb.data()); // 形状: 1×嵌入维度
-
-    size_t batch_size = batch_embedding.size();
-    if (batch_size == 0) {
-        spdlog::error("Batch embedding is empty");
-        return;
-    }
-    size_t embedding_dim = batch_embedding[0].size();
-    std::vector<float> in1_data;
-    in1_data.reserve(batch_size * embedding_dim);
-    for (const auto &emb : batch_embedding) {
-        if (emb.size() != embedding_dim) {
-            spdlog::error("Inconsistent embedding dimensions in batch");
-            return;
-        }
-        in1_data.insert(in1_data.end(), emb.begin(), emb.end());
-    }
-    ncnn::Mat in1(batch_size, embedding_dim, in1_data.data());
-
-    ncnn::Extractor ex = cos_similarity_net.create_extractor();
-    ex.input("in0", in0);
-    ex.input("in1", in1);
-
-    ncnn::Mat out;
-    ex.extract("out0", out);
-    spdlog::info("{}x{}", out.w, out.h);
-
-    // for (int i = 0; i < out.w; ++i) {
-    //     spdlog::info("Similarity[{}]: {}", i, out[i]);
-    // }
-
-    for (int i = 0; i < batch_size; ++i) {
-        spdlog::info("Similarity[{}]: {}", i, out[i]);
-    }
-}
-#endif
-
 #ifdef __USE_ONNX_RUNTIME__
 TEST(UnitTest, TestCosineSimilarityONNX) {
     neural_network::init_onnx_runtime();
@@ -173,18 +101,82 @@ TEST(UnitTest, TestCosineSimilarityONNX) {
     spdlog::info("Computing embeddings for similarity test...");
     
     // 计算目标文本的嵌入向量
-    neural_network::token_id_vec_with_mask_t target_token = tokenizer_wrapper.encode_with_mask(target_text);
-    auto target_embedding = embedder.embed(target_token.first, target_token.second);
+    auto target_embedding = embedder.embed(target_text);
     spdlog::info("Target embedding dim: {}", target_embedding.size());
     
     // 计算候选文本的嵌入向量
     auto start_embed = std::chrono::high_resolution_clock::now();
     std::vector<std::vector<float>> batch_embeddings;
     for (const auto &text : batch_text) {
-        auto token_mask = tokenizer_wrapper.encode_with_mask(text);
-        auto embedding = embedder.embed(token_mask.first, token_mask.second);
+        auto embedding = embedder.embed(text);
         batch_embeddings.emplace_back(std::move(embedding));
     }
+    auto end_embed = std::chrono::high_resolution_clock::now();
+    auto embed_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_embed - start_embed).count();
+    
+    spdlog::info("Batch embedding computation took {} ms", embed_duration);
+    spdlog::info("Generated {} embeddings with dimension {}", batch_embeddings.size(), 
+                 batch_embeddings.empty() ? 0 : batch_embeddings[0].size());
+    
+    for (size_t i = 0; i < batch_text.size() && i < batch_embeddings.size(); ++i) {
+        spdlog::info("Text: \"{}\" - Embedding dim: {}", batch_text[i], batch_embeddings[i].size());
+    }
+    
+    spdlog::info("Computing cosine similarities using ONNX model...");
+    
+    // 使用ONNX余弦相似度模型计算相似度
+    neural_network::CosineSimilarityModel cosine_model{"cosine_sim.onnx", neural_network::Device::CPU};
+    
+    auto start_time = std::chrono::high_resolution_clock::now();
+    auto similarity_scores = cosine_model.inference(target_embedding, batch_embeddings);
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+    
+    spdlog::info("ONNX cosine similarity computation took {} ms", duration);
+    spdlog::info("Similarity results:");
+    
+    for (size_t i = 0; i < batch_text.size() && i < similarity_scores.size(); ++i) {
+        spdlog::info("  \"{}\" <-> \"{}\": {:.6f}", target_text, batch_text[i], similarity_scores[i]);
+    }
+    
+    // 验证结果
+    EXPECT_EQ(similarity_scores.size(), batch_text.size());
+    
+    // 验证相似度范围在[-1, 1]之间, 容许误差
+    for (const auto &score : similarity_scores) {
+        EXPECT_GE(score, -1.0f - 1e-6);
+        EXPECT_LE(score, 1.0f + 1e-6);
+    }
+    
+    // 验证"杀猪"与自身的相似度最高
+    auto max_score_it = std::max_element(similarity_scores.begin(), similarity_scores.end());
+    size_t max_index = std::distance(similarity_scores.begin(), max_score_it);
+    EXPECT_EQ(batch_text[max_index], "杀猪");
+    
+    spdlog::info("ONNX cosine similarity test completed successfully!");
+}
+#endif
+
+#ifdef __USE_ONNX_RUNTIME__
+TEST(UnitTest, TestBatchTextEmbeddingONNX) {
+    neural_network::init_onnx_runtime();
+    neural_network::init_model_set(neural_network::Device::CPU);
+    neural_network::TextEmbeddingWithMeanPoolingModel embedder("exported_model/text_embedding_mean_pooling.onnx");
+    const auto tokenizer = neural_network::load_tokenizers("tokenizer/tokenizer.json");
+    const auto tokenizer_wrapper = neural_network::TokenizerWrapper(tokenizer, neural_network::TokenizerConfig());
+
+    const std::vector<std::string> batch_text{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"};
+    const std::string target_text = "杀猪";
+    
+    spdlog::info("Computing embeddings for similarity test...");
+    
+    // 计算目标文本的嵌入向量
+    auto target_embedding = embedder.embed(target_text);
+    spdlog::info("Target embedding dim: {}", target_embedding.size());
+    
+    // 计算候选文本的嵌入向量
+    auto start_embed = std::chrono::high_resolution_clock::now();
+    std::vector<std::vector<float>> batch_embeddings = embedder.embed(batch_text);
     auto end_embed = std::chrono::high_resolution_clock::now();
     auto embed_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_embed - start_embed).count();
     

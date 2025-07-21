@@ -34,7 +34,8 @@ namespace neural_network {
          * @param max_batch_size Maximum batch size for processing (default: DEFAULT_MAX_BATCH_SIZE)
          * @return A list of matrices representing the embeddings for each text.
          */
-        std::vector<emb_mat_t> embed(const std::vector<std::string> &texts, size_t max_batch_size = DEFAULT_MAX_BATCH_SIZE);
+        std::vector<emb_mat_t> embed(const std::vector<std::string> &texts,
+                                     size_t max_batch_size = DEFAULT_MAX_BATCH_SIZE);
         /**
          * @brief Get the token embeddings for a given text.
          * @return A matrix representing the embeddings for each token.
@@ -49,7 +50,8 @@ namespace neural_network {
          * @return A list of matrices representing the embeddings for each text
          */
         std::vector<emb_mat_t> embed(const std::vector<token_id_list_t> &token_ids,
-                                     const std::vector<attention_mask_list_t> &attention_mask, size_t max_batch_size = DEFAULT_MAX_BATCH_SIZE);
+                                     const std::vector<attention_mask_list_t> &attention_mask,
+                                     size_t max_batch_size = DEFAULT_MAX_BATCH_SIZE);
 
         // /**
         //  * @brief Get the sentence embedding for a given text using mean pooling.
@@ -111,7 +113,8 @@ namespace neural_network {
          * @return A matrix where each row is a sentence embedding.
          */
         emb_mat_t embed(const std::vector<token_id_list_t> &token_ids,
-                        const std::vector<attention_mask_list_t> &attention_mask, size_t max_batch_size = DEFAULT_MAX_BATCH_SIZE);
+                        const std::vector<attention_mask_list_t> &attention_mask,
+                        size_t max_batch_size = DEFAULT_MAX_BATCH_SIZE);
 
         // /**
         //  * @brief Get the sentence embedding for a given text using mean pooling.
@@ -159,7 +162,8 @@ namespace neural_network {
          * @param max_batch_size Maximum batch size for processing (default: DEFAULT_MAX_BATCH_SIZE)
          * @return A list of matrices representing the embeddings for each text.
          */
-        std::vector<emb_mat_t> embed(const std::vector<std::string> &texts, size_t max_batch_size = DEFAULT_MAX_BATCH_SIZE);
+        std::vector<emb_mat_t> embed(const std::vector<std::string> &texts,
+                                     size_t max_batch_size = DEFAULT_MAX_BATCH_SIZE);
 
         /**
          * @brief Get the token embeddings for a given tokenized text.
@@ -175,7 +179,8 @@ namespace neural_network {
          * @return A list of matrices representing the embeddings for each text
          */
         std::vector<emb_mat_t> embed(const std::vector<token_id_list_t> &token_ids,
-                                     const std::vector<attention_mask_list_t> &attention_mask, size_t max_batch_size = DEFAULT_MAX_BATCH_SIZE);
+                                     const std::vector<attention_mask_list_t> &attention_mask,
+                                     size_t max_batch_size = DEFAULT_MAX_BATCH_SIZE);
 
       private:
         torch::jit::script::Module m_module;
@@ -220,7 +225,8 @@ namespace neural_network {
          * @return A matrix where each row is a sentence embedding.
          */
         emb_mat_t embed(const std::vector<token_id_list_t> &token_ids,
-                        const std::vector<attention_mask_list_t> &attention_mask, size_t max_batch_size = DEFAULT_MAX_BATCH_SIZE);
+                        const std::vector<attention_mask_list_t> &attention_mask,
+                        size_t max_batch_size = DEFAULT_MAX_BATCH_SIZE);
 
       private:
         torch::jit::script::Module m_module;
@@ -230,6 +236,7 @@ namespace neural_network {
 
     struct TokenizerConfig {
         bool add_special_tokens = true;
+        bool is_padding = true;
         // [CLS]
         int32_t cls_token_id = 101;
         // [SEP]
@@ -259,49 +266,26 @@ namespace neural_network {
       public:
         TokenizerWrapper(std::shared_ptr<tokenizers::Tokenizer> tokenizer, TokenizerConfig config)
             : m_tokenizer(tokenizer), m_config(std::move(config)) {}
-        inline token_id_vec_t encode(const std::string &text) const {
+        inline token_id_vec_with_mask_t encode(const std::string &text, std::optional<size_t> target_length = std::nullopt,
+                                     token_id_data_t padding_value = 0) const {
             token_id_vec_t tokens = m_tokenizer->Encode(text);
 
             if (m_config.add_special_tokens) {
                 tokens.insert(tokens.begin(), m_config.cls_token_id);
                 tokens.push_back(m_config.sep_token_id);
             }
-            return tokens;
-        }
 
-        inline std::vector<token_id_vec_t> encode_batch(const std::vector<std::string> &texts) const {
-            return m_tokenizer->EncodeBatch(texts);
-        }
-
-        inline token_id_vec_with_mask_t encode_with_mask(const std::string &text) const {
-            auto tokens = encode(text);
-            token_id_vec_t mask(tokens.size(), 1);
-
-            return {tokens, mask};
-        }
-
-        inline std::vector<token_id_vec_with_mask_t> batch_encode(const std::vector<std::string> &batch_text,
-                                                                  std::optional<token_id_data_t> padding = 0) const {
-            size_t max_vec_dim = 0;
-            std::vector<token_id_vec_with_mask_t> res;
-            for (const auto &text : batch_text) {
-                token_id_vec_with_mask_t i = encode_with_mask(text);
-                if (i.first.size() > max_vec_dim) {
-                    max_vec_dim = i.first.size();
-                }
-                res.push_back(std::move(i));
+            // Create attention mask (1 for real tokens, 0 for padding)
+            token_id_vec_t attention_mask(tokens.size(), 1);
+            
+            // Apply padding if enabled in config and target length is specified
+            if (m_config.is_padding && target_length && tokens.size() < *target_length) {
+                size_t original_size = tokens.size();
+                tokens.resize(*target_length, padding_value);
+                attention_mask.resize(*target_length, 0); // Padding positions get 0 in attention mask
             }
-            if (padding) {
-                for (auto &emb_with_mask : res) {
-                    if (emb_with_mask.first.size() < max_vec_dim) {
-                        emb_with_mask.first.resize(max_vec_dim, *padding);
-                    }
-                    if (emb_with_mask.second.size() < max_vec_dim) {
-                        emb_with_mask.second.resize(max_vec_dim, *padding);
-                    }
-                }
-            }
-            return res;
+
+            return {tokens, attention_mask};
         }
 
       private:

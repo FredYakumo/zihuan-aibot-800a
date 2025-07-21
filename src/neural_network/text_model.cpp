@@ -37,27 +37,28 @@ namespace neural_network {
      * @return A matrix representing the embeddings for each token.
      */
     emb_mat_t TextEmbeddingModel::embed(const std::string &text) {
-        auto token_ids = get_model_set().tokenizer_wrapper.encode(text);
-        attention_mask_list_t attention_mask(token_ids.size(), 1);
+        auto [token_ids, attention_mask] = get_model_set().tokenizer_wrapper.encode(text);
         return embed(token_ids, attention_mask);
     }
 
     std::vector<emb_mat_t> TextEmbeddingModel::embed(const std::vector<std::string> &texts, size_t max_batch_size) {
-        std::vector<token_id_list_t> token_ids = get_model_set().tokenizer_wrapper.encode_batch(texts);
-        std::vector<attention_mask_list_t> attention_mask_list;
-        attention_mask_list.reserve(token_ids.size());
-        for (const auto &ids : token_ids) {
-            attention_mask_list_t mask(ids.size(), 1);
-            attention_mask_list.push_back(std::move(mask));
+        std::vector<token_id_vec_t> token_ids;
+        std::vector<attention_mask_list_t> attention_masks;
+        token_ids.reserve(texts.size());
+        attention_masks.reserve(texts.size());
+        for (const auto &text : texts) {
+            auto [ids, mask] = get_model_set().tokenizer_wrapper.encode(text);
+            token_ids.emplace_back(std::move(ids));
+            attention_masks.emplace_back(std::move(mask));
         }
-        return embed(token_ids, attention_mask_list);
+        return embed(token_ids, attention_masks);
     }
 
     emb_mat_t TextEmbeddingModel::embed(const token_id_list_t &token_ids, const attention_mask_list_t &attention_mask) {
         assert(token_ids.size() == attention_mask.size());
 
-        // Truncate input to maximum length of 512
-        const size_t max_len = 512;
+        // Truncate input to maximum length of EMBEDDING_MAX_INPUT_LENGTH
+        const size_t max_len = EMBEDDING_MAX_INPUT_LENGTH;
         auto token_end = token_ids.size() > max_len ? token_ids.begin() + max_len : token_ids.end();
         auto mask_end = attention_mask.size() > max_len ? attention_mask.begin() + max_len : attention_mask.end();
 
@@ -94,7 +95,8 @@ namespace neural_network {
     }
 
     std::vector<emb_mat_t> TextEmbeddingModel::embed(const std::vector<token_id_list_t> &token_ids,
-                                                     const std::vector<attention_mask_list_t> &attention_mask, size_t max_batch_size) {
+                                                     const std::vector<attention_mask_list_t> &attention_mask,
+                                                     size_t max_batch_size) {
         assert(token_ids.size() == attention_mask.size());
         const auto batch_size = token_ids.size();
         if (batch_size == 0) {
@@ -115,18 +117,19 @@ namespace neural_network {
 
         for (size_t i = 0; i < batch_size; ++i) {
             const auto &current_ids = token_ids[i];
-            const size_t trunc_len = std::min(current_ids.size(), static_cast<size_t>(512));
+            const size_t trunc_len = std::min(current_ids.size(), static_cast<size_t>(EMBEDDING_MAX_INPUT_LENGTH));
             for (size_t j = 0; j < trunc_len; ++j) {
                 input_ids_flat.push_back(current_ids[j]);
             }
-            input_ids_flat.insert(input_ids_flat.end(), 512 - trunc_len, 0LL);
+            input_ids_flat.insert(input_ids_flat.end(), EMBEDDING_MAX_INPUT_LENGTH - trunc_len, 0LL);
 
             const auto &current_mask = attention_mask[i];
-            const size_t mask_trunc_len = std::min(current_mask.size(), static_cast<size_t>(512));
+            const size_t mask_trunc_len =
+                std::min(current_mask.size(), static_cast<size_t>(EMBEDDING_MAX_INPUT_LENGTH));
             for (size_t j = 0; j < mask_trunc_len; ++j) {
                 masks_flat.push_back(current_mask[j]);
             }
-            masks_flat.insert(masks_flat.end(), 512 - mask_trunc_len, 0LL);
+            masks_flat.insert(masks_flat.end(), EMBEDDING_MAX_INPUT_LENGTH - mask_trunc_len, 0LL);
         }
 
         const std::vector<int64_t> input_shape = {static_cast<int64_t>(batch_size), static_cast<int64_t>(max_seq_len)};
@@ -187,28 +190,29 @@ namespace neural_network {
      * @return A matrix representing the embeddings for each token.
      */
     emb_vec_t TextEmbeddingWithMeanPoolingModel::embed(const std::string &text) {
-        auto token_ids = get_model_set().tokenizer_wrapper.encode(text);
-        attention_mask_list_t attention_mask(token_ids.size(), 1);
+        auto [token_ids, attention_mask] = get_model_set().tokenizer_wrapper.encode(text);
         return embed(token_ids, attention_mask);
     }
 
     emb_mat_t TextEmbeddingWithMeanPoolingModel::embed(const std::vector<std::string> &texts, size_t max_batch_size) {
-        std::vector<token_id_list_t> token_ids = get_model_set().tokenizer_wrapper.encode_batch(texts);
-        std::vector<attention_mask_list_t> attention_mask_list;
-        attention_mask_list.reserve(token_ids.size());
-        for (const auto &ids : token_ids) {
-            attention_mask_list_t mask(ids.size(), 1);
-            attention_mask_list.push_back(std::move(mask));
+        std::vector<token_id_vec_t> token_ids;
+        std::vector<attention_mask_list_t> attention_masks;
+        token_ids.reserve(texts.size());
+        attention_masks.reserve(texts.size());
+        for (const auto &text : texts) {
+            auto [ids, mask] = get_model_set().tokenizer_wrapper.encode(text);
+            token_ids.emplace_back(std::move(ids));
+            attention_masks.emplace_back(std::move(mask));
         }
-        return embed(token_ids, attention_mask_list);
+        return embed(token_ids, attention_masks);
     }
 
     emb_vec_t TextEmbeddingWithMeanPoolingModel::embed(const token_id_list_t &token_ids,
                                                        const attention_mask_list_t &attention_mask) {
         assert(token_ids.size() == attention_mask.size());
 
-        // Truncate input to maximum length of 512
-        const size_t max_len = 512;
+        // Truncate input to maximum length of EMBEDDING_MAX_INPUT_LENGTH
+        const size_t max_len = EMBEDDING_MAX_INPUT_LENGTH;
         auto token_end = token_ids.size() > max_len ? token_ids.begin() + max_len : token_ids.end();
         auto mask_end = attention_mask.size() > max_len ? attention_mask.begin() + max_len : attention_mask.end();
 
@@ -239,7 +243,8 @@ namespace neural_network {
     }
 
     emb_mat_t TextEmbeddingWithMeanPoolingModel::embed(const std::vector<token_id_list_t> &token_ids,
-                                                       const std::vector<attention_mask_list_t> &attention_mask, size_t max_batch_size) {
+                                                       const std::vector<attention_mask_list_t> &attention_mask,
+                                                       size_t max_batch_size) {
         assert(token_ids.size() == attention_mask.size());
         const auto batch_size = token_ids.size();
         if (batch_size == 0) {
@@ -248,34 +253,35 @@ namespace neural_network {
 
         size_t max_seq_len = 0;
         for (const auto &ids : token_ids) {
-            const size_t current_len = std::min(ids.size(), static_cast<size_t>(512));
+            const size_t current_len = std::min(ids.size(), static_cast<size_t>(EMBEDDING_MAX_INPUT_LENGTH));
             if (current_len > max_seq_len) {
                 max_seq_len = current_len;
             }
         }
 
         std::vector<int64_t> input_ids_flat;
-        input_ids_flat.reserve(batch_size * 512);
+        input_ids_flat.reserve(batch_size * EMBEDDING_MAX_INPUT_LENGTH);
         std::vector<int64_t> masks_flat;
-        masks_flat.reserve(batch_size * 512);
+        masks_flat.reserve(batch_size * EMBEDDING_MAX_INPUT_LENGTH);
 
         for (size_t i = 0; i < batch_size; ++i) {
             const auto &current_ids = token_ids[i];
-            const size_t trunc_len = std::min(current_ids.size(), static_cast<size_t>(512));
+            const size_t trunc_len = std::min(current_ids.size(), static_cast<size_t>(EMBEDDING_MAX_INPUT_LENGTH));
             for (size_t j = 0; j < trunc_len; ++j) {
                 input_ids_flat.push_back(current_ids[j]);
             }
-            input_ids_flat.insert(input_ids_flat.end(), 512 - trunc_len, 0LL);
+            input_ids_flat.insert(input_ids_flat.end(), EMBEDDING_MAX_INPUT_LENGTH - trunc_len, 0LL);
 
             const auto &current_mask = attention_mask[i];
-            const size_t mask_trunc_len = std::min(current_mask.size(), static_cast<size_t>(512));
+            const size_t mask_trunc_len =
+                std::min(current_mask.size(), static_cast<size_t>(EMBEDDING_MAX_INPUT_LENGTH));
             for (size_t j = 0; j < mask_trunc_len; ++j) {
                 masks_flat.push_back(current_mask[j]);
             }
-            masks_flat.insert(masks_flat.end(), 512 - mask_trunc_len, 0LL);
+            masks_flat.insert(masks_flat.end(), EMBEDDING_MAX_INPUT_LENGTH - mask_trunc_len, 0LL);
         }
 
-        const std::vector<int64_t> input_shape = {static_cast<int64_t>(batch_size), 512};
+        const std::vector<int64_t> input_shape = {static_cast<int64_t>(batch_size), EMBEDDING_MAX_INPUT_LENGTH};
 
         std::vector<Ort::Value> input_tensors;
         input_tensors.emplace_back(Ort::Value::CreateTensor<int64_t>(
@@ -332,7 +338,7 @@ namespace neural_network {
      * @param texts List of input texts
      * @return A list of matrices representing the embeddings for each text.
      */
-    std::vector<emb_mat_t> TextEmbeddingModel::embed(const std::vector<std::string> &texts) {
+    std::vector<emb_mat_t> TextEmbeddingModel::embed(const std::vector<std::string> &texts, size_t max_batch_size) {
         std::vector<token_id_list_t> token_ids = get_model_set().tokenizer_wrapper.encode_batch(texts);
         std::vector<attention_mask_list_t> attention_mask_list;
         attention_mask_list.reserve(token_ids.size());
@@ -350,8 +356,8 @@ namespace neural_network {
     emb_mat_t TextEmbeddingModel::embed(const token_id_list_t &token_ids, const attention_mask_list_t &attention_mask) {
         assert(token_ids.size() == attention_mask.size());
 
-        // Truncate input to maximum length of 512
-        const size_t max_len = 512;
+        // Truncate input to maximum length of EMBEDDING_MAX_INPUT_LENGTH
+        const size_t max_len = EMBEDDING_MAX_INPUT_LENGTH;
         auto token_end = token_ids.size() > max_len ? token_ids.begin() + max_len : token_ids.end();
         auto mask_end = attention_mask.size() > max_len ? attention_mask.begin() + max_len : attention_mask.end();
 
@@ -396,7 +402,8 @@ namespace neural_network {
      * @return A list of matrices representing the embeddings for each text
      */
     std::vector<emb_mat_t> TextEmbeddingModel::embed(const std::vector<token_id_list_t> &token_ids,
-                                                     const std::vector<attention_mask_list_t> &attention_mask) {
+                                                     const std::vector<attention_mask_list_t> &attention_mask,
+                                                     size_t max_batch_size) {
         assert(token_ids.size() == attention_mask.size());
         const auto batch_size = token_ids.size();
         if (batch_size == 0) {
@@ -417,25 +424,27 @@ namespace neural_network {
 
         for (size_t i = 0; i < batch_size; ++i) {
             const auto &current_ids = token_ids[i];
-            const size_t trunc_len = std::min(current_ids.size(), static_cast<size_t>(512));
+            const size_t trunc_len = std::min(current_ids.size(), static_cast<size_t>(EMBEDDING_MAX_INPUT_LENGTH));
             for (size_t j = 0; j < trunc_len; ++j) {
                 input_ids_flat.push_back(current_ids[j]);
             }
-            input_ids_flat.insert(input_ids_flat.end(), 512 - trunc_len, 0LL);
+            input_ids_flat.insert(input_ids_flat.end(), EMBEDDING_MAX_INPUT_LENGTH - trunc_len, 0LL);
 
             const auto &current_mask = attention_mask[i];
-            const size_t mask_trunc_len = std::min(current_mask.size(), static_cast<size_t>(512));
+            const size_t mask_trunc_len =
+                std::min(current_mask.size(), static_cast<size_t>(EMBEDDING_MAX_INPUT_LENGTH));
             for (size_t j = 0; j < mask_trunc_len; ++j) {
                 masks_flat.push_back(current_mask[j]);
             }
-            masks_flat.insert(masks_flat.end(), 512 - mask_trunc_len, 0LL);
+            masks_flat.insert(masks_flat.end(), EMBEDDING_MAX_INPUT_LENGTH - mask_trunc_len, 0LL);
         }
 
         // Convert to tensors
         auto device = (*m_module.parameters().begin()).device();
-        torch::Tensor input_ids_tensor = torch::tensor(input_ids_flat, torch::dtype(torch::kLong))
-                                             .view({static_cast<int64_t>(batch_size), static_cast<int64_t>(max_seq_len)})
-                                             .to(device);
+        torch::Tensor input_ids_tensor =
+            torch::tensor(input_ids_flat, torch::dtype(torch::kLong))
+                .view({static_cast<int64_t>(batch_size), static_cast<int64_t>(max_seq_len)})
+                .to(device);
         torch::Tensor attention_mask_tensor =
             torch::tensor(masks_flat, torch::dtype(torch::kLong))
                 .view({static_cast<int64_t>(batch_size), static_cast<int64_t>(max_seq_len)})
@@ -490,8 +499,8 @@ namespace neural_network {
         auto token_ids = get_model_set().tokenizer_wrapper.encode(text);
         attention_mask_list_t attention_mask(token_ids.size(), 1);
 
-        // Truncate input to maximum length of 512
-        const size_t max_len = 512;
+        // Truncate input to maximum length of EMBEDDING_MAX_INPUT_LENGTH
+        const size_t max_len = EMBEDDING_MAX_INPUT_LENGTH;
         auto token_end = token_ids.size() > max_len ? token_ids.begin() + max_len : token_ids.end();
         auto mask_end = attention_mask.size() > max_len ? attention_mask.begin() + max_len : attention_mask.end();
 
@@ -528,7 +537,7 @@ namespace neural_network {
      * @param texts List of input texts
      * @return A matrix where each row is a sentence embedding.
      */
-    emb_mat_t TextEmbeddingWithMeanPoolingModel::embed(const std::vector<std::string> &texts) {
+    emb_mat_t TextEmbeddingWithMeanPoolingModel::embed(const std::vector<std::string> &texts, size_t max_batch_size) {
         if (texts.empty()) {
             return {};
         }
@@ -542,7 +551,7 @@ namespace neural_network {
         }
 
         const auto batch_size = token_ids.size();
-        const size_t max_len = 512;
+        const size_t max_len = EMBEDDING_MAX_INPUT_LENGTH;
 
         // Prepare batch data
         std::vector<int64_t> input_ids_flat;
@@ -608,8 +617,8 @@ namespace neural_network {
                                                        const attention_mask_list_t &attention_mask) {
         assert(token_ids.size() == attention_mask.size());
 
-        // Truncate input to maximum length of 512
-        const size_t max_len = 512;
+        // Truncate input to maximum length of EMBEDDING_MAX_INPUT_LENGTH
+        const size_t max_len = EMBEDDING_MAX_INPUT_LENGTH;
         auto token_end = token_ids.size() > max_len ? token_ids.begin() + max_len : token_ids.end();
         auto mask_end = attention_mask.size() > max_len ? attention_mask.begin() + max_len : attention_mask.end();
 
@@ -648,14 +657,15 @@ namespace neural_network {
      * @return A matrix where each row is a sentence embedding.
      */
     emb_mat_t TextEmbeddingWithMeanPoolingModel::embed(const std::vector<token_id_list_t> &token_ids,
-                                                       const std::vector<attention_mask_list_t> &attention_mask) {
+                                                       const std::vector<attention_mask_list_t> &attention_mask,
+                                                       size_t max_batch_size) {
         assert(token_ids.size() == attention_mask.size());
         const auto batch_size = token_ids.size();
         if (batch_size == 0) {
             return {};
         }
 
-        const size_t max_len = 512;
+        const size_t max_len = EMBEDDING_MAX_INPUT_LENGTH;
 
         // Prepare batch data
         std::vector<int64_t> input_ids_flat;
