@@ -8,7 +8,7 @@
 #endif
 
 namespace neural_network {
-    constexpr size_t EMBEDDING_MAX_INPUT_LENGTH = 512;
+    constexpr size_t EMBEDDING_MAX_INPUT_LENGTH = 1024;
 #ifdef __USE_ONNX_RUNTIME__
 
     class TextEmbeddingModel {

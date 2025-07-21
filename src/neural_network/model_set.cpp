@@ -16,7 +16,7 @@ constexpr const char *COSINE_SIMILARITY_MODEL_PATH = "exported_model/cosine_sim.
 
 namespace neural_network {
     ModelSet::ModelSet(neural_network::Device device)
-        : tokenizer(neural_network::load_tokenizers("tokenizer/tokenizer.json")),
+        : tokenizer(neural_network::load_tokenizers("exported_model/tokenizer/tokenizer.json")),
           tokenizer_wrapper(tokenizer, neural_network::TokenizerConfig()) {
 
         std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();

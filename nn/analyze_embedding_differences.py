@@ -11,14 +11,14 @@ import time
 from typing import List, Tuple
 from .models import TextEmbedder, CosineSimilarityModel, get_device
 
+batch_text = ["如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪", "kill猪", "kill pig", "杀pig", "傻猪", "阉猪", "杀掉猪", "我杀了一头超级超级无敌巨大的猪", "sha猪", "sha zhu", "桃芝呼呼", "桃芝呼呼杀猪", "桃紫呼呼杀猪", "桃人糊糊杀猪", "桃汁背背杀猪"]
+target_text = "桃芝糊糊杀猪"
+
 def analyze_embedding_differences():
     """Analyze the differences between individual and batch embedding inference."""
     print("=== Detailed Analysis: Individual vs Batch Embedding Inference ===")
     
-    # Test data
-    batch_text = ["如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"]
-    target_text = "杀猪"
-    
+    # Test data    
     # Get device
     device = get_device()
     print(f"Using device: {device}")
@@ -105,8 +105,6 @@ def analyze_cosine_similarity_differences(individual_embeddings, batch_embedding
     """Analyze cosine similarity differences between individual and batch approaches."""
     print("\n=== Step 5: Analyzing Cosine Similarity Differences ===")
     
-    batch_text = ["如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"]
-    target_text = "杀猪"
     
     # Method 1: Individual embeddings + batch cosine similarity
     print("\nMethod 1: Individual embeddings -> Batch cosine similarity")
@@ -190,8 +188,7 @@ def analyze_cosine_similarity_differences(individual_embeddings, batch_embedding
 def analyze_tokenization_differences():
     """Analyze potential tokenization differences between individual and batch processing."""
     print("\n=== Step 6: Analyzing Tokenization Differences ===")
-    
-    batch_text = ["如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"]
+
     
     # Initialize tokenizer
     from transformers import BertTokenizer

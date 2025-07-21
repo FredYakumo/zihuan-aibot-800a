@@ -11,6 +11,9 @@ from utils.logging_config import logger
 from transformers.pipelines import pipeline
 
 
+TEXT_EMBEDDING_DEFAULT_MODEL_NAME = "BAAI/bge-m3"
+TEXT_EMBEDDING_VEC_LENGTH = 1024
+
 def get_device() -> torch.device:
     device = torch.device("cpu")
     if torch.cuda.is_available():
@@ -73,7 +76,7 @@ class ReplyIntentClassifierModel(nn.Module):
 class TextEmbeddingModel(nn.Module):
     def __init__(
         self,
-        model_name="GanymedeNil/text2vec-large-chinese",
+        model_name=TEXT_EMBEDDING_DEFAULT_MODEL_NAME,
         mean_pooling=True,
         device=torch.device("cpu"),
     ):
@@ -111,7 +114,7 @@ class TextEmbedder:
 
     def __init__(
         self,
-        model_name="GanymedeNil/text2vec-large-chinese",
+        model_name=TEXT_EMBEDDING_DEFAULT_MODEL_NAME,
         device=torch.device("cpu"),
         mean_pooling=True,
     ):
@@ -133,7 +136,7 @@ class TextEmbedder:
             texts,
             padding="max_length",
             truncation=True,
-            max_length=512,
+            max_length=TEXT_EMBEDDING_VEC_LENGTH,
             return_tensors="pt",
         ).to(self.model.device)
         with torch.no_grad():

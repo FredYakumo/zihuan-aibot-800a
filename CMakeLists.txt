@@ -230,3 +230,22 @@ else()
     add_definitions(-D__USE_ONNX_RUNTIME__)
     message(STATUS "Defined macro: __USE_ONNX_RUNTIME__")
 endif()
+
+# Create symlink for compile_commands.json to main build directory for clangd
+if(CMAKE_EXPORT_COMPILE_COMMANDS)
+    # Ensure the main build directory exists
+    file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/build)
+    
+    # Create a custom target that creates the symlink after build
+    add_custom_target(create_compile_commands_symlink ALL
+        COMMAND ${CMAKE_COMMAND} -E create_symlink 
+            ${CMAKE_BINARY_DIR}/compile_commands.json 
+            ${CMAKE_SOURCE_DIR}/build/compile_commands.json
+        DEPENDS ${CMAKE_BINARY_DIR}/compile_commands.json
+        COMMENT "Creating symlink for compile_commands.json in main build directory"
+        VERBATIM
+    )
+    
+    # Make sure this runs after the main targets are built
+    add_dependencies(create_compile_commands_symlink ${AIBOT_TARGET_NAME})
+endif()
