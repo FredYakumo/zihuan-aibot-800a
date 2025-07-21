@@ -9,7 +9,7 @@
 
 namespace neural_network {
 
-#ifndef __USE_LIBTORCH__
+#ifdef __USE_ONNX_RUNTIME__
 
     TextEmbeddingModel::TextEmbeddingModel(const std::string &model_path, Device device)
         : m_session(get_onnx_runtime(), model_path.c_str(), get_session_options(device)) {
@@ -339,7 +339,7 @@ namespace neural_network {
 
         return result;
     }
-#endif // __USE_LIBTORCH__
+#endif // __USE_ONNX_RUNTIME__
 
 #ifdef __USE_LIBTORCH__
 
