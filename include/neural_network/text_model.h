@@ -1,5 +1,6 @@
 #pragma once
 #include "nn.h"
+#include <c10/core/Device.h>
 #include <string>
 #include <vector>
 
@@ -184,6 +185,7 @@ namespace neural_network {
 
       private:
         torch::jit::script::Module m_module;
+        torch::Device m_device;
     };
 
     class TextEmbeddingWithMeanPoolingModel {
@@ -230,6 +232,7 @@ namespace neural_network {
 
       private:
         torch::jit::script::Module m_module;
+        torch::Device m_device;
     };
 
 #endif

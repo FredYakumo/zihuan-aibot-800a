@@ -236,16 +236,23 @@ if(CMAKE_EXPORT_COMPILE_COMMANDS)
     # Ensure the main build directory exists
     file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/build)
     
-    # Create a custom target that creates the symlink after build
-    add_custom_target(create_compile_commands_symlink ALL
+    # Create symlink immediately during configure phase
+    # First, remove existing symlink if it exists to avoid conflicts
+    if(EXISTS ${CMAKE_SOURCE_DIR}/build/compile_commands.json)
+        file(REMOVE ${CMAKE_SOURCE_DIR}/build/compile_commands.json)
+    endif()
+    
+    # Create the symlink to the binary directory's compile_commands.json
+    execute_process(
         COMMAND ${CMAKE_COMMAND} -E create_symlink 
             ${CMAKE_BINARY_DIR}/compile_commands.json 
             ${CMAKE_SOURCE_DIR}/build/compile_commands.json
-        DEPENDS ${CMAKE_BINARY_DIR}/compile_commands.json
-        COMMENT "Creating symlink for compile_commands.json in main build directory"
-        VERBATIM
+        RESULT_VARIABLE symlink_result
     )
     
-    # Make sure this runs after the main targets are built
-    add_dependencies(create_compile_commands_symlink ${AIBOT_TARGET_NAME})
+    if(symlink_result EQUAL 0)
+        message(STATUS "Created compile_commands.json symlink: ${CMAKE_SOURCE_DIR}/build/compile_commands.json -> ${CMAKE_BINARY_DIR}/compile_commands.json")
+    else()
+        message(WARNING "Failed to create compile_commands.json symlink")
+    endif()
 endif()

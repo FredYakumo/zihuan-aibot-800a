@@ -75,15 +75,16 @@ namespace bot_adapter {
             spdlog::info("Batch add database message records cost: {}ms",
                          std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
             
-            spdlog::info("Calculate group member name embedding matrix");
-            start_time = std::chrono::high_resolution_clock::now();
-            auto embedding_map = adapter.group_member_name_embedding_map.get_or_emplace_value(group.group_id, bot_adapter::GroupMemberNameEmbeddngMatrix{});
-            for (const auto &[member_id, member_name] : member_name_map) {
-                embedding_map->add_member(member_id, member_name);
-            }
-            end_time = std::chrono::high_resolution_clock::now();
-            spdlog::info("Calculate group member name embedding matrix cost: {}ms",
-                         std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
+            // TODO: 优化性能
+            // spdlog::info("Calculate group member name embedding matrix");
+            // start_time = std::chrono::high_resolution_clock::now();
+            // auto embedding_map = adapter.group_member_name_embedding_map.get_or_emplace_value(group.group_id, bot_adapter::GroupMemberNameEmbeddngMatrix{});
+            // for (const auto &[member_id, member_name] : member_name_map) {
+            //     embedding_map->add_member(member_id, member_name);
+            // }
+            // end_time = std::chrono::high_resolution_clock::now();
+            // spdlog::info("Calculate group member name embedding matrix cost: {}ms",
+            //              std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
         }
 
         spdlog::info("获取Bot的所有好友信息");

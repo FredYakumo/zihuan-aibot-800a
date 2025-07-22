@@ -135,6 +135,22 @@ namespace bot_cmd {
             std::make_pair("#设置", bot_cmd::CommandProperty{false, true, bot_cmd::set_user_preference_command}));
     }
 
+    inline std::string get_available_commands() {
+        std::vector<std::string> commands;
+        for (const auto &pair : keyword_command_map) {
+            commands.push_back(pair.first);
+        }
+        
+        std::string result;
+        for (size_t i = 0; i < commands.size(); ++i) {
+            result += commands[i];
+            if (i < commands.size() - 1) {
+                result += ",";
+            }
+        }
+        return result;
+    }
+
 } // namespace bot_cmd
 
 #endif

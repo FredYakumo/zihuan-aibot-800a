@@ -11,10 +11,10 @@
 
 using namespace wheel;
 
-TEST(UnitTest, MainTest) { GTEST_LOG_(INFO) << "Main unit test"; }
+TEST(BasicSetup, FrameworkInitialization) { GTEST_LOG_(INFO) << "Basic test framework initialization"; }
 
 #ifdef __USE_ONNX_RUNTIME__
-TEST(UnitTest, ONNX_RUNTIME) {
+TEST(ONNXRuntime, ProviderAvailabilityCheck) {
     spdlog::info(Ort::GetVersionString());
     for (const auto &provider : Ort::GetAvailableProviders()) {
         spdlog::info("Available provider: {}", provider);
@@ -22,7 +22,7 @@ TEST(UnitTest, ONNX_RUNTIME) {
 }
 #endif
 
-TEST(UnitTest, BotAdapterTest) {
+TEST(BotAdapter, WebSocketConnectionSetup) {
     spdlog::set_level(spdlog::level::debug);
     // bot_adapter::BotAdapter adapter{"ws://localhost:13378/all"};
     // const auto test_sender_id = 3507578481;
@@ -40,7 +40,7 @@ TEST(UnitTest, BotAdapterTest) {
     // adapter.start();
 }
 
-TEST(UnitTest, ReplaceString) {
+TEST(StringUtils, KeywordReplacementOperations) {
     std::string str0 = "#联网 abc";
     std::string new_str0 = replace_str(str0, "#联网", "");
     EXPECT_EQ(new_str0, " abc");
@@ -53,7 +53,7 @@ TEST(UnitTest, ReplaceString) {
 
 constexpr std::string_view test_url = "ws://localhost:13378/all";
 
-TEST(UnitTest, GetMessageIdTest) {
+TEST(BotAdapter, MessageIdRetrieval) {
     // spdlog::set_level(spdlog::level::debug);
     // bot_adapter::BotAdapter adapter{test_url};
     // adapter.get_message_id(2259, 790544814,
@@ -62,7 +62,7 @@ TEST(UnitTest, GetMessageIdTest) {
     // adapter.start();
 }
 
-// TEST(UnitTest, SendLongText) {
+// TEST(BotAdapter, LongTextMessageSending) {
 //     spdlog::set_level(spdlog::level::debug);
 //     bot_adapter::BotAdapter adapter{test_url};
 //     adapter.send_long_plain_text_replay(
@@ -88,7 +88,7 @@ TEST(UnitTest, GetMessageIdTest) {
 // }
 
 #ifdef __USE_ONNX_RUNTIME__
-TEST(UnitTest, TestCosineSimilarityONNX) {
+TEST(ONNXRuntime, CosineSimilarityInference) {
     neural_network::init_onnx_runtime();
 
     neural_network::TextEmbeddingWithMeanPoolingModel embedder("exported_model/text_embedding_mean_pooling.onnx");
@@ -158,7 +158,7 @@ TEST(UnitTest, TestCosineSimilarityONNX) {
 #endif
 
 #ifdef __USE_ONNX_RUNTIME__
-TEST(UnitTest, TestBatchTextEmbeddingONNX) {
+TEST(ONNXRuntime, BatchTextEmbeddingInference) {
     neural_network::init_onnx_runtime();
     neural_network::init_model_set(neural_network::Device::CPU);
     neural_network::TextEmbeddingWithMeanPoolingModel embedder("exported_model/text_embedding_mean_pooling.onnx");
@@ -226,7 +226,7 @@ TEST(UnitTest, TestBatchTextEmbeddingONNX) {
 
 #ifdef __USE_LIBTORCH__
 
-TEST(UnitTest, TestTextEmbeddingLibTorchMPS) {
+TEST(LibTorchMPS, TextEmbeddingPerformanceComparison) {
     neural_network::init_model_set(neural_network::Device::MPS);
     auto &model_set = neural_network::get_model_set();
     
@@ -255,7 +255,7 @@ TEST(UnitTest, TestTextEmbeddingLibTorchMPS) {
 
 
 
-TEST(UnitTest, TestTextEmbeddingLibTorchMPSLargeBatch) {
+TEST(LibTorchMPS, LargeBatchTextEmbedding) {
     neural_network::init_model_set(neural_network::Device::MPS);
     auto &model_set = neural_network::get_model_set();
     
@@ -271,7 +271,7 @@ TEST(UnitTest, TestTextEmbeddingLibTorchMPSLargeBatch) {
     spdlog::info("Batch embedding total time: {} ms", duration_batch);
 }
 
-TEST(UnitTest, TestTextEmbeddingLibTorchCPU) {
+TEST(LibTorchCPU, TextEmbeddingPerformanceComparison) {
     neural_network::init_model_set(neural_network::Device::CPU);
     auto &model_set = neural_network::get_model_set();
     
@@ -298,7 +298,7 @@ TEST(UnitTest, TestTextEmbeddingLibTorchCPU) {
     spdlog::info("Batch embedding total time: {} ms", duration_batch);
 }
 
-TEST(UnitTest, TestCosineSimilarityLibTorch) {
+TEST(LibTorchCPU, CosineSimilarityInference) {
     neural_network::init_model_set(neural_network::Device::CPU);
     auto &model_set = neural_network::get_model_set();
     
@@ -357,7 +357,7 @@ TEST(UnitTest, TestCosineSimilarityLibTorch) {
     spdlog::info("LibTorch cosine similarity test completed successfully!");
 }
 
-TEST(UnitTest, TestCosineSimilarityMPSEmbeddingWithCPUSimilarity) {
+TEST(LibTorchHybrid, MPSEmbeddingWithCPUSimilarity) {
     neural_network::init_model_set(neural_network::Device::MPS);
     auto &model_set = neural_network::get_model_set();
     
@@ -444,7 +444,7 @@ TEST(UnitTest, TestCosineSimilarityMPSEmbeddingWithCPUSimilarity) {
     }
 }
 
-TEST(UnitTest, TestCosineSimilarityMPSIndividualEmbeddingWithCPUSimilarity) {
+TEST(LibTorchHybrid, MPSIndividualEmbeddingWithCPUSimilarity) {
     neural_network::init_model_set(neural_network::Device::MPS);
     auto &model_set = neural_network::get_model_set();
     
@@ -560,7 +560,7 @@ TEST(UnitTest, TestCosineSimilarityMPSIndividualEmbeddingWithCPUSimilarity) {
     }
 }
 
-TEST(UnitTest, TestLibTorchTextEmbeddingVectorDifference) {
+TEST(LibTorchAccuracy, TextEmbeddingBatchVsIndividualConsistency) {
     neural_network::init_model_set(neural_network::Device::CPU);
     auto &model_set = neural_network::get_model_set();
     
@@ -663,7 +663,7 @@ TEST(UnitTest, TestLibTorchTextEmbeddingVectorDifference) {
                  static_cast<float>(individual_duration) / batch_duration);
 }
 
-TEST(UnitTest, TestLibTorchTokenEmbeddingNoMeanPoolingVectorDifference) {
+TEST(LibTorchAccuracy, TokenEmbeddingBatchVsIndividualConsistency) {
     neural_network::init_model_set(neural_network::Device::CPU);
     auto &model_set = neural_network::get_model_set();
     
@@ -681,12 +681,8 @@ TEST(UnitTest, TestLibTorchTokenEmbeddingNoMeanPoolingVectorDifference) {
     individual_token_embeddings.reserve(batch_text.size());
     
     for (size_t i = 0; i < batch_text.size(); ++i) {
-        // 使用 tokenizer 获取 token_ids 和 attention_mask
-        auto token_ids = model_set.tokenizer_wrapper.encode(batch_text[i]);
-        neural_network::attention_mask_list_t attention_mask(token_ids.size(), 1);
-        
         // 使用非 mean pooling 的模型获取 token 级别嵌入
-        auto token_embedding_matrix = token_embedding_model.embed(token_ids, attention_mask);
+        auto token_embedding_matrix = token_embedding_model.embed(batch_text[i]);
         individual_token_embeddings.emplace_back(std::move(token_embedding_matrix));
         
         spdlog::info("Individual[{}] \"{}\" - token count: {}, embedding dim per token: {}", 
@@ -700,19 +696,9 @@ TEST(UnitTest, TestLibTorchTokenEmbeddingNoMeanPoolingVectorDifference) {
     // 计算批量推理的 token 嵌入向量
     spdlog::info("Computing batch token embeddings...");
     auto start_batch = std::chrono::high_resolution_clock::now();
-    
-    // 准备批量输入
-    std::vector<neural_network::token_id_list_t> batch_token_ids;
-    std::vector<neural_network::attention_mask_list_t> batch_attention_masks;
-    
-    for (const auto &text : batch_text) {
-        auto token_ids = model_set.tokenizer_wrapper.encode(text);
-        neural_network::attention_mask_list_t attention_mask(token_ids.size(), 1);
-        batch_token_ids.emplace_back(std::move(token_ids));
-        batch_attention_masks.emplace_back(std::move(attention_mask));
-    }
-    
-    auto batch_token_embeddings = token_embedding_model.embed(batch_token_ids, batch_attention_masks);
+
+
+    auto batch_token_embeddings = token_embedding_model.embed(batch_text);
     auto end_batch = std::chrono::high_resolution_clock::now();
     auto batch_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_batch - start_batch).count();
     

@@ -580,6 +580,8 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &us
                 }
 
                 tool_call_msg = ChatMessage(ROLE_TOOL, content, func_calls.id);
+            } else if (func_calls.name == "get_function_list") {
+                tool_call_msg = ChatMessage(ROLE_TOOL, fmt::format("可用功能/函数列表: {}", bot_cmd::get_available_commands()), func_calls.id);
             } else {
                 spdlog::error("Function {} is not impl.", func_calls.name);
                 tool_call_msg = ChatMessage(ROLE_TOOL,
