@@ -1,7 +1,7 @@
 import torch
 import pnnx
 import os
-from nn.models import load_reply_intent_classifier_model, TextEmbeddingModel, TextEmbedder, CosineSimilarityModel,TEXT_EMBEDDING_VEC_LENGTH
+from nn.models import load_reply_intent_classifier_model, TextEmbeddingModel, TextEmbedder, CosineSimilarityModel,TEXT_EMBEDDING_INPUT_LENGTH
 
 
 if __name__ == "__main__":
@@ -11,10 +11,10 @@ if __name__ == "__main__":
     print("Exporting models to exported_model directory...")
     
     # model = load_reply_intent_classifier_model("model.pth")[0]
-    # torch.onnx.export(model, torch.randn(TEXT_EMBEDDING_VEC_LENGTH), "model.onnx", opset_version=11)
+    # torch.onnx.export(model, torch.randn(TEXT_EMBEDDING_INPUT_LENGTH), "model.onnx", opset_version=11)
     print("Exporting reply intent classifier model...")
     net = load_reply_intent_classifier_model("model.pth")[0]
-    x = torch.rand(TEXT_EMBEDDING_VEC_LENGTH)
+    x = torch.rand(TEXT_EMBEDDING_INPUT_LENGTH)
     mod = torch.jit.trace(net, x)
     mod.save("exported_model/model.pt")
     print("   ✓ Saved to exported_model/model.pt")
@@ -22,13 +22,13 @@ if __name__ == "__main__":
     # emb = TextEmbeddingModel()
     # embedder = TextEmbedder();
     # emb.eval()
-    # dummy_input = embedder.tokenizer("233", return_tensors="pt", padding=True, truncation=True, max_length=TEXT_EMBEDDING_VEC_LENGTH)
+    # dummy_input = embedder.tokenizer("233", return_tensors="pt", padding=True, truncation=True, max_length=TEXT_EMBEDDING_INPUT_LENGTH)
     # # opt_model = pnnx.export(emb, "embedding.pt", (dummy_input["input_ids"], dummy_input["attention_mask"]))
     # opt_model = pnnx.export(emb, "embedding.pt", (dummy_input["input_ids"]))
     
     print("Exporting text embedding model (without mean pooling)...")
     embedder = TextEmbedder(mean_pooling=False, device="cpu")
-    token = embedder.tokenizer("0" * TEXT_EMBEDDING_VEC_LENGTH, return_tensors='pt', padding="max_length", truncation=True)
+    token = embedder.tokenizer("0" * TEXT_EMBEDDING_INPUT_LENGTH, return_tensors='pt', padding="max_length", truncation=True)
     print(token)
     torch.onnx.export(embedder.model, (token["input_ids"], token["attention_mask"])
                       , "exported_model/text_embedding.onnx" , opset_version=14, input_names=["input_ids", "attention_mask"],

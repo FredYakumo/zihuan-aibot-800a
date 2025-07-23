@@ -137,7 +137,7 @@ class TextEmbedder:
             texts,
             padding="max_length",
             truncation=True,
-            max_length=TEXT_EMBEDDING_VEC_LENGTH,
+            max_length=TEXT_EMBEDDING_INPUT_LENGTH,
             return_tensors="pt",
         ).to(self.model.device)
         with torch.no_grad():
