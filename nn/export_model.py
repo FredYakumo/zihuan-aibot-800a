@@ -1,7 +1,7 @@
 import torch
 import pnnx
 import os
-from nn.models import load_reply_intent_classifier_model, TextEmbeddingModel, TextEmbedder, CosineSimilarityModel,TEXT_EMBEDDING_INPUT_LENGTH
+from nn.models import load_reply_intent_classifier_model, TextEmbeddingModel, TextEmbedder, CosineSimilarityModel,TEXT_EMBEDDING_INPUT_LENGTH, TEXT_EMBEDDING_OUTPUT_LENGTH
 
 
 if __name__ == "__main__":
@@ -14,7 +14,7 @@ if __name__ == "__main__":
     # torch.onnx.export(model, torch.randn(TEXT_EMBEDDING_INPUT_LENGTH), "model.onnx", opset_version=11)
     print("Exporting reply intent classifier model...")
     net = load_reply_intent_classifier_model("model.pth")[0]
-    x = torch.rand(TEXT_EMBEDDING_INPUT_LENGTH)
+    x = torch.rand(TEXT_EMBEDDING_OUTPUT_LENGTH)
     mod = torch.jit.trace(net, x)
     mod.save("exported_model/model.pt")
     print("   ✓ Saved to exported_model/model.pt")
@@ -28,7 +28,10 @@ if __name__ == "__main__":
     
     print("Exporting text embedding model (without mean pooling)...")
     embedder = TextEmbedder(mean_pooling=False, device="cpu")
-    token = embedder.tokenizer("0" * TEXT_EMBEDDING_INPUT_LENGTH, return_tensors='pt', padding="max_length", truncation=True)
+    token = embedder.tokenizer("0" * TEXT_EMBEDDING_INPUT_LENGTH, return_tensors='pt', 
+                            #    padding="max_length", 
+                               padding=True,
+                               truncation=True)
     print(token)
     torch.onnx.export(embedder.model, (token["input_ids"], token["attention_mask"])
                       , "exported_model/text_embedding.onnx" , opset_version=14, input_names=["input_ids", "attention_mask"],
@@ -52,7 +55,9 @@ if __name__ == "__main__":
     
     print("Exporting text embedding model with mean pooling...")
     embedder = TextEmbedder(mean_pooling=True)
-    token = embedder.tokenizer("0" * TEXT_EMBEDDING_VEC_LENGTH, return_tensors='pt', padding=True, truncation=True)
+    token = embedder.tokenizer("0" * TEXT_EMBEDDING_INPUT_LENGTH, return_tensors='pt', 
+                               padding=True, 
+                               truncation=True)
     print(token)
     torch.onnx.export(embedder.model, (token["input_ids"], token["attention_mask"])
                       , "exported_model/text_embedding_mean_pooling.onnx" , opset_version=14, input_names=["input_ids", "attention_mask"],
@@ -80,8 +85,8 @@ if __name__ == "__main__":
     }
     model = CosineSimilarityModel()
     
-    input_target = torch.randn(1, TEXT_EMBEDDING_VEC_LENGTH)
-    input_value_list = torch.randn(3, TEXT_EMBEDDING_VEC_LENGTH)
+    input_target = torch.randn(1, TEXT_EMBEDDING_OUTPUT_LENGTH)
+    input_value_list = torch.randn(3, TEXT_EMBEDDING_OUTPUT_LENGTH)
     torch.onnx.export(
   model,
         (input_target, input_value_list),

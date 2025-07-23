@@ -21,6 +21,8 @@ from weaviate.collections.collection import Collection
 
 device = text_embedder.model.device
 
+max_batch_size = 32
+
 def insert_knowledge_to_vec_collection(collection: Collection, knowledge_df: pd.DataFrame):
     """
     @brief Inserts knowledge from a DataFrame into the specified Weaviate collection.
@@ -63,9 +65,25 @@ def insert_knowledge_to_vec_collection(collection: Collection, knowledge_df: pd.
     
     metadata = df[["key", "value", "creator_name", "create_time"]].to_dict('records') # type: ignore
 
-    logger.info("Batch computing key embeddings...")
+    logger.info(f"Computing key embeddings in batches of {max_batch_size}...")
     start_time = time.time()
-    key_embeddings = text_embedder.embed(all_keys)
+    
+    # Process embeddings in batches
+    key_embeddings = []
+    total_batches = (len(all_keys) + max_batch_size - 1) // max_batch_size
+    
+    for i in range(0, len(all_keys), max_batch_size):
+        batch_end = min(i + max_batch_size, len(all_keys))
+        batch_keys = all_keys[i:batch_end]
+        batch_num = (i // max_batch_size) + 1
+        
+        logger.info(f"Processing batch {batch_num}/{total_batches} ({len(batch_keys)} items)...")
+        batch_embeddings = text_embedder.embed(batch_keys)
+        key_embeddings.append(batch_embeddings)
+    
+    # Concatenate all batch embeddings
+    key_embeddings = torch.cat(key_embeddings, dim=0)
+    
     end_time = time.time()
     logger.info(f"Key embeddings computation complete in {end_time - start_time:.2f} seconds.")
 

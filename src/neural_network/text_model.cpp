@@ -543,7 +543,7 @@ namespace neural_network {
         attention_masks.reserve(texts.size());
         for (const auto &text : texts) {
             auto [ids, mask] =
-                get_model_set().tokenizer_wrapper.encode(text, std::make_pair(EMBEDDING_MAX_INPUT_LENGTH, 0));
+                get_model_set().tokenizer_wrapper.encode(text);
             token_ids.emplace_back(std::move(ids));
             attention_masks.emplace_back(std::move(mask));
         }

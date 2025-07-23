@@ -12,7 +12,8 @@ from transformers.pipelines import pipeline
 
 
 TEXT_EMBEDDING_DEFAULT_MODEL_NAME = "BAAI/bge-m3"
-TEXT_EMBEDDING_INPUT_LENGTH = 2048
+# TEXT_EMBEDDING_DEFAULT_MODEL_NAME = "BAAI/bge-large-zh-v1.5"
+TEXT_EMBEDDING_INPUT_LENGTH = 8192
 TEXT_EMBEDDING_OUTPUT_LENGTH = 1024
 
 def get_device() -> torch.device:
@@ -135,7 +136,8 @@ class TextEmbedder:
         """
         inputs = self.tokenizer(
             texts,
-            padding="max_length",
+            # padding="max_length",
+            padding=True,
             truncation=True,
             max_length=TEXT_EMBEDDING_INPUT_LENGTH,
             return_tensors="pt",
