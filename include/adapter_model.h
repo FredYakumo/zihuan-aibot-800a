@@ -488,7 +488,6 @@ namespace bot_adapter {
                         new_member_ids.size(), member_ids.size());
             auto start_time = std::chrono::high_resolution_clock::now();
 
-            // Use batch inference for efficiency
             auto embeddings = neural_network::get_model_set().text_embedding_model->embed(new_member_names);
 
             auto end_time = std::chrono::high_resolution_clock::now();
