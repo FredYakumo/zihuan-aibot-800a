@@ -23,6 +23,23 @@
             }
         },
         {
+            "name": "make-libtorch-debug",
+            "displayName": "Make - LibTorch (Debug)",
+            "description": "Build using Make generator with LibTorch support in Debug mode",
+            "generator": "Unix Makefiles",
+            "binaryDir": "${sourceDir}/build/libtorch-debug",
+            "cacheVariables": {
+                "use_libtorch": "/Users/fredyakumo/libtorch",
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+            },
+            "environment": {
+                "CC": "clang",
+                "CXX": "clang++",
+                "MAKEFLAGS": "-j4"
+            }
+        },
+        {
             "name": "ninja-libtorch-release",
             "displayName": "Ninja - LibTorch (Release)",
             "description": "Build using Ninja generator with LibTorch support in Release mode",
@@ -74,6 +91,11 @@
             "name": "ninja-libtorch-debug-build",
             "displayName": "Build with LibTorch (Debug)",
             "configurePreset": "ninja-libtorch-debug"
+        },
+        {
+            "name": "make-libtorch-debug-build",
+            "displayName": "Build with LibTorch (Debug)",
+            "configurePreset": "make-libtorch-debug"
         },
         {
             "name": "ninja-libtorch-release-build",
