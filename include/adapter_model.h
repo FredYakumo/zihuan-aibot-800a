@@ -454,31 +454,38 @@ namespace bot_adapter {
          * batch inference capability. It filters out members that already exist and only
          * computes embeddings for new members.
          *
-         * @param members A vector of pairs containing member ID and member name.
+         * @param member_ids A vector containing member IDs.
+         * @param member_names A vector containing corresponding member names.
          */
-        inline void batch_add_member(const std::vector<std::pair<qq_id_t, std::string>> &members) {
-            if (members.empty()) {
+        inline void batch_add_member(const std::vector<qq_id_t> &member_ids, const std::vector<std::string> &member_names) {
+            if (member_ids.empty() || member_names.empty() || member_ids.size() != member_names.size()) {
+                if (member_ids.size() != member_names.size()) {
+                    spdlog::error("[GroupMemberNameEmbeddngMatrix] member_ids and member_names size mismatch: {} vs {}", 
+                                 member_ids.size(), member_names.size());
+                }
                 return;
             }
 
             // Filter out members that already exist
-            std::vector<std::pair<qq_id_t, std::string>> new_members;
+            std::vector<qq_id_t> new_member_ids;
             std::vector<std::string> new_member_names;
             
-            for (const auto &[member_id, member_name] : members) {
+            for (size_t i = 0; i < member_ids.size(); ++i) {
+                const qq_id_t member_id = member_ids[i];
+                const std::string &member_name = member_names[i];
                 if (!contain_member_ids.contains(member_id)) {
-                    new_members.emplace_back(member_id, member_name);
+                    new_member_ids.push_back(member_id);
                     new_member_names.push_back(member_name);
                 }
             }
 
-            if (new_members.empty()) {
-                spdlog::info("[GroupMemberNameEmbeddngMatrix] All {} members already exist, skipping batch computation", members.size());
+            if (new_member_ids.empty()) {
+                spdlog::info("[GroupMemberNameEmbeddngMatrix] All {} members already exist, skipping batch computation", member_ids.size());
                 return;
             }
 
             spdlog::info("[GroupMemberNameEmbeddngMatrix] Batch computing embeddings for {} new members out of {} total", 
-                        new_members.size(), members.size());
+                        new_member_ids.size(), member_ids.size());
             auto start_time = std::chrono::high_resolution_clock::now();
 
             // Use batch inference for efficiency
@@ -487,14 +494,14 @@ namespace bot_adapter {
             auto end_time = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
             spdlog::info("[GroupMemberNameEmbeddngMatrix] Batch embedding computation took {} ms for {} members (avg: {:.2f} ms/member)", 
-                        duration.count(), new_members.size(), 
-                        static_cast<double>(duration.count()) / new_members.size());
+                        duration.count(), new_member_ids.size(), 
+                        static_cast<double>(duration.count()) / new_member_ids.size());
 
             // Add all new members to the containers
-            for (size_t i = 0; i < new_members.size(); ++i) {
-                const auto &[member_id, member_name] = new_members[i];
+            for (size_t i = 0; i < new_member_ids.size(); ++i) {
+                const qq_id_t member_id = new_member_ids[i];
                 contain_member_ids.insert(member_id);
-                member_ids.push_back(member_id);
+                this->member_ids.push_back(member_id);
                 member_name_embedding_matrix.push_back(embeddings[i]);
             }
         }
