@@ -266,6 +266,46 @@ TEST(LibTorchMPS, BatchVsSingleInferenceSpeedComparison) {
     }
 }
 
+TEST(LibTorchMPS, BatchVsSingleInferenceSpeedComparisonSize100) {
+    neural_network::init_model_set(neural_network::Device::MPS);
+    auto &model_set = neural_network::get_model_set();
+    
+    std::vector<std::string> test_texts;
+    const std::vector<std::string> base_texts{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"};
+    for (int i = 0; i < 20; ++i) {
+        test_texts.insert(test_texts.end(), base_texts.begin(), base_texts.end());
+    }
+
+    spdlog::info("=== MPS Text Embedding Speed Comparison: Batch vs Single Inference ===");
+    spdlog::info("Total test texts: {}", test_texts.size());
+
+    spdlog::info("Testing single inference...");
+    auto start_single = std::chrono::high_resolution_clock::now();
+    for (const auto &text : test_texts) {
+        model_set.text_embedding_model->embed(text);
+    }
+    auto end_single = std::chrono::high_resolution_clock::now();
+    auto duration_single = std::chrono::duration_cast<std::chrono::milliseconds>(end_single - start_single).count();
+    spdlog::info("Single embedding total time: {} ms", duration_single);
+
+    spdlog::info("Testing batch inference...");
+    auto start_batch = std::chrono::high_resolution_clock::now();
+    model_set.text_embedding_model->embed(test_texts);
+    auto end_batch = std::chrono::high_resolution_clock::now();
+    auto duration_batch = std::chrono::duration_cast<std::chrono::milliseconds>(end_batch - start_batch).count();
+    spdlog::info("Batch embedding total time: {} ms", duration_batch);
+
+    // 计算速度倍率
+    if (duration_batch > 0) {
+        float speed_ratio = static_cast<float>(duration_single) / duration_batch;
+        spdlog::info("=== Speed Comparison Results ===");
+        spdlog::info("Batch inference is {:.2f}x faster than single inference", speed_ratio);
+        spdlog::info("Performance improvement: {:.1f}%", (speed_ratio - 1.0f) * 100.0f);
+    } else {
+        spdlog::warn("Batch inference time too small to calculate meaningful ratio");
+    }
+}
+
 TEST(LibTorchPerformance, MPSVsCPUInferenceSpeedComparison) {
     std::vector<std::string> test_texts;
     const std::vector<std::string> base_texts{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"};

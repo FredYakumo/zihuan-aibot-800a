@@ -58,7 +58,8 @@ namespace bot_adapter {
             std::vector<std::shared_ptr<MessageStorageEntry>> this_msg_entry_ptr_vec;
             this_msg_entry_ptr_vec.reserve(message_list.size());
 
-            std::set<qq_id_t> member_id_set;
+            std::unordered_set<qq_id_t> member_id_set;
+            std::vector<qq_id_t> member_id_vec;
             std::vector<std::string> member_name_vec;
 
             for (const auto &msg : message_list) {
@@ -68,10 +69,12 @@ namespace bot_adapter {
                     msg_id, msg.sender.name, msg.sender.id, msg.send_time,
                     std::make_shared<MessageChainPtrList>(make_message_chain_list(PlainTextMessage(msg.content)))));
                 if (member_id_set.find(msg.sender.id) == member_id_set.end()) {
-                    member_id_set.insert(msg.sender.id);
+                    member_id_vec.push_back(msg.sender.id);
                     member_name_vec.push_back(msg.sender.name);
                 }
             }
+            member_id_set.clear();
+
             std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
             spdlog::info("Prepare batch add message storage data cost: {}ms",
                          std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
@@ -83,10 +86,8 @@ namespace bot_adapter {
                          std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
             auto embedding_map = adapter.group_member_name_embedding_map.get_or_emplace_value(
                 group.group_id, bot_adapter::GroupMemberNameEmbeddngMatrix{});
-            std::vector<qq_id_t> member_id_vec{std::make_move_iterator(member_id_set.begin()),
-                                               std::make_move_iterator(member_id_set.end())};
-            member_id_set.clear();
-            // TODO: need optim performance
+
+
             spdlog::info("Calculate group member name embedding matrix");
             start_time = std::chrono::high_resolution_clock::now();
             embedding_map->batch_add_member(member_id_vec, member_name_vec);
