@@ -19,6 +19,7 @@
 #include <spdlog/spdlog.h>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 namespace bot_adapter {
@@ -466,16 +467,19 @@ namespace bot_adapter {
                 return;
             }
 
-            // Filter out members that already exist
+            // Filter out members that already exist and deduplicate input
             std::vector<qq_id_t> new_member_ids;
             std::vector<std::string> new_member_names;
+            std::unordered_set<qq_id_t> seen_in_batch; // Track duplicates within this batch
             
             for (size_t i = 0; i < member_ids.size(); ++i) {
                 const qq_id_t member_id = member_ids[i];
                 const std::string &member_name = member_names[i];
-                if (!contain_member_ids.contains(member_id)) {
+                // Check both existing members and duplicates within current batch
+                if (!contain_member_ids.contains(member_id) && seen_in_batch.find(member_id) == seen_in_batch.end()) {
                     new_member_ids.push_back(member_id);
                     new_member_names.push_back(member_name);
+                    seen_in_batch.insert(member_id);
                 }
             }
 

@@ -10,8 +10,6 @@
 #include "easywsclient.hpp"
 #include "get_optional.hpp"
 #include "global_data.h"
-#include "neural_network/model_set.h"
-#include "neural_network/text_model.h"
 #include "nlohmann/json_fwd.hpp"
 #include "time_utils.h"
 #include "utils.h"
@@ -28,7 +26,6 @@
 #include <string_view>
 #include <thread>
 #include <unordered_map>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -58,7 +55,6 @@ namespace bot_adapter {
             std::vector<std::shared_ptr<MessageStorageEntry>> this_msg_entry_ptr_vec;
             this_msg_entry_ptr_vec.reserve(message_list.size());
 
-            std::unordered_set<qq_id_t> member_id_set;
             std::vector<qq_id_t> member_id_vec;
             std::vector<std::string> member_name_vec;
 
@@ -68,12 +64,9 @@ namespace bot_adapter {
                 this_msg_entry_ptr_vec.push_back(std::make_shared<MessageStorageEntry>(
                     msg_id, msg.sender.name, msg.sender.id, msg.send_time,
                     std::make_shared<MessageChainPtrList>(make_message_chain_list(PlainTextMessage(msg.content)))));
-                if (member_id_set.find(msg.sender.id) == member_id_set.end()) {
-                    member_id_vec.push_back(msg.sender.id);
-                    member_name_vec.push_back(msg.sender.name);
-                }
+                member_id_vec.push_back(msg.sender.id);
+                member_name_vec.push_back(msg.sender.name);
             }
-            member_id_set.clear();
 
             std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
             spdlog::info("Prepare batch add message storage data cost: {}ms",
@@ -86,7 +79,6 @@ namespace bot_adapter {
                          std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
             auto embedding_map = adapter.group_member_name_embedding_map.get_or_emplace_value(
                 group.group_id, bot_adapter::GroupMemberNameEmbeddngMatrix{});
-
 
             spdlog::info("Calculate group member name embedding matrix");
             start_time = std::chrono::high_resolution_clock::now();
@@ -737,17 +729,19 @@ namespace bot_adapter {
 
             group_wrapper_map.insert(std::make_pair(group_info.group_id, std::move(group_wrapper)));
 
-// #ifdef __USE_LIBTORCH__
-//             spdlog::info("计算member list的member name embedding matrix");
-//             std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
-//             auto member_name_embedding_matrix =
-//                 neural_network::get_model_set().text_embedding_model->embed(member_name_list);
-//             std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
-//             spdlog::info("计算member name embedding matrix cost: {}ms",
-//                          std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
-//             group_member_name_embedding_map.get_or_emplace_value(group_info.group_id,
-//                                                                  std::move(member_name_embedding_matrix));
-// #endif // __USE_LIBTORCH__
+            // #ifdef __USE_LIBTORCH__
+            //             spdlog::info("计算member list的member name embedding matrix");
+            //             std::chrono::high_resolution_clock::time_point start_time =
+            //             std::chrono::high_resolution_clock::now(); auto member_name_embedding_matrix =
+            //                 neural_network::get_model_set().text_embedding_model->embed(member_name_list);
+            //             std::chrono::high_resolution_clock::time_point end_time =
+            //             std::chrono::high_resolution_clock::now(); spdlog::info("计算member name embedding matrix
+            //             cost: {}ms",
+            //                          std::chrono::duration_cast<std::chrono::milliseconds>(end_time -
+            //                          start_time).count());
+            //             group_member_name_embedding_map.get_or_emplace_value(group_info.group_id,
+            //                                                                  std::move(member_name_embedding_matrix));
+            // #endif // __USE_LIBTORCH__
         }
         spdlog::info("Fetch group info list successed.");
         group_info_map = std::move(group_wrapper_map);
