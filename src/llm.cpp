@@ -438,19 +438,20 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &us
                             } else {
                                 std::string text;
                                 size_t total_length = 0;
-                                for (const auto &msg : msg_list) {
+                                std::vector<std::string> msg_texts;
+                                for (auto it = msg_list.crbegin(); it != msg_list.crend(); ++it) {
+                                    const auto &msg = *it;
                                     std::string msg_text = fmt::format(
                                         "[{}]'{}': '{}'", msg.sender_name, time_point_to_db_str(msg.send_time),
                                         bot_adapter::get_text_from_message_chain(*msg.message_chain_list));
                                     if (total_length + msg_text.length() > 3000) {
                                         break;
                                     }
-                                    if (!text.empty()) {
-                                        text += "\n";
-                                    }
-                                    text += msg_text;
+                                    msg_texts.insert(msg_texts.begin(), msg_text);
                                     total_length += msg_text.length();
                                 }
+                                
+                                text = join_str(msg_texts.cbegin(), msg_texts.cend(), "\n");
 
                                 content = fmt::format("'{}'群的最近消息:\n{}", group_sender->get().group.name, text);
                             }

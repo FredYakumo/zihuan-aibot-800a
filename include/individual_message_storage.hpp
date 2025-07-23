@@ -2,10 +2,12 @@
 
 #include "adapter_message.h"
 #include "constant_types.hpp"
-#include <cstdint>
+#include <algorithm>
 #include <general-wheel-cpp/collection/concurrent_unordered_map.hpp>
 #include <general-wheel-cpp/collection/concurrent_vector.hpp>
 #include <memory>
+#include <unordered_set>
+#include <vector>
 
 using bot_adapter::MessageStorageEntry;
 using MessageIdView = wheel::concurrent_unordered_map<qq_id_t, std::shared_ptr<MessageStorageEntry>>;
@@ -107,13 +109,37 @@ class IndividualMessageStorage {
             throw std::invalid_argument("IndividualMessageStorage::batch_add_message_to_individual_time_sequence_view()"
                                         ": mismatched vector sizes");
         }
+        
+        // Track individual_ids that need sorting
+        std::unordered_set<qq_id_t> modified_individuals;
+        
+        // Step 1: Add messages first
         time_sequence_view.modify_map([&](auto &map) {
             for (size_t i = 0; i < individual_ids.size(); ++i) {
                 auto [it, inserted] = map.try_emplace(individual_ids[i],
                                                       wheel::concurrent_vector<std::shared_ptr<MessageStorageEntry>>());
                 it->second.push_back(msg_entry_ptrs[i]);
+                modified_individuals.insert(individual_ids[i]);
             }
         });
+        
+        // Step 2: Sort each modified individual's messages separately
+        // This avoids holding the main map lock during sorting operations
+        for (const auto& individual_id : modified_individuals) {
+            auto individual_vector = time_sequence_view.find(individual_id);
+            if (individual_vector.has_value()) {
+                auto& msg_vector = individual_vector->get();
+                // Thread-safe access to underlying vector for sorting
+                msg_vector.modify_vector([](std::vector<std::shared_ptr<MessageStorageEntry>>& vec) {
+                    // Sort by send_time from oldest to newest
+                    std::sort(vec.begin(), vec.end(), 
+                        [](const std::shared_ptr<MessageStorageEntry>& a, 
+                           const std::shared_ptr<MessageStorageEntry>& b) {
+                            return a->send_time < b->send_time;
+                        });
+                });
+            }
+        }
     }
 
     /**
