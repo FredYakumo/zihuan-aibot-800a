@@ -1,15 +1,16 @@
 #pragma once
 #include "nn.h"
-#include <c10/core/Device.h>
 #include <string>
 #include <vector>
 
 #ifdef __USE_LIBTORCH__
 #include <torch/script.h>
+#include <c10/core/Device.h>
 #endif
 
 namespace neural_network {
-    constexpr size_t EMBEDDING_MAX_INPUT_LENGTH = 1024;
+    constexpr size_t EMBEDDING_MAX_INPUT_LENGTH = 512;
+    constexpr size_t EMBEDDING_OUTPUT_LENGTH = 1024;
 #ifdef __USE_ONNX_RUNTIME__
 
     class TextEmbeddingModel {
@@ -17,7 +18,7 @@ namespace neural_network {
         /**
          * @brief Construct a new Text Embedding Model object
          *
-         * @param model_path Path to onnx model
+         * @param model_path P`ath to onnx model
          * @param device Device to run model
          */
         TextEmbeddingModel(const std::string &model_path, Device device = Device::CPU);
@@ -239,7 +240,6 @@ namespace neural_network {
 
     struct TokenizerConfig {
         bool add_special_tokens = true;
-        bool is_padding = true;
         // [CLS]
         int32_t cls_token_id = 101;
         // [SEP]
@@ -269,8 +269,7 @@ namespace neural_network {
       public:
         TokenizerWrapper(std::shared_ptr<tokenizers::Tokenizer> tokenizer, TokenizerConfig config)
             : m_tokenizer(tokenizer), m_config(std::move(config)) {}
-        inline token_id_vec_with_mask_t encode(const std::string &text, std::optional<size_t> target_length = std::nullopt,
-                                     token_id_data_t padding_value = 0) const {
+        inline token_id_vec_with_mask_t encode(const std::string &text, std::optional<std::pair<size_t, token_id_data_t>> padding = std::nullopt) const {
             token_id_vec_t tokens = m_tokenizer->Encode(text);
 
             if (m_config.add_special_tokens) {
@@ -282,10 +281,10 @@ namespace neural_network {
             token_id_vec_t attention_mask(tokens.size(), 1);
             
             // Apply padding if enabled in config and target length is specified
-            if (m_config.is_padding && target_length && tokens.size() < *target_length) {
+            if (padding && tokens.size() < padding->first) {
                 size_t original_size = tokens.size();
-                tokens.resize(*target_length, padding_value);
-                attention_mask.resize(*target_length, 0); // Padding positions get 0 in attention mask
+                tokens.resize(padding->first, padding->second);
+                attention_mask.resize(padding->first, 0); // Padding positions get 0 in attention mask
             }
 
             return {tokens, attention_mask};

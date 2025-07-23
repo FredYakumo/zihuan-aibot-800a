@@ -22,7 +22,7 @@ namespace neural_network {
     using emb_vec_t = std::vector<float>;
     using emb_mat_t = std::vector<emb_vec_t>;
 
-    constexpr size_t DEFAULT_MAX_BATCH_SIZE = 1024;
+    constexpr size_t DEFAULT_MAX_BATCH_SIZE = 512;
     constexpr size_t COSINE_SIMILARITY_INPUT_EMB_SIZE = 1024;
 
 #ifdef __USE_ONNX_RUNTIME__

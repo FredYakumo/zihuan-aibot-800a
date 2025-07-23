@@ -16,6 +16,8 @@
 #include <string_view>
 #include <time_utils.h>
 #include <vector>
+#include <functional>
+#include <thread>
 
 namespace database {
     using mysqlx::SessionOption;
@@ -242,6 +244,51 @@ namespace database {
                 } catch (const mysqlx::Error &retry_e) {
                     spdlog::error("Failed to get table '{}' after schema refresh: {}", table_name, retry_e.what());
                     throw;
+                }
+            }
+        }
+
+        /**
+         * @brief Execute database operation with retry mechanism for connection issues
+         * @param operation Lambda function that performs the database operation
+         * @param operation_name Description of the operation for logging
+         * @param reset_table_cache Function to reset cached table references (optional)
+         */
+        template<typename Operation>
+        void execute_with_retry(Operation&& operation, const std::string& operation_name, 
+                               std::function<void()> reset_cache = [](){}) {
+            const int max_retries = 3;
+            int retry_count = 0;
+            
+            while (retry_count < max_retries) {
+                try {
+                    operation();
+                    return; // Success, exit the retry loop
+                } catch (const mysqlx::Error &e) {
+                    retry_count++;
+                    const std::string error_msg = e.what();
+                    
+                    // Check if this is a connection-related error that might benefit from retry
+                    const bool is_connection_error = error_msg.find("CDK Error") != std::string::npos ||
+                                                   error_msg.find("incorrect resume") != std::string::npos ||
+                                                   error_msg.find("Connection") != std::string::npos ||
+                                                   error_msg.find("timeout") != std::string::npos;
+                    
+                    if (is_connection_error && retry_count < max_retries) {
+                        spdlog::warn("{} failed (attempt {}/{}), retrying... Error: {}", 
+                                   operation_name, retry_count, max_retries, error_msg);
+                        
+                        // Reset cached table references to force reconnection
+                        reset_cache();
+                        
+                        // Small delay before retry
+                        std::this_thread::sleep_for(std::chrono::milliseconds(100 * retry_count));
+                        continue;
+                    } else {
+                        spdlog::error("{} error at MySQL X DevAPI Error (final attempt {}/{}): {}", 
+                                    operation_name, retry_count, max_retries, error_msg);
+                        break;
+                    }
                 }
             }
         }

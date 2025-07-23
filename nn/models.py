@@ -12,7 +12,8 @@ from transformers.pipelines import pipeline
 
 
 TEXT_EMBEDDING_DEFAULT_MODEL_NAME = "BAAI/bge-m3"
-TEXT_EMBEDDING_VEC_LENGTH = 1024
+TEXT_EMBEDDING_INPUT_LENGTH = 2048
+TEXT_EMBEDDING_OUTPUT_LENGTH = 1024
 
 def get_device() -> torch.device:
     device = torch.device("cpu")

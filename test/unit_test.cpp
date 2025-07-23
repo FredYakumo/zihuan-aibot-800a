@@ -226,31 +226,160 @@ TEST(ONNXRuntime, BatchTextEmbeddingInference) {
 
 #ifdef __USE_LIBTORCH__
 
-TEST(LibTorchMPS, TextEmbeddingPerformanceComparison) {
+TEST(LibTorchMPS, BatchVsSingleInferenceSpeedComparison) {
     neural_network::init_model_set(neural_network::Device::MPS);
     auto &model_set = neural_network::get_model_set();
     
     std::vector<std::string> test_texts;
     const std::vector<std::string> base_texts{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"};
-    for (int i = 0; i < 50; ++i) {
+    for (int i = 0; i < 5; ++i) {
         test_texts.insert(test_texts.end(), base_texts.begin(), base_texts.end());
     }
 
-    spdlog::info("Single");
+    spdlog::info("=== MPS Text Embedding Speed Comparison: Batch vs Single Inference ===");
+    spdlog::info("Total test texts: {}", test_texts.size());
+
+    spdlog::info("Testing single inference...");
     auto start_single = std::chrono::high_resolution_clock::now();
-    for (const auto &i : test_texts) {
-        model_set.text_embedding_model->embed(i);
+    for (const auto &text : test_texts) {
+        model_set.text_embedding_model->embed(text);
     }
     auto end_single = std::chrono::high_resolution_clock::now();
     auto duration_single = std::chrono::duration_cast<std::chrono::milliseconds>(end_single - start_single).count();
     spdlog::info("Single embedding total time: {} ms", duration_single);
 
-    spdlog::info("Batch");
+    spdlog::info("Testing batch inference...");
     auto start_batch = std::chrono::high_resolution_clock::now();
     model_set.text_embedding_model->embed(test_texts);
     auto end_batch = std::chrono::high_resolution_clock::now();
     auto duration_batch = std::chrono::duration_cast<std::chrono::milliseconds>(end_batch - start_batch).count();
     spdlog::info("Batch embedding total time: {} ms", duration_batch);
+
+    // 计算速度倍率
+    if (duration_batch > 0) {
+        float speed_ratio = static_cast<float>(duration_single) / duration_batch;
+        spdlog::info("=== Speed Comparison Results ===");
+        spdlog::info("Batch inference is {:.2f}x faster than single inference", speed_ratio);
+        spdlog::info("Performance improvement: {:.1f}%", (speed_ratio - 1.0f) * 100.0f);
+    } else {
+        spdlog::warn("Batch inference time too small to calculate meaningful ratio");
+    }
+}
+
+TEST(LibTorchPerformance, MPSVsCPUInferenceSpeedComparison) {
+    std::vector<std::string> test_texts;
+    const std::vector<std::string> base_texts{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"};
+    for (int i = 0; i < 10; ++i) {
+        test_texts.insert(test_texts.end(), base_texts.begin(), base_texts.end());
+    }
+
+    spdlog::info("=== MPS vs CPU Text Embedding Speed Comparison ===");
+    spdlog::info("Total test texts: {}", test_texts.size());
+
+    // ===================
+    // MPS Performance Test
+    // ===================
+    spdlog::info("=== Testing MPS Performance ===");
+    neural_network::init_model_set(neural_network::Device::MPS);
+    auto &mps_model_set = neural_network::get_model_set();
+
+    // MPS Single Inference
+    spdlog::info("MPS - Testing single inference...");
+    auto mps_start_single = std::chrono::high_resolution_clock::now();
+    for (const auto &text : test_texts) {
+        mps_model_set.text_embedding_model->embed(text);
+    }
+    auto mps_end_single = std::chrono::high_resolution_clock::now();
+    auto mps_duration_single = std::chrono::duration_cast<std::chrono::milliseconds>(mps_end_single - mps_start_single).count();
+    spdlog::info("MPS Single embedding total time: {} ms", mps_duration_single);
+
+    // MPS Batch Inference
+    spdlog::info("MPS - Testing batch inference...");
+    auto mps_start_batch = std::chrono::high_resolution_clock::now();
+    mps_model_set.text_embedding_model->embed(test_texts);
+    auto mps_end_batch = std::chrono::high_resolution_clock::now();
+    auto mps_duration_batch = std::chrono::duration_cast<std::chrono::milliseconds>(mps_end_batch - mps_start_batch).count();
+    spdlog::info("MPS Batch embedding total time: {} ms", mps_duration_batch);
+
+    // ===================
+    // CPU Performance Test
+    // ===================
+    spdlog::info("=== Testing CPU Performance ===");
+    neural_network::init_model_set(neural_network::Device::CPU);
+    auto &cpu_model_set = neural_network::get_model_set();
+
+    // CPU Single Inference
+    spdlog::info("CPU - Testing single inference...");
+    auto cpu_start_single = std::chrono::high_resolution_clock::now();
+    for (const auto &text : test_texts) {
+        cpu_model_set.text_embedding_model->embed(text);
+    }
+    auto cpu_end_single = std::chrono::high_resolution_clock::now();
+    auto cpu_duration_single = std::chrono::duration_cast<std::chrono::milliseconds>(cpu_end_single - cpu_start_single).count();
+    spdlog::info("CPU Single embedding total time: {} ms", cpu_duration_single);
+
+    // CPU Batch Inference
+    spdlog::info("CPU - Testing batch inference...");
+    auto cpu_start_batch = std::chrono::high_resolution_clock::now();
+    cpu_model_set.text_embedding_model->embed(test_texts);
+    auto cpu_end_batch = std::chrono::high_resolution_clock::now();
+    auto cpu_duration_batch = std::chrono::duration_cast<std::chrono::milliseconds>(cpu_end_batch - cpu_start_batch).count();
+    spdlog::info("CPU Batch embedding total time: {} ms", cpu_duration_batch);
+
+    // ===================
+    // Performance Analysis
+    // ===================
+    spdlog::info("=== Performance Comparison Results ===");
+    
+    // Single Inference Comparison
+    if (cpu_duration_single > 0) {
+        float single_speedup = static_cast<float>(cpu_duration_single) / mps_duration_single;
+        spdlog::info("Single Inference:");
+        spdlog::info("  MPS: {} ms", mps_duration_single);
+        spdlog::info("  CPU: {} ms", cpu_duration_single);
+        spdlog::info("  MPS is {:.2f}x {} than CPU", 
+                    single_speedup > 1.0f ? single_speedup : (1.0f / single_speedup),
+                    single_speedup > 1.0f ? "faster" : "slower");
+    }
+
+    // Batch Inference Comparison
+    if (cpu_duration_batch > 0) {
+        float batch_speedup = static_cast<float>(cpu_duration_batch) / mps_duration_batch;
+        spdlog::info("Batch Inference:");
+        spdlog::info("  MPS: {} ms", mps_duration_batch);
+        spdlog::info("  CPU: {} ms", cpu_duration_batch);
+        spdlog::info("  MPS is {:.2f}x {} than CPU", 
+                    batch_speedup > 1.0f ? batch_speedup : (1.0f / batch_speedup),
+                    batch_speedup > 1.0f ? "faster" : "slower");
+    }
+
+    // Batch vs Single Analysis for each device
+    spdlog::info("=== Batch vs Single Analysis ===");
+    
+    if (mps_duration_batch > 0) {
+        float mps_batch_ratio = static_cast<float>(mps_duration_single) / mps_duration_batch;
+        spdlog::info("MPS - Batch is {:.2f}x faster than single inference", mps_batch_ratio);
+    }
+    
+    if (cpu_duration_batch > 0) {
+        float cpu_batch_ratio = static_cast<float>(cpu_duration_single) / cpu_duration_batch;
+        spdlog::info("CPU - Batch is {:.2f}x faster than single inference", cpu_batch_ratio);
+    }
+
+    // Performance per text analysis
+    spdlog::info("=== Performance Per Text ===");
+    size_t text_count = test_texts.size();
+    if (text_count > 0) {
+        spdlog::info("Average time per text (single inference):");
+        spdlog::info("  MPS: {:.2f} ms/text", static_cast<float>(mps_duration_single) / text_count);
+        spdlog::info("  CPU: {:.2f} ms/text", static_cast<float>(cpu_duration_single) / text_count);
+        
+        spdlog::info("Average time per text (batch inference):");
+        spdlog::info("  MPS: {:.2f} ms/text", static_cast<float>(mps_duration_batch) / text_count);
+        spdlog::info("  CPU: {:.2f} ms/text", static_cast<float>(cpu_duration_batch) / text_count);
+    }
+
+    spdlog::info("MPS vs CPU performance comparison completed!");
 }
 
 
@@ -265,7 +394,7 @@ TEST(LibTorchMPS, LargeBatchTextEmbedding) {
         test_texts.insert(test_texts.end(), base_texts.begin(), base_texts.end());
     }
     auto start_batch = std::chrono::high_resolution_clock::now();
-    model_set.text_embedding_model->embed(test_texts);
+    model_set.text_embedding_model->embed(test_texts, 200);
     auto end_batch = std::chrono::high_resolution_clock::now();
     auto duration_batch = std::chrono::duration_cast<std::chrono::milliseconds>(end_batch - start_batch).count();
     spdlog::info("Batch embedding total time: {} ms", duration_batch);

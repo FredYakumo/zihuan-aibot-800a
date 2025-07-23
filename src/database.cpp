@@ -30,7 +30,7 @@ void DBConnection::insert_message(message_id_t message_id,
                                   const bot_adapter::Sender &sender,
                                   const std::chrono::system_clock::time_point send_time,
                                   const std::optional<std::set<uint64_t>> at_target_set) {
-    try {
+    execute_with_retry([&]() {
         const auto at_target_value = (at_target_set && !at_target_set->empty())
                                          ? wheel::join_str(std::cbegin(*at_target_set), std::cend(*at_target_set), ",",
                                                            [](const auto i) { return std::to_string(i); })
@@ -50,16 +50,16 @@ void DBConnection::insert_message(message_id_t message_id,
                 .execute();
         }
         spdlog::info("Insert message successed.");
-    } catch (const mysqlx::Error &e) {
-        spdlog::error("Insert message error at MySQL X DevAPI Error: {}", e.what());
-    }
+    }, "Insert message", [&]() {
+        message_record_table = std::nullopt;
+    });
 }
 
 void DBConnection::insert_tool_calls_record(const std::string &sender_name, qq_id_t sender_id,
                                             const std::string &origin_chat_session_view,
                                             const std::chrono::system_clock::time_point &send_time,
                                             const std::string &tool_calls, const std::string &tool_calls_content) {
-    try {
+    execute_with_retry([&]() {
         get_tool_calls_record_table()
             .insert("sender_name", "sender_id", "origin_chat_session_view", "send_time", "tool_calls",
                     "tool_calls_content")
@@ -67,9 +67,9 @@ void DBConnection::insert_tool_calls_record(const std::string &sender_name, qq_i
                     tool_calls_content)
             .execute();
         spdlog::info("Insert tool calls record successed.");
-    } catch (const mysqlx::Error &e) {
-        spdlog::error("Insert tool calls record error at MySQL X DevAPI Error: {}", e.what());
-    }
+    }, "Insert tool calls record", [&]() {
+        tool_calls_record_table = std::nullopt;
+    });
 }
 
 
@@ -131,7 +131,7 @@ void DBConnection::insert_or_update_user_preferences(
         return;
     }
 
-    try {
+    execute_with_retry([&]() {
         std::vector<std::string> user_ids;
         user_ids.reserve(user_preferences.size());
         for (const auto &pref_pair : user_preferences) {
@@ -161,22 +161,20 @@ void DBConnection::insert_or_update_user_preferences(
 
         spdlog::info("Batch insert or update of user preferences succeeded. Deleted: {}, Inserted: {}, Delta: {}",
                      deleted_count, inserted_count, (long long)inserted_count - (long long)deleted_count);
-    } catch (const mysqlx::Error &e) {
-        spdlog::error("Batch insert or update user preferences error at MySQL X DevAPI Error: {}", e.what());
-    }
+    }, "Batch insert or update user preferences");
 }
 
 void DBConnection::insert_user_protait(qq_id_t id, const std::string &protait,
                                        const std::chrono::system_clock::time_point &create_time, double favorability) {
-    try {
+    execute_with_retry([&]() {
         get_user_protait_table()
             .insert("user_id", "protait", "create_time", "favorability")
             .values(std::to_string(id), protait, time_point_to_db_str(create_time), favorability)
             .execute();
         spdlog::info("Insert user protait successed.");
-    } catch (const mysqlx::Error &e) {
-        spdlog::error("Insert user protait error at MySQL X DevAPI Error: {}", e.what());
-    }
+    }, "Insert user protait", [&]() {
+        user_protait_table = std::nullopt;
+    });
 }
 
 std::vector<MessageRecord>
@@ -220,7 +218,7 @@ void DBConnection::insert_user_protait(const std::vector<std::pair<qq_id_t, User
         return;
     }
 
-    try {
+    execute_with_retry([&]() {
         auto table = get_user_protait_table();
         auto insert = table.insert("user_id", "protait", "create_time", "favorability");
         for (const auto &protait_pair : user_protaits) {
@@ -231,7 +229,7 @@ void DBConnection::insert_user_protait(const std::vector<std::pair<qq_id_t, User
         auto inserted_count = insert_result.getAffectedItemsCount();
 
         spdlog::info("Batch insert of user protaits succeeded. Inserted: {}", inserted_count);
-    } catch (const mysqlx::Error &e) {
-        spdlog::error("Batch insert user protaits error at MySQL X DevAPI Error: {}", e.what());
-    }
+    }, "Batch insert user protaits", [&]() {
+        user_protait_table = std::nullopt;
+    });
 }
