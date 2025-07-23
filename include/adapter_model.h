@@ -585,7 +585,7 @@ namespace bot_adapter {
 
         FriendInfo(const nlohmann::json &friend_info)
             : id(get_optional<qq_id_t>(friend_info, "id").value_or(0)),
-              name(get_optional<std::string>(friend_info, "name").value_or("")),
+              name(get_optional<std::string>(friend_info, "nickname").value_or("")),
               remark(get_optional<std::string>(friend_info, "remark")) {}
     };
 } // namespace bot_adapter
