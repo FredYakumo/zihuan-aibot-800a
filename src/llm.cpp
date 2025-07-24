@@ -152,7 +152,7 @@ std::string query_chat_session_knowledge(const bot_cmd::CommandContext &context,
             continue;
         }
 
-        session_knowledge_set->insert(fmt::format("{}", knowledge.value));
+        session_knowledge_set->insert(fmt::format("{}:{}", knowledge.key, knowledge.value));
     }
 
     size_t total_len = 0;
