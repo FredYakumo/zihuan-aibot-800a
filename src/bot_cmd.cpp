@@ -8,6 +8,7 @@
 #include "msg_prop.h"
 #include "rag.h"
 #include "utils.h"
+#include "vec_db/weaviate.h"
 #include <charconv>
 #include <chrono>
 #include <exception>
@@ -44,7 +45,7 @@ namespace bot_cmd {
 
     CommandRes query_knowledge_command(CommandContext context) {
         std::string res{};
-        const auto query_msg = rag::query_knowledge(context.param);
+        const auto query_msg = vec_db::query_knowledge_from_vec_db(context.param, 0.7f);
         if (query_msg.empty()) {
             context.adapter.send_replay_msg(*context.event->sender_ptr,
                                             bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(

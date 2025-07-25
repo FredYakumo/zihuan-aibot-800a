@@ -6,7 +6,8 @@
 #include "get_optional.hpp"
 #include "neural_network/model_set.h"
 #include "neural_network/nn.h"
-#include "neural_network/text_model.h"
+#include "neural_network/text_model/text_embedding_with_mean_pooling_model.h"
+#include "neural_network/text_model/tokenizer_wrapper.h"
 #include <chrono>
 #include <general-wheel-cpp/collection/concurrent_vector.hpp>
 #include <cstdint>

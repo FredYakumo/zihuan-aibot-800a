@@ -12,34 +12,44 @@
 
 namespace vec_db {
     std::string graphql_query(const std::string_view schema, const neural_network::emb_vec_t &emb,
-                              float certainty_threshold, size_t top_k) {
-        return fmt::format(
+                              float certainty_threshold, std::optional<size_t> top_k) {
+        std::string query_base = fmt::format(
             R"({{
                     Get{{
                         {}(
                     nearVector: {{
                         vector: [{}],
                         certainty: {}
-                    }}
-                    limit: {}
-                    ) {{
+                    }})",
+            "AIBot_knowledge",
+            wheel::join_str(std::cbegin(emb), std::cend(emb), ",", [](auto v) { return std::to_string(v); }),
+            certainty_threshold);
+        
+        if (top_k.has_value()) {
+            query_base += fmt::format(
+                R"(
+                    limit: {})",
+                top_k.value());
+        }
+        
+        query_base += R"(
+                    ) {
                         key
                         value
                         creator_name
                         create_time
-                        _additional {{
+                        _additional {
                             certainty
-                        }}
-                    }}
-            }}
-        }})",
-            "AIBot_knowledge",
-            wheel::join_str(std::cbegin(emb), std::cend(emb), ",", [](auto v) { return std::to_string(v); }),
-            certainty_threshold, top_k);
+                        }
+                    }
+            }
+        })";
+        
+        return query_base;
     }
 
     std::vector<DBKnowledge> query_knowledge_from_vec_db(const std::string_view query, float certainty_threshold,
-                                                         size_t top_k) {
+                                                         std::optional<size_t> top_k) {
         std::vector<DBKnowledge> results;
         if (query.empty()) {
             return results; // Return empty if query is empty

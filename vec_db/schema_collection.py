@@ -16,12 +16,14 @@ class Knowledge(BaseModel):
     value: str
     create_time: datetime.datetime | None
     creator_name: str
+    vector_source: str  # "key" or "value" to indicate which field was used for vectorization
     
 class VecDBKnowledge(BaseModel):
     key: str
     value: str
     create_time: datetime.datetime | None
     creator_name: str
+    vector_source: str
     certainty: float
 
 default_knowledge_schema_name = "AIBotKnowledge"
@@ -47,12 +49,17 @@ def create_knowledge_schema(client: WeaviateClient, schema_name: str = config.kn
         },
         "properties": [
             {
-                "name": "key",
+                "name": "knowledge_class_filter",
                 "dataType": ["string"],
+                "description": "知识筛选类别"
+            },
+            {
+                "name": "keyword",
+                "dataType": ["string[]"],
                 "description": "知识键"
             },
             {
-                "name": "value",
+                "name": "content",
                 "dataType": ["text"],
                 "description": "知识值"
             },

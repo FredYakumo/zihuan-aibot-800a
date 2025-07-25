@@ -78,7 +78,8 @@ namespace database {
       public:
         DBConnection(const std::string &host, unsigned port, const std::string &user, const std::string &password,
                      const std::string_view schema = DEFAULT_MYSQL_SCHEMA_NAME)
-            : session(SessionOption::HOST, host, SessionOption::PORT, port, SessionOption::USER, user,
+            : m_host(host), m_port(port), m_user(user), m_password(password), m_schema_name(schema),
+              session(SessionOption::HOST, host, SessionOption::PORT, port, SessionOption::USER, user,
                       SessionOption::PWD, password, SessionOption::DB, std::string(schema)),
               schema(session.getSchema(std::string(schema), true)) {}
 
@@ -221,11 +222,47 @@ namespace database {
                                                             size_t count_limit = 10);
 
       private:
+        // Connection parameters for reconnection
+        std::string m_host;
+        unsigned m_port;
+        std::string m_user;
+        std::string m_password;
+        std::string m_schema_name;
+        
         mysqlx::Session session;
         mysqlx::Schema schema;
         std::optional<mysqlx::Table> message_record_table = std::nullopt;
         std::optional<mysqlx::Table> tool_calls_record_table = std::nullopt;
         std::optional<mysqlx::Table> user_protait_table = std::nullopt;
+
+        /**
+         * @brief Reconnect to the database with fresh session and schema
+         * This method is used when connection errors occur that cannot be resolved by schema refresh
+         */
+        void reconnect() {
+            try {
+                spdlog::info("Attempting to reconnect to database...");
+                
+                // Create new session using placement new
+                session.~Session();
+                new (&session) mysqlx::Session(SessionOption::HOST, m_host, SessionOption::PORT, m_port, 
+                                             SessionOption::USER, m_user, SessionOption::PWD, m_password, 
+                                             SessionOption::DB, m_schema_name);
+                
+                // Create new schema
+                schema = session.getSchema(m_schema_name, true);
+                
+                // Reset all cached table references
+                message_record_table = std::nullopt;
+                tool_calls_record_table = std::nullopt;
+                user_protait_table = std::nullopt;
+                
+                spdlog::info("Database reconnection successful");
+            } catch (const mysqlx::Error &e) {
+                spdlog::error("Failed to reconnect to database: {}", e.what());
+                throw;
+            }
+        }
 
         /**
          * @brief Generic table retrieval method with retry mechanism for handling connection issues
@@ -236,14 +273,32 @@ namespace database {
             try {
                 return schema.getTable(table_name, true);
             } catch (const mysqlx::Error &e) {
-                spdlog::error("Failed to get table '{}': {}. Attempting to refresh schema...", table_name, e.what());
+                const std::string error_msg = e.what();
+                spdlog::error("Failed to get table '{}': {}. Attempting to refresh schema...", table_name, error_msg);
+                
                 try {
-                    // Refresh schema to handle potential session issues
-                    schema = session.getSchema(schema.getName(), true);
+                    // First try schema refresh
+                    schema = session.getSchema(m_schema_name, true);
                     return schema.getTable(table_name, true);
                 } catch (const mysqlx::Error &retry_e) {
-                    spdlog::error("Failed to get table '{}' after schema refresh: {}", table_name, retry_e.what());
-                    throw;
+                    const std::string retry_error_msg = retry_e.what();
+                    spdlog::error("Failed to get table '{}' after schema refresh: {}. Attempting full reconnection...", 
+                                table_name, retry_error_msg);
+                    
+                    // If schema refresh fails and error is connection-related, try full reconnection
+                    if (retry_error_msg.find("incorrect resume") != std::string::npos ||
+                        retry_error_msg.find("CDK Error") != std::string::npos) {
+                        try {
+                            reconnect();
+                            return schema.getTable(table_name, true);
+                        } catch (const mysqlx::Error &reconnect_e) {
+                            spdlog::error("Failed to get table '{}' after full reconnection: {}", 
+                                        table_name, reconnect_e.what());
+                            throw;
+                        }
+                    } else {
+                        throw;
+                    }
                 }
             }
         }
@@ -278,10 +333,21 @@ namespace database {
                         spdlog::warn("{} failed (attempt {}/{}), retrying... Error: {}", 
                                    operation_name, retry_count, max_retries, error_msg);
                         
+                        // For "incorrect resume" errors, try full reconnection first
+                        if (error_msg.find("incorrect resume") != std::string::npos) {
+                            try {
+                                spdlog::info("Attempting full database reconnection for '{}'", operation_name);
+                                reconnect();
+                            } catch (const mysqlx::Error &reconnect_e) {
+                                spdlog::error("Reconnection failed for '{}': {}", operation_name, reconnect_e.what());
+                                // Continue to normal retry logic
+                            }
+                        }
+                        
                         // Reset cached table references to force reconnection
                         reset_cache();
                         
-                        // Small delay before retry
+                        // Progressive delay before retry
                         std::this_thread::sleep_for(std::chrono::milliseconds(100 * retry_count));
                         continue;
                     } else {

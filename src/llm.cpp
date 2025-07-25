@@ -14,11 +14,11 @@
 #include "rag.h"
 #include "user_protait.h"
 #include "utils.h"
+#include "vec_db/weaviate.h"
 #include <chrono>
 #include <cpr/cpr.h>
 #include <cstdint>
 #include <deque>
-#include <fstream>
 #include <general-wheel-cpp/markdown_utils.h>
 #include <general-wheel-cpp/string_utils.hpp>
 #include <iterator>
@@ -46,48 +46,44 @@ inline std::string get_permission_chs(const std::string_view perm) {
 }
 
 std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot_adapter::BotAdapter &adapter,
-                              const bot_adapter::Sender &sender, bool is_deep_think) {
+                              const bot_adapter::Sender &sender, bool is_deep_think,
+                              const std::optional<std::string> additional_system_prompt_option = std::nullopt) {
     const std::optional<std::string> &custom_prompt_option =
         (is_deep_think && config.custom_deep_think_system_prompt_option.has_value())
             ? config.custom_deep_think_system_prompt_option
             : config.custom_system_prompt_option;
+    std::string ret;
     if (const auto &group_sender = bot_adapter::try_group_sender(sender); group_sender.has_value()) {
         std::string permission = get_permission_chs(group_sender->get().permission);
         std::string bot_perm =
             get_permission_chs(adapter.get_group(group_sender->get().group.id).group_info.bot_in_group_permission);
         if (custom_prompt_option.has_value()) {
-            return fmt::format(
-                "你是一个'{}'群里的{},你的名字是{}(qq号{}),性别是:"
-                "{}。{}。当前时间是{}且不存在时区不同问题。当前跟你聊天的群友的名字叫\"{}\"(qq号{}),身份是{}"
-                "。以下发送信息都是来自群友\"{}\"",
-                group_sender->get().group.name, bot_perm, bot_profile.name, bot_profile.id,
-                bot_adapter::to_chs_string(bot_profile.sex), *custom_prompt_option, get_current_time_formatted(),
-                sender.name, sender.id, permission, sender.name);
+            ret = fmt::format("{}你是一个'{}'群里的{},你的名字是'{}'(qq号{}),性别是:{}"
+                              "你正在群里聊天,你需要生成发送的文本,如: 你好.",
+                              custom_prompt_option.value(), group_sender->get().group.name, bot_perm, bot_profile.name,
+                              bot_profile.id, bot_adapter::to_chs_string(bot_profile.sex));
         } else {
-            return fmt::format("你是一个'{}'群里的{},你的名字是{}(qq号{}),性别是:"
-                               "{}。当前时间是{}且不存在时区不同问题。当前跟你聊天的群友的名字叫\"{}\"(qq号{}),身份是{}"
-                               "。以下发送信息都是来自群友\"{}\"",
-                               group_sender->get().group.name, bot_perm, bot_profile.name, bot_profile.id,
-                               bot_adapter::to_chs_string(bot_profile.sex), get_current_time_formatted(), sender.name,
-                               sender.id, permission, sender.name);
+            ret = fmt::format("你是一个'{}'群里的{},你的名字是'{}'(qq号{}),性别是:{}"
+                              "你正在群里聊天,你需要生成发送的文本,如: 你好",
+                              group_sender->get().group.name, bot_perm, bot_profile.name, bot_profile.id,
+                              bot_adapter::to_chs_string(bot_profile.sex));
         }
-
     } else {
         if (custom_prompt_option.has_value()) {
-            return fmt::format("你的名字是{}(qq号{}),性别是:"
-                               "{}。{}。当前时间是{}且不存在时区不同问题。当前跟你聊天的好友的名字叫\"{}\"(qq号{})"
-                               "。以下发送信息都是来自好友\"{}\"",
-                               bot_profile.name, bot_profile.id, bot_adapter::to_chs_string(bot_profile.sex),
-                               *custom_prompt_option, get_current_time_formatted(), sender.name, sender.id,
-                               sender.name);
+            ret = fmt::format("{}你是'{}'(qq号{}),性别是:{}"
+                              "你正在与好友聊天,你需要生成发送的文本,如: 你好",
+                              custom_prompt_option.value(), bot_profile.name, bot_profile.id,
+                              bot_adapter::to_chs_string(bot_profile.sex));
         } else {
-            return fmt::format("你的名字是{}(qq号{}),性别是:"
-                               "{}。当前时间是{}且不存在时区不同问题。当前跟你聊天的好友的名字叫\"{}\"(qq号{})"
-                               "。以下发送信息都是来自好友\"{}\"",
-                               bot_profile.name, bot_profile.id, bot_adapter::to_chs_string(bot_profile.sex),
-                               get_current_time_formatted(), sender.name, sender.id, sender.name);
+            ret = fmt::format("你是'{}'(qq号{}),性别是:{}"
+                              "你正在与好友聊天,你需要生成发送的文本,如: 你好",
+                              bot_profile.name, bot_profile.id, bot_adapter::to_chs_string(bot_profile.sex));
         }
     }
+    if (additional_system_prompt_option.has_value()) {
+        ret += additional_system_prompt_option.value();
+    }
+    return ret;
 }
 
 struct LLMResponse {
@@ -137,64 +133,6 @@ std::optional<ChatMessage> get_llm_response(const nlohmann::json &msg_json, bool
     return std::nullopt;
 }
 
-std::string query_chat_session_knowledge(const bot_cmd::CommandContext &context,
-                                         const std::string_view &msg_content_str) {
-    // Search knowledge for this chat message
-    spdlog::info("Search knowledge for this chat message");
-    auto msg_knowledge_list = rag::query_knowledge(msg_content_str);
-    std::string chat_use_knowledge_str;
-    if (!g_chat_session_knowledge_list_map.contains(context.event->sender_ptr->id)) {
-        g_chat_session_knowledge_list_map.insert_or_assign(context.event->sender_ptr->id, std::set<std::string>());
-    }
-    auto session_knowledge_set{g_chat_session_knowledge_list_map.find(context.event->sender_ptr->id).value()};
-    for (const auto &knowledge : msg_knowledge_list) {
-        if (knowledge.value.empty()) {
-            continue;
-        }
-
-        session_knowledge_set->insert(fmt::format("{}:{}", knowledge.key, knowledge.value));
-    }
-
-    size_t total_len = 0;
-    auto it = session_knowledge_set->rbegin();
-    while (it != session_knowledge_set->rend() && total_len < MAX_KNOWLEDGE_LENGTH) {
-        total_len += it->length();
-        ++it;
-    }
-
-    // Remove entries that exceed the limit
-    if (it != session_knowledge_set->rend()) {
-        spdlog::info("{}({})的对话session知识数量超过限制, 删除'{}'之前的知识内容", context.event->sender_ptr->name,
-                     context.event->sender_ptr->id, *it);
-        session_knowledge_set->erase(session_knowledge_set->begin(), it.base());
-    }
-
-    if (session_knowledge_set->empty()) {
-        spdlog::info("未查询到对话关联的知识");
-        return chat_use_knowledge_str;
-    }
-    chat_use_knowledge_str.append("相关的知识:\"");
-    chat_use_knowledge_str.append(
-        join_str(std::cbegin(*session_knowledge_set), std::cend(*session_knowledge_set), "."));
-    chat_use_knowledge_str.append("\"");
-
-    // Search knowledge for username
-    // spdlog::info("Search knowledge for username");
-    // auto sender_name_knowledge_list = rag::query_knowledge(context.e->sender_ptr->name, true);
-    // std::string sender_name_knowledge_str;
-    // if (sender_name_knowledge_list.empty()) {
-    //     spdlog::info("未查询到用户关联的知识");
-    // } else {
-    //     sender_name_knowledge_str = "与你聊天用户相关的信息:\"";
-    //     sender_name_knowledge_str.append(join_str(std::cbegin(sender_name_knowledge_list),
-    //                                               std::cend(sender_name_knowledge_list), "\n",
-    //                                               [](const auto &knowledge) { return knowledge.content; }));
-    //     sender_name_knowledge_str.append("\"");
-    // }
-
-    return chat_use_knowledge_str;
-}
-
 void insert_tool_call_record_async(const std::string &sender_name, qq_id_t sender_id, const nlohmann::json &msg_json,
                                    const std::string &func_name, const std::string &func_arguments,
                                    const std::string &tool_content) {
@@ -242,8 +180,47 @@ std::string get_target_group_chat_history(const bot_adapter::BotAdapter &adapter
     }
 }
 
-void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &user_asking_content,
-                   const std::optional<std::string> &additional_system_prompt_option,
+/**
+ * @brief Converts a system prompt and a message list into a JSON format.
+ *
+ * This function converts a system prompt and a message list into a JSON array.
+ * The first element of the array is the system prompt, and the subsequent elements
+ * are the messages from the message list. Each message contains two fields: "role" and "content".
+ *
+ * @param msg_list The message list, of type std::deque<ChatMessage>.
+ * @param system_prompt_option The system prompt content, of type std::optional<std::string_view>.
+ * @return nlohmann::json Returns a JSON array containing the system prompt and the message list.
+ */
+inline nlohmann::json msg_list_to_json(const std::deque<ChatMessage> &msg_list,
+                                       const std::optional<std::string_view> system_prompt_option = std::nullopt) {
+    nlohmann::json msg_json = nlohmann::json::array();
+    if (system_prompt_option.has_value()) {
+        msg_json.push_back(nlohmann::json{{"role", "system"}, {"content", system_prompt_option.value()}});
+    }
+
+    for (const auto &msg : msg_list) {
+        nlohmann::json msg_entry = msg.to_json();
+        spdlog::info("msg_entry: {}", msg_entry.dump());
+        msg_json.push_back(std::move(msg_entry));
+    }
+
+    return msg_json;
+}
+
+inline nlohmann::json &add_to_msg_json(nlohmann::json &msg_json, ChatMessage msg) {
+    msg_json.push_back(msg.to_json());
+    return msg_json;
+}
+
+inline nlohmann::json get_msg_json(const qq_id_t id, std::string name,
+                                   const std::optional<std::string> &system_prompt_option = std::nullopt) {
+    auto session = g_chat_session_map.get_or_create_value(
+        id, [name = std::move(name)]() mutable { return ChatSession(std::move(name)); });
+    return msg_list_to_json(session->message_list, system_prompt_option);
+}
+
+void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &llm_content,
+                   const std::string &system_prompt,
                    const std::optional<database::UserPreference> &user_preference_option) {
     spdlog::debug("Event type: {}, Sender json: {}", context.event->get_typename(),
                   context.event->sender_ptr->to_json().dump());
@@ -263,18 +240,9 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &us
             false);
     }
 
-    auto system_prompt =
-        gen_common_prompt(bot_profile, context.adapter, *context.event->sender_ptr, context.is_deep_think);
+    auto msg_json = get_msg_json(context.event->sender_ptr->id, context.event->sender_ptr->name, system_prompt);
 
-    system_prompt += "\n" + query_chat_session_knowledge(context, user_asking_content);
-
-    if (additional_system_prompt_option.has_value()) {
-        system_prompt += additional_system_prompt_option.value();
-    }
-
-    auto msg_json = get_msg_json(system_prompt, context.event->sender_ptr->id, context.event->sender_ptr->name);
-
-    auto user_chat_msg = ChatMessage(ROLE_USER, user_asking_content);
+    auto user_chat_msg = ChatMessage(ROLE_USER, llm_content);
     add_to_msg_json(msg_json, user_chat_msg);
 
     std::vector<ChatMessage> one_chat_session;
@@ -310,7 +278,7 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &us
                                  func_calls.id, query.value_or(EMPTY_JSON_STR_VALUE), include_date);
 
                 std::string content;
-                const auto knowledge_list = rag::query_knowledge(*query);
+                const auto knowledge_list = vec_db::query_knowledge_from_vec_db(*query, 0.7f);
                 for (const auto &knowledge : knowledge_list)
                     content += fmt::format("{}\n", knowledge.value);
 
@@ -450,7 +418,7 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &us
                                     msg_texts.insert(msg_texts.begin(), msg_text);
                                     total_length += msg_text.length();
                                 }
-                                
+
                                 text = join_str(msg_texts.cbegin(), msg_texts.cend(), "\n");
 
                                 content = fmt::format("'{}'群的最近消息:\n{}", group_sender->get().group.name, text);
@@ -582,7 +550,8 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &us
 
                 tool_call_msg = ChatMessage(ROLE_TOOL, content, func_calls.id);
             } else if (func_calls.name == "get_function_list") {
-                tool_call_msg = ChatMessage(ROLE_TOOL, fmt::format("可用功能/函数列表: {}", bot_cmd::get_available_commands()), func_calls.id);
+                tool_call_msg = ChatMessage(
+                    ROLE_TOOL, fmt::format("可用功能/函数列表: {}", bot_cmd::get_available_commands()), func_calls.id);
             } else {
                 spdlog::error("Function {} is not impl.", func_calls.name);
                 tool_call_msg = ChatMessage(ROLE_TOOL,
@@ -669,11 +638,19 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &us
     }
 
     spdlog::info("Prepare to send msg response");
-
     context.adapter.send_long_plain_text_reply(
         *context.event->sender_ptr, replay_content, true, MAX_OUTPUT_LENGTH,
-        [context, user_asking_content, replay_content](uint64_t message_id) {
-            auto input_emb = neural_network::get_model_set().text_embedding_model->embed(user_asking_content);
+        [context, replay_content](uint64_t message_id) {
+            std::string mixed_input_content;
+            if (context.msg_prop.ref_msg_content != nullptr && !context.msg_prop.ref_msg_content->empty()) {
+                mixed_input_content.append(fmt::format("\"{}\"引用了一个消息: \"{}\",", context.event->sender_ptr->name,
+                                                       *context.msg_prop.ref_msg_content));
+            }
+            if (context.msg_prop.plain_content != nullptr && !context.msg_prop.plain_content->empty()) {
+                mixed_input_content.append(fmt::format("\n{}", *context.msg_prop.plain_content));
+            }
+
+            auto input_emb = neural_network::get_model_set().text_embedding_model->embed(mixed_input_content);
             auto llm_output_emb = neural_network::get_model_set().text_embedding_model->embed(replay_content);
             if (const auto &group_sender = bot_adapter::try_group_sender(*context.event->sender_ptr)) {
                 database::get_global_db_connection().insert_message(
@@ -684,6 +661,7 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &us
                             context.adapter.get_group(group_sender->get().group.id).group_info.bot_in_group_permission),
                         std::nullopt, std::chrono::system_clock::now(), group_sender->get().group),
                     std::chrono::system_clock::now(), std::set<uint64_t>{context.event->sender_ptr->id});
+
             } else {
                 database::get_global_db_connection().insert_message(
                     message_id, replay_content,
@@ -714,20 +692,60 @@ void process_llm(const bot_cmd::CommandContext &context,
     spdlog::debug("Event type: {}, Sender json: {}", context.event->get_typename(),
                   context.event->sender_ptr->to_json().dump());
 
-    std::string msg_content_str{};
+    std::string llm_content{};
     if (context.msg_prop.ref_msg_content != nullptr && !context.msg_prop.ref_msg_content->empty()) {
-        msg_content_str.append(fmt::format("\"{}\"引用了一个消息: \"{}\",", context.event->sender_ptr->name,
-                                           *context.msg_prop.ref_msg_content));
+        llm_content.append(fmt::format("\"{}\"引用了一个消息: \"{}\",", context.event->sender_ptr->name,
+                                       *context.msg_prop.ref_msg_content));
+    }
+    if (!context.msg_prop.at_id_set.empty() &&
+        !(context.msg_prop.at_id_set.size() == 1 &&
+          *context.msg_prop.at_id_set.begin() == context.adapter.get_bot_profile().id)) {
+        llm_content.append("本消息提到了：");
+        bool first = true;
+        for (const auto &at_id : context.msg_prop.at_id_set) {
+            if (!first) {
+                llm_content.append("、");
+            }
+            llm_content.append(fmt::format("{}", at_id));
+            first = false;
+        }
+        llm_content.append("。");
     }
     if (context.msg_prop.plain_content != nullptr && !context.msg_prop.plain_content->empty()) {
-        msg_content_str.append(
-            fmt::format("\"{}\":\"{}\"", context.event->sender_ptr->name, *context.msg_prop.plain_content));
+        if (auto group_sender = bot_adapter::try_group_sender(*context.event->sender_ptr); group_sender.has_value()) {
+            llm_content.append(fmt::format("{}\"{}\"({})[{}]发送了: \"{}\"",
+                                           get_permission_chs(group_sender->get().permission), group_sender->get().name,
+                                           context.event->sender_ptr->id, get_current_time_formatted(),
+                                           *context.msg_prop.plain_content));
+        } else {
+            llm_content.append(fmt::format("\"{}\"({})[{}]发送了: \"{}\"", context.event->sender_ptr->name,
+                                           context.event->sender_ptr->id, get_current_time_formatted(),
+                                           *context.msg_prop.plain_content));
+        }
+    }
+    std::string mixed_input_content;
+    if (context.msg_prop.ref_msg_content != nullptr && !context.msg_prop.ref_msg_content->empty()) {
+        mixed_input_content.append(fmt::format("\"{}\"引用了一个消息: \"{}\",", context.event->sender_ptr->name,
+                                               *context.msg_prop.ref_msg_content));
+    }
+    if (context.msg_prop.plain_content != nullptr && !context.msg_prop.plain_content->empty()) {
+        mixed_input_content.append(fmt::format("{}", *context.msg_prop.plain_content));
+    }
+    auto session_knowledge_opt = rag::query_knowledge(mixed_input_content, false, context.event->sender_ptr->id,
+                                                      context.event->sender_ptr->name);
+    std::string system_prompt =
+        gen_common_prompt(context.adapter.get_bot_profile(), context.adapter, *context.event->sender_ptr,
+                          context.is_deep_think, additional_system_prompt_option);
+
+    // Add session knowledge to system prompt if available
+    if (session_knowledge_opt.has_value()) {
+        system_prompt += "\n" + session_knowledge_opt.value();
     }
 
-    spdlog::info("作为用户输入给llm的content: {}", msg_content_str);
+    spdlog::info("作为用户输入给llm的content: {}", llm_content);
 
-    auto llm_thread = std::thread([context, msg_content_str, additional_system_prompt_option, user_preference_option] {
-        on_llm_thread(context, msg_content_str, additional_system_prompt_option, user_preference_option);
+    auto llm_thread = std::thread([context, llm_content, system_prompt, user_preference_option] {
+        on_llm_thread(context, llm_content, system_prompt, user_preference_option);
     });
 
     llm_thread.detach();

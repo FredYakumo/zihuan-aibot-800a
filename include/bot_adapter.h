@@ -9,7 +9,8 @@
 #include "constants.hpp"
 #include "database.h"
 #include "get_optional.hpp"
-#include "neural_network/text_model.h"
+#include "neural_network/text_model/text_embedding_with_mean_pooling_model.h"
+#include "neural_network/text_model/tokenizer_wrapper.h"
 #include <general-wheel-cpp/collection/concurrent_unordered_map.hpp>
 #include <cstdint>
 #include <easywsclient.hpp>
