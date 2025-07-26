@@ -2,6 +2,7 @@
 #include "neural_network/nn.h"
 #include "neural_network/text_model/text_embedding_model.h"
 #include "neural_network/text_model/text_embedding_with_mean_pooling_model.h"
+#include "neural_network/text_model/ltp_model.h"
 #include "neural_network/text_model/tokenizer_wrapper.h"
 #include <chrono>
 #include <exception>
@@ -11,9 +12,11 @@
 #ifdef __USE_ONNX_RUNTIME__
 constexpr const char *TEXT_EMBEDDING_MEAN_POOLING_MODEL_PATH = "exported_model/text_embedding_mean_pooling.onnx";
 constexpr const char *COSINE_SIMILARITY_MODEL_PATH = "exported_model/cosine_sim.onnx";
+constexpr const char *LTP_MODEL_PATH = "exported_model/ltp_model.onnx";
 #elif defined(__USE_LIBTORCH__)
 constexpr const char *TEXT_EMBEDDING_MEAN_POOLING_MODEL_PATH = "exported_model/text_embedding_mean_pooling.pt";
 constexpr const char *COSINE_SIMILARITY_MODEL_PATH = "exported_model/cosine_sim.pt";
+constexpr const char *LTP_MODEL_PATH = "exported_model/ltp_model.pt";
 #endif
 
 namespace neural_network {
@@ -41,6 +44,20 @@ namespace neural_network {
         duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
         spdlog::info("Loading cosine similarity model from {} successfully in {} ms", COSINE_SIMILARITY_MODEL_PATH,
                      duration.count());
+
+        // Initialize LTP model
+        start_time = std::chrono::high_resolution_clock::now();
+        try {
+            this->ltp_model = std::make_unique<neural_network::LTPModel>(LTP_MODEL_PATH, device);
+            end_time = std::chrono::high_resolution_clock::now();
+            duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+            spdlog::info("Loading LTP model from {} successfully in {} ms", LTP_MODEL_PATH, duration.count());
+        } catch (const std::exception& e) {
+            spdlog::warn("Failed to load LTP model from {}: {}", LTP_MODEL_PATH, e.what());
+            spdlog::info("LTP model will use fallback mode");
+            // Still create the model in fallback mode
+            this->ltp_model = std::make_unique<neural_network::LTPModel>("", device);
+        }
     }
 
     std::unique_ptr<ModelSet> model_set = nullptr;

@@ -1,6 +1,7 @@
 #include "net.h"
 #include "neural_network/text_model/text_embedding_model.h"
 #include "neural_network/text_model/text_embedding_with_mean_pooling_model.h"
+#include "neural_network/text_model/ltp_model.h"
 #include "neural_network/text_model/tokenizer_wrapper.h"
 #include "neural_network/model_set.h"
 #include "utils.h"
@@ -993,6 +994,155 @@ TEST(LibTorchAccuracy, TokenEmbeddingBatchVsIndividualConsistency) {
                  static_cast<float>(individual_duration) / batch_duration);
 }
 
+// LTP Model Tests
+TEST(LTPModel, BasicFunctionality) {
+    spdlog::info("=== LTP Model Basic Functionality Test ===");
+    
+    try {
+        // Test LTP model creation with fallback mode
+        neural_network::LTPModel ltp_model("", neural_network::Device::CPU);
+        
+        // Test Chinese text processing
+        std::string test_text = "我爱中国，北京是中国的首都。";
+        spdlog::info("Testing text: {}", test_text);
+        
+        // Test word segmentation
+        auto words = ltp_model.word_segmentation(test_text);
+        spdlog::info("Word segmentation result:");
+        for (size_t i = 0; i < words.size(); ++i) {
+            spdlog::info("  [{}]: {}", i, words[i]);
+        }
+        
+        // Test POS tagging
+        auto pos_pairs = ltp_model.pos_tagging(test_text);
+        spdlog::info("POS tagging result:");
+        for (size_t i = 0; i < pos_pairs.size(); ++i) {
+            spdlog::info("  [{}]: {} / {}", i, pos_pairs[i].first, pos_pairs[i].second);
+        }
+        
+        // Test NER
+        auto ner_results = ltp_model.named_entity_recognition(test_text);
+        spdlog::info("NER result count: {}", ner_results.size());
+        
+        // Test batch processing
+        std::vector<std::string> texts = {
+            "我爱中国。",
+            "北京是首都。",
+            "上海是大城市。"
+        };
+        
+        auto batch_result = ltp_model.process_text(texts);
+        spdlog::info("Batch processing result for {} texts:", texts.size());
+        for (size_t i = 0; i < batch_result.cws.size(); ++i) {
+            spdlog::info("  Text {}: {} words", i, batch_result.cws[i].size());
+        }
+        
+        spdlog::info("LTP Model basic functionality test completed successfully");
+        
+    } catch (const std::exception& e) {
+        spdlog::error("LTP Model test failed: {}", e.what());
+        FAIL() << "LTP Model test failed: " << e.what();
+    }
+}
+
+TEST(LTPModel, HiddenStatesGeneration) {
+    spdlog::info("=== LTP Model Hidden States Test ===");
+    
+    try {
+        neural_network::LTPModel ltp_model("", neural_network::Device::CPU);
+        
+        std::string test_text = "测试文本";
+        auto hidden_states = ltp_model.get_hidden_states(test_text);
+        
+        spdlog::info("Hidden states shape: [{}, {}]", hidden_states.size(), 
+                     hidden_states.empty() ? 0 : hidden_states[0].size());
+        
+        EXPECT_FALSE(hidden_states.empty());
+        if (!hidden_states.empty()) {
+            EXPECT_EQ(hidden_states[0].size(), 768);  // Standard BERT hidden size
+        }
+        
+        // Test batch hidden states
+        std::vector<std::string> texts = {"文本一", "文本二"};
+        auto batch_hidden_states = ltp_model.get_hidden_states(texts);
+        
+        spdlog::info("Batch hidden states: {} texts processed", batch_hidden_states.size());
+        EXPECT_EQ(batch_hidden_states.size(), texts.size());
+        
+        spdlog::info("LTP Model hidden states test completed successfully");
+        
+    } catch (const std::exception& e) {
+        spdlog::error("LTP Model hidden states test failed: {}", e.what());
+        FAIL() << "LTP Model hidden states test failed: " << e.what();
+    }
+}
+
+TEST(ModelSet, LTPModelIntegration) {
+    spdlog::info("=== ModelSet LTP Integration Test ===");
+    
+    try {
+        neural_network::init_model_set(neural_network::Device::CPU);
+        auto& model_set = neural_network::get_model_set();
+        
+        ASSERT_NE(model_set.ltp_model, nullptr);
+        spdlog::info("LTP model successfully integrated into ModelSet");
+        
+        // Test that LTP model is functional through ModelSet
+        std::string test_text = "这是一个测试句子。";
+        auto words = model_set.ltp_model->word_segmentation(test_text);
+        
+        EXPECT_FALSE(words.empty());
+        spdlog::info("LTP model through ModelSet processed {} words", words.size());
+        
+        spdlog::info("ModelSet LTP integration test completed successfully");
+        
+    } catch (const std::exception& e) {
+        spdlog::error("ModelSet LTP integration test failed: {}", e.what());
+        FAIL() << "ModelSet LTP integration test failed: " << e.what();
+    }
+}
+
+#ifdef __USE_ONNX_RUNTIME__
+TEST(ONNXRuntime, LTPModelFallback) {
+    spdlog::info("=== ONNX Runtime LTP Model Fallback Test ===");
+    
+    try {
+        // Test with non-existent model path to trigger fallback mode
+        neural_network::LTPModel ltp_model("non_existent_model.onnx", neural_network::Device::CPU);
+        
+        std::string test_text = "ONNX fallback test";
+        auto result = ltp_model.process_text(test_text);
+        
+        EXPECT_FALSE(result.cws.empty());
+        spdlog::info("ONNX LTP fallback mode working correctly");
+        
+    } catch (const std::exception& e) {
+        spdlog::error("ONNX LTP fallback test failed: {}", e.what());
+        FAIL() << "ONNX LTP fallback test failed: " << e.what();
+    }
+}
+#endif
+
+#ifdef __USE_LIBTORCH__
+TEST(LibTorch, LTPModelFallback) {
+    spdlog::info("=== LibTorch LTP Model Fallback Test ===");
+    
+    try {
+        // Test with non-existent model path to trigger fallback mode
+        neural_network::LTPModel ltp_model("non_existent_model.pt", neural_network::Device::CPU);
+        
+        std::string test_text = "LibTorch fallback test";
+        auto result = ltp_model.process_text(test_text);
+        
+        EXPECT_FALSE(result.cws.empty());
+        spdlog::info("LibTorch LTP fallback mode working correctly");
+        
+    } catch (const std::exception& e) {
+        spdlog::error("LibTorch LTP fallback test failed: {}", e.what());
+        FAIL() << "LibTorch LTP fallback test failed: " << e.what();
+    }
+}
+#endif
 
 
 #endif

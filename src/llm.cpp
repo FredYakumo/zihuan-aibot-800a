@@ -280,7 +280,7 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ll
                 std::string content;
                 const auto knowledge_list = vec_db::query_knowledge_from_vec_db(*query, 0.7f);
                 for (const auto &knowledge : knowledge_list)
-                    content += fmt::format("{}\n", knowledge.value);
+                    content += fmt::format("{}\n", knowledge.content);
 
                 const auto net_search_list = rag::net_search_content(
                     include_date ? fmt::format("{} {}", get_current_time_formatted(), *query) : *query);

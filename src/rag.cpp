@@ -129,10 +129,12 @@ namespace rag {
         
         // Add new knowledge to session
         for (const auto &knowledge : msg_knowledge_list) {
-            if (knowledge.value.empty()) {
+            if (knowledge.content.empty()) {
                 continue;
             }
-            session_knowledge_set->insert(fmt::format("{}:{}", knowledge.key, knowledge.value));
+            session_knowledge_set->insert(fmt::format("{}:{}", 
+                wheel::join_str(std::cbegin(knowledge.keyword), std::cend(knowledge.keyword), ","), 
+                knowledge.content));
         }
 
         // Apply length limit
@@ -200,8 +202,8 @@ namespace rag {
                                                                       {"properties",
                                                                        {{"creator_name", knowledge.creator_name},
                                                                         {"create_time", knowledge.create_dt},
-                                                                        {"key", knowledge.key},
-                                                                        {"value", knowledge.value}}}}})}};
+                                                                        {"key", wheel::join_str(std::cbegin(knowledge.keyword), std::cend(knowledge.keyword), ",")},
+                                                                        {"value", knowledge.content}}}}})}};
         spdlog::info("{}", request.dump());
 
         cpr::Response response =

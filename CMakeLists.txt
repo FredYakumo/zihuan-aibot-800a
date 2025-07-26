@@ -67,6 +67,7 @@ endif()
 # Collect source files
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/ SRC_FILES)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network NN_SRC_FILES)
+aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/text_model NN_TEXT_MODEL_SRC_FILES)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/vec_db VEC_DB_SRC_FILES)
 
 
@@ -80,6 +81,7 @@ aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/vec_db VEC_DB_SRC_FILES)
 set(BIN_SOURCES
     ${SRC_FILES}
     ${NN_SRC_FILES}
+    ${NN_TEXT_MODEL_SRC_FILES}
     ${VEC_DB_SRC_FILES}
     ${PLUGIN_SOURCE_PATH}
     ${CMAKE_CURRENT_SOURCE_DIR}/external/easywsclient/easywsclient.cpp
@@ -91,7 +93,13 @@ foreach(file IN LISTS SRC_FILES)
     message(STATUS "Source file: ${file}")
 endforeach()
 foreach(file IN LISTS NN_SRC_FILES)
-    message(STATUS "Source file: ${file}")
+    message(STATUS "NN Source file: ${file}")
+endforeach()
+foreach(file IN LISTS NN_TEXT_MODEL_SRC_FILES)
+    message(STATUS "NN Text Model Source file: ${file}")
+endforeach()
+foreach(file IN LISTS VEC_DB_SRC_FILES)
+    message(STATUS "Vec DB Source file: ${file}")
 endforeach()
 
 # Create shared library
@@ -133,8 +141,11 @@ include(CTest)
 add_executable(unit_test
     ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/nn.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/text_model.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/model_set.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/text_model/ltp_model.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/text_model/text_embedding_model.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/text_model/text_embedding_with_mean_pooling_model.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/text_model/tokenizer_wrapper.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/vec_db/weaviate.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/utils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/global_data.cpp

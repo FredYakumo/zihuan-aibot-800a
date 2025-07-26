@@ -24,6 +24,9 @@ class VecDBKnowledge(BaseModel):
     create_time: datetime.datetime | None
     creator_name: str
     certainty: float
+    # Additional fields for hybrid search scoring
+    vector_score: float = 0.0
+    bm25_score: float = 0.0
 
 # Initialize LTP processor for Chinese NLP tasks
 device = get_device()
@@ -59,15 +62,34 @@ def extract_nouns_from_text(text: str) -> List[str]:
                 if pos in noun_tags and len(word.strip()) > 0:
                     nouns.append(word.strip())
         
+        # Fallback: if no nouns found using LTP, use jieba for basic segmentation
+        if not nouns and 'cws' in result and result['cws']:
+            words = result['cws'][0]
+            # Filter out short words and common particles
+            stopwords = {'的', '了', '是', '在', '有', '和', '与', '或', '但', '而', '也', '都', '就', '还', '又', '很', '更', '最'}
+            for word in words:
+                if len(word.strip()) > 1 and word.strip() not in stopwords:
+                    nouns.append(word.strip())
+        
+        # Final fallback: use jieba if LTP completely fails
+        if not nouns:
+            import jieba
+            words = list(jieba.cut(text))
+            stopwords = {'的', '了', '是', '在', '有', '和', '与', '或', '但', '而', '也', '都', '就', '还', '又', '很', '更', '最'}
+            for word in words:
+                if len(word.strip()) > 1 and word.strip() not in stopwords:
+                    nouns.append(word.strip())
+        
         return nouns
     except Exception as e:
         logger.warning(f"Failed to extract nouns from text '{text[:50]}...': {e}")
-        return []
+        # Ultimate fallback: return the original text as a single keyword
+        return [text.strip()] if text.strip() else []
 
 def query_knowledge_by_vector(
     collection: Collection, 
     query_text: str, 
-    limit: int = 300,
+    limit: int = 10,
     certainty_threshold: float = 0.85
 ) -> List[VecDBKnowledge]:
     """
@@ -110,7 +132,9 @@ def query_knowledge_by_vector(
                 content=obj.properties.get("content", ""),
                 create_time=obj.properties.get("create_time"),
                 creator_name=obj.properties.get("creator_name", ""),
-                certainty=certainty
+                certainty=certainty,
+                vector_score=certainty,  # Set vector score for pure vector search
+                bm25_score=0.0
             )
             results.append(knowledge)
     
@@ -120,7 +144,7 @@ def query_knowledge_by_vector(
 def query_knowledge_by_bm25(
     collection: Collection,
     query_text: str,
-    limit: int = 100
+    limit: int = 10
 ) -> List[VecDBKnowledge]:
     """
     @brief Query knowledge using BM25 search on keywords extracted from query text.
@@ -163,7 +187,9 @@ def query_knowledge_by_bm25(
             content=obj.properties.get("content", ""),
             create_time=obj.properties.get("create_time"),
             creator_name=obj.properties.get("creator_name", ""),
-            certainty=certainty
+            certainty=certainty,
+            vector_score=0.0,
+            bm25_score=certainty  # Set BM25 score for pure BM25 search
         )
         results.append(knowledge)
     
@@ -173,8 +199,8 @@ def query_knowledge_by_bm25(
 def query_knowledge_hybrid(
     collection: Collection,
     query_text: str,
-    vector_limit: int = 200,
-    bm25_limit: int = 100,
+    vector_limit: int = 10,
+    bm25_limit: int = 10,
     vector_weight: float = 0.7,
     bm25_weight: float = 0.3,
     min_combined_score: float = 0.5
@@ -212,44 +238,86 @@ def query_knowledge_hybrid(
     for result in vector_results:
         content_key = result.content
         if content_key not in combined_results:
-            combined_results[content_key] = result
-            # Set vector score
-            combined_results[content_key].vector_score = result.certainty
-            combined_results[content_key].bm25_score = 0.0
+            # Create a new result with updated scores
+            combined_results[content_key] = VecDBKnowledge(
+                knowledge_class_filter=result.knowledge_class_filter,
+                keyword=result.keyword,
+                content=result.content,
+                create_time=result.create_time,
+                creator_name=result.creator_name,
+                certainty=result.certainty,
+                vector_score=result.certainty,
+                bm25_score=0.0
+            )
         else:
             # Update vector score if higher
             if result.certainty > combined_results[content_key].vector_score:
-                combined_results[content_key].vector_score = result.certainty
+                # Create updated result with new vector score
+                existing = combined_results[content_key]
+                combined_results[content_key] = VecDBKnowledge(
+                    knowledge_class_filter=existing.knowledge_class_filter,
+                    keyword=existing.keyword,
+                    content=existing.content,
+                    create_time=existing.create_time,
+                    creator_name=existing.creator_name,
+                    certainty=existing.certainty,
+                    vector_score=result.certainty,
+                    bm25_score=existing.bm25_score
+                )
     
     # Add BM25 search results
     for result in bm25_results:
         content_key = result.content
         if content_key not in combined_results:
-            combined_results[content_key] = result
-            # Set BM25 score
-            combined_results[content_key].vector_score = 0.0
-            combined_results[content_key].bm25_score = result.certainty
+            # Create a new result with updated scores
+            combined_results[content_key] = VecDBKnowledge(
+                knowledge_class_filter=result.knowledge_class_filter,
+                keyword=result.keyword,
+                content=result.content,
+                create_time=result.create_time,
+                creator_name=result.creator_name,
+                certainty=result.certainty,
+                vector_score=0.0,
+                bm25_score=result.certainty
+            )
         else:
             # Update BM25 score if higher
             if result.certainty > combined_results[content_key].bm25_score:
-                combined_results[content_key].bm25_score = result.certainty
+                # Create updated result with new BM25 score
+                existing = combined_results[content_key]
+                combined_results[content_key] = VecDBKnowledge(
+                    knowledge_class_filter=existing.knowledge_class_filter,
+                    keyword=existing.keyword,
+                    content=existing.content,
+                    create_time=existing.create_time,
+                    creator_name=existing.creator_name,
+                    certainty=existing.certainty,
+                    vector_score=existing.vector_score,
+                    bm25_score=result.certainty
+                )
     
     # Calculate combined scores and filter
     final_results = []
     for content_key, result in combined_results.items():
-        vector_score = getattr(result, 'vector_score', 0.0)
-        bm25_score = getattr(result, 'bm25_score', 0.0)
+        vector_score = result.vector_score
+        bm25_score = result.bm25_score
         
         # Calculate weighted combined score
         combined_score = (vector_weight * vector_score) + (bm25_weight * bm25_score)
         
         if combined_score >= min_combined_score:
-            # Update certainty with combined score
-            result.certainty = combined_score
-            # Add debugging info as attributes
-            result.vector_score = vector_score
-            result.bm25_score = bm25_score
-            final_results.append(result)
+            # Create final result with combined score
+            final_result = VecDBKnowledge(
+                knowledge_class_filter=result.knowledge_class_filter,
+                keyword=result.keyword,
+                content=result.content,
+                create_time=result.create_time,
+                creator_name=result.creator_name,
+                certainty=combined_score,
+                vector_score=vector_score,
+                bm25_score=bm25_score
+            )
+            final_results.append(final_result)
     
     # Sort by combined score (certainty) in descending order
     final_results.sort(key=lambda x: x.certainty, reverse=True)
@@ -318,7 +386,9 @@ def query_knowledge_by_filter(
             content=obj.properties.get("content", ""),
             create_time=obj.properties.get("create_time"),
             creator_name=obj.properties.get("creator_name", ""),
-            certainty=1.0  # No certainty for filter-based queries
+            certainty=1.0,  # No certainty for filter-based queries
+            vector_score=0.0,
+            bm25_score=0.0
         )
         results.append(knowledge)
     
@@ -347,11 +417,11 @@ def display_results(results: List[VecDBKnowledge]):
         print(f"    Create Time: {knowledge.create_time}")
         
         # Show certainty/score info
-        if hasattr(knowledge, 'certainty') and knowledge.certainty < 1.0:
+        if knowledge.certainty < 1.0:
             print(f"    Combined Score: {knowledge.certainty:.3f}")
         
         # Show detailed scores for hybrid search
-        if hasattr(knowledge, 'vector_score') and hasattr(knowledge, 'bm25_score'):
+        if knowledge.vector_score > 0.0 or knowledge.bm25_score > 0.0:
             print(f"    Vector Score: {knowledge.vector_score:.3f}, BM25 Score: {knowledge.bm25_score:.3f}")
             
         print("-" * 80)
