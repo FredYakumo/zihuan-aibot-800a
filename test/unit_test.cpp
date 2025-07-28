@@ -1090,9 +1090,11 @@ TEST(ModelSet, LTPModelIntegration) {
         // Test that LTP model is functional through ModelSet
         std::string test_text = "这是一个测试句子。";
         auto words = model_set.ltp_model->word_segmentation(test_text);
-        
+
         EXPECT_FALSE(words.empty());
         spdlog::info("LTP model through ModelSet processed {} words", words.size());
+
+        spdlog::info("Words: {}", join_str(std::cbegin(words), std::cend(words), ", "));
         
         spdlog::info("ModelSet LTP integration test completed successfully");
         

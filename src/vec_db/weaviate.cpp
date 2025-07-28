@@ -129,7 +129,7 @@ namespace vec_db {
                             }
                             db_knowledge.content = get_optional(item, "content").value_or("");
                             db_knowledge.creator_name = get_optional(item, "creator_name").value_or("");
-                            db_knowledge.create_dt = get_optional(item, "create_dt").value_or("");
+                            db_knowledge.create_time = get_optional(item, "create_time").value_or("");
                             db_knowledge.knowledge_class_filter =
                                 get_optional(item, "knowledge_class_filter").value_or("");
 
@@ -139,12 +139,12 @@ namespace vec_db {
                                 db_knowledge.certainty = 0.0f;
                             }
                             spdlog::info(
-                                "Found knowledge: knowledge_class_filter={}, content={}, keywords={}, creator_name={}, create_dt={}, certainty={}, ",
+                                "Found knowledge: knowledge_class_filter={}, content={}, keywords={}, creator_name={}, create_time={}, certainty={}, ",
                                 db_knowledge.knowledge_class_filter,
                                 db_knowledge.content,
                                 wheel::join_str(std::cbegin(db_knowledge.keyword), std::cend(db_knowledge.keyword), ","),
                                 db_knowledge.creator_name,
-                                db_knowledge.create_dt,
+                                db_knowledge.create_time,
                                 db_knowledge.certainty);
                             results.push_back(db_knowledge);
                         }

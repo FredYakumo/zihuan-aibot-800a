@@ -127,6 +127,14 @@ namespace neural_network {
         LTPResult process_fallback(const std::vector<std::string> &texts);
         std::string ltp_task_to_string(LTPTask task);
         std::vector<std::vector<int64_t>> tokenize_texts_onnx(const std::vector<std::string> &texts);
+        
+        // ONNX output extraction methods
+        std::vector<std::vector<std::string>> extract_cws_from_onnx_output(
+            const std::vector<Ort::Value>& outputs, const std::vector<std::string>& texts);
+        std::vector<std::vector<std::string>> extract_pos_from_onnx_output(
+            const std::vector<Ort::Value>& outputs, const std::vector<std::string>& texts);
+        std::vector<std::vector<std::map<std::string, std::string>>> extract_ner_from_onnx_output(
+            const std::vector<Ort::Value>& outputs, const std::vector<std::string>& texts);
     };
 #endif
 
@@ -216,6 +224,29 @@ namespace neural_network {
         LTPResult process_fallback(const std::vector<std::string> &texts);
         std::string ltp_task_to_string(LTPTask task);
         std::pair<torch::Tensor, torch::Tensor> tokenize_texts(const std::vector<std::string> &texts);
+        
+        // LibTorch output extraction methods
+        std::vector<std::vector<std::string>> extract_cws_from_torch_output(
+            const torch::Tensor& hidden_states, const std::vector<std::string>& texts,
+            const torch::Tensor& input_ids, const torch::Tensor& attention_mask);
+        std::vector<std::vector<std::string>> extract_pos_from_torch_output(
+            const torch::Tensor& hidden_states, const std::vector<std::string>& texts,
+            const torch::Tensor& input_ids, const torch::Tensor& attention_mask);
+        std::vector<std::vector<std::map<std::string, std::string>>> extract_ner_from_torch_output(
+            const torch::Tensor& hidden_states, const std::vector<std::string>& texts,
+            const torch::Tensor& input_ids, const torch::Tensor& attention_mask);
+        std::vector<std::vector<std::map<std::string, std::string>>> extract_srl_from_torch_output(
+            const torch::Tensor& hidden_states, const std::vector<std::string>& texts,
+            const torch::Tensor& input_ids, const torch::Tensor& attention_mask);
+        std::vector<std::vector<std::map<std::string, std::string>>> extract_dep_from_torch_output(
+            const torch::Tensor& hidden_states, const std::vector<std::string>& texts,
+            const torch::Tensor& input_ids, const torch::Tensor& attention_mask);
+        std::vector<std::vector<std::map<std::string, std::string>>> extract_sdp_from_torch_output(
+            const torch::Tensor& hidden_states, const std::vector<std::string>& texts,
+            const torch::Tensor& input_ids, const torch::Tensor& attention_mask);
+        
+        // Utility methods
+        emb_mat_t convert_torch_tensor_to_emb_mat(const torch::Tensor& tensor);
     };
 #endif
 

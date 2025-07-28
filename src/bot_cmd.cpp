@@ -68,7 +68,7 @@ namespace bot_cmd {
                 keywords_str, 
                 e.knowledge_class_filter.empty() ? "未分类" : e.knowledge_class_filter,
                 e.creator_name, 
-                e.create_dt, 
+                e.create_time, 
                 e.certainty));
         }
         context.adapter.send_long_plain_text_reply(*context.event->sender_ptr, res);
@@ -172,7 +172,7 @@ namespace bot_cmd {
                                keywords_str, 
                                k.knowledge_class_filter.empty() ? "未分类" : k.knowledge_class_filter,
                                k.creator_name, 
-                               k.create_dt, 
+                               k.create_time, 
                                k.certainty));
             }
         }
