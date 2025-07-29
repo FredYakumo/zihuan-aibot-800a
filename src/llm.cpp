@@ -711,16 +711,20 @@ void process_llm(const bot_cmd::CommandContext &context,
         }
         llm_content.append("。");
     }
+    std::string speak_content = EMPTY_MSG_TAG;
+    if (context.msg_prop.plain_content != nullptr &&
+        !wheel::ltrim(wheel::rtrim(*context.msg_prop.plain_content)).empty()) {
+        speak_content = *context.msg_prop.plain_content;
+    }
+
     if (context.msg_prop.plain_content != nullptr && !context.msg_prop.plain_content->empty()) {
         if (auto group_sender = bot_adapter::try_group_sender(*context.event->sender_ptr); group_sender.has_value()) {
-            llm_content.append(fmt::format("{}\"{}\"({})[{}]发送了: \"{}\"",
+            llm_content.append(fmt::format("{}\"{}\"({})[{}]对你说: \"{}\"",
                                            get_permission_chs(group_sender->get().permission), group_sender->get().name,
-                                           context.event->sender_ptr->id, get_current_time_formatted(),
-                                           *context.msg_prop.plain_content));
+                                           context.event->sender_ptr->id, get_current_time_formatted(), speak_content));
         } else {
-            llm_content.append(fmt::format("\"{}\"({})[{}]发送了: \"{}\"", context.event->sender_ptr->name,
-                                           context.event->sender_ptr->id, get_current_time_formatted(),
-                                           *context.msg_prop.plain_content));
+            llm_content.append(fmt::format("\"{}\"({})[{}]对你说: \"{}\"", context.event->sender_ptr->name,
+                                           context.event->sender_ptr->id, get_current_time_formatted(), speak_content));
         }
     }
     std::string mixed_input_content;
