@@ -33,9 +33,8 @@ int main(int argc, char *argv[]) {
                                                                      10 * 1024 * 1024, 
                                                                      0, 0, false); // Disable daily rotation
     
-    // Console output with source location
+    // Console output
     auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-    console_sink->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] [%s:%#] %v");
     
     std::vector<spdlog::sink_ptr> sinks {console_sink, daily_size_sink, latest_file_sink};
     auto logger = std::make_shared<spdlog::logger>("aibot_800a", sinks.begin(), sinks.end());
