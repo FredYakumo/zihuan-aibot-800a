@@ -2,6 +2,7 @@
 #include "bot_adapter.h"
 #include "bot_cmd.h"
 #include "config.h"
+#include "daily_rotating_file_sink.h"
 #include "database.h"
 #include "event.h"
 #include "neural_network/model_set.h"
@@ -9,7 +10,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
-#include <spdlog/sinks/daily_file_sink.h>
+#include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
 int main(int argc, char *argv[]) {
@@ -18,11 +19,24 @@ int main(int argc, char *argv[]) {
     int rotation_hour = 0;
     int rotation_minute = 0;
 
-    auto daily_file_sink =
-        std::make_shared<spdlog::sinks::daily_file_sink_mt>("logs/aibot/aibot_800a.txt",
-                                                            rotation_hour, rotation_minute);
+    // Custom daily + size rotating file sink
+    // File rotation: aibot_800a_2025-07-21.txt (current) -> .1 (oldest) -> .2, .3... (newer) -> highest# (newest archived)
+    auto daily_size_sink = 
+        std::make_shared<spdlog::sinks::daily_rotating_file_sink_mt>("logs/aibot/aibot_800a", 
+                                                                     10 * 1024 * 1024, 
+                                                                     rotation_hour, rotation_minute);
+    
+    // Latest log file for current run (custom size-only rotation)
+    // File rotation: latest.txt (current) -> .1 (oldest) -> .2, .3... (newer) -> highest# (newest archived)
+    auto latest_file_sink = 
+        std::make_shared<spdlog::sinks::daily_rotating_file_sink_mt>("logs/aibot/latest", 
+                                                                     10 * 1024 * 1024, 
+                                                                     0, 0, false); // Disable daily rotation
+    
+    // Console output
     auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-    std::vector<spdlog::sink_ptr> sinks {console_sink, daily_file_sink};
+    
+    std::vector<spdlog::sink_ptr> sinks {console_sink, daily_size_sink, latest_file_sink};
     auto logger = std::make_shared<spdlog::logger>("aibot_800a", sinks.begin(), sinks.end());
     spdlog::set_default_logger(logger);
     

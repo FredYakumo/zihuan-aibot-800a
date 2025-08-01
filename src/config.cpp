@@ -112,6 +112,7 @@ void Config::init() {
         node = YAML::LoadFile("config.yaml");
     }
 
+
     // 字符串类型配置
     load_yaml_config(node, "llm_api_url", config.llm_api_url);
     load_env_config_str("AIBOT_LLM_API_URL", config.llm_api_url);
@@ -139,6 +140,15 @@ void Config::init() {
 
     load_yaml_config(node, "temp_res_path", config.temp_res_path);
     load_env_config_str("AIBOT_TEMP_RES_PATH", config.temp_res_path);
+
+    load_yaml_config(node, "lac_model_path", config.lac_model_path);
+    load_env_config_str("AIBOT_LAC_MODEL_PATH", config.lac_model_path);
+
+    load_yaml_config(node, "seg_model_path", config.seg_model_path);
+    load_env_config_str("AIBOT_SEG_MODEL_PATH", config.seg_model_path);
+
+    load_yaml_config(node, "rank_model_path", config.rank_model_path);
+    load_env_config_str("AIBOT_RANK_MODEL_PATH", config.rank_model_path);
 
     // 数值类型配置
     load_yaml_config(node, "bot_id", config.bot_id);

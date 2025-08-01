@@ -27,39 +27,6 @@ inline bool try_begin_processing_llm(uint64_t target_id) {
     return true;
 }
 
-/**
- * @brief Converts a system prompt and a message list into a JSON format.
- *
- * This function converts a system prompt and a message list into a JSON array.
- * The first element of the array is the system prompt, and the subsequent elements
- * are the messages from the message list. Each message contains two fields: "role" and "content".
- *
- * @param system_prompt The system prompt content, of type std::string_view.
- * @param msg_list The message list, of type std::deque<ChatMessage>.
- * @return nlohmann::json Returns a JSON array containing the system prompt and the message list.
- */
-inline nlohmann::json msg_list_to_json(const std::string_view system_prompt, const std::deque<ChatMessage> &msg_list) {
-    nlohmann::json msg_json = nlohmann::json::array();
-    msg_json.push_back(nlohmann::json{{"role", "system"}, {"content", system_prompt}});
-    for (const auto &msg : msg_list) {
-        nlohmann::json msg_entry = msg.to_json();
-        spdlog::info("msg_entry: {}", msg_entry.dump());
-        msg_json.push_back(std::move(msg_entry));
-    }
-    return msg_json;
-}
-
-inline nlohmann::json &add_to_msg_json(nlohmann::json &msg_json, ChatMessage msg) {
-    msg_json.push_back(msg.to_json());
-    return msg_json;
-}
-
-inline nlohmann::json get_msg_json(std::string system_prompt, const qq_id_t id, std::string name) {
-    auto session = g_chat_session_map.get_or_create_value(
-        id, [name = std::move(name)]() mutable { return ChatSession(std::move(name)); });
-    return msg_list_to_json(std::move(system_prompt), session->message_list);
-}
-
 inline void release_processing_llm(qq_id_t id) {
     if (auto v = g_chat_processing_map.find(id); v.has_value()) {
         v->get() = false;

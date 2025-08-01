@@ -9,10 +9,12 @@
 #include "constants.hpp"
 #include "database.h"
 #include "get_optional.hpp"
-#include "neural_network/text_model.h"
+#include "neural_network/text_model/text_embedding_with_mean_pooling_model.h"
+#include "neural_network/text_model/tokenizer_wrapper.h"
 #include <general-wheel-cpp/collection/concurrent_unordered_map.hpp>
 #include <cstdint>
 #include <easywsclient.hpp>
+#include <fmt/format.h>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -127,7 +129,22 @@ namespace bot_adapter {
 
         const Profile &get_bot_profile() const { return bot_profile; }
 
-        inline const GroupWrapper &get_group(qq_id_t group_id) const { return group_info_map.find(group_id)->get(); }
+        inline const GroupWrapper &get_group(qq_id_t group_id) const { 
+            auto result = group_info_map.find(group_id);
+            if (!result.has_value()) {
+                spdlog::info("Group {} not found in group_info_map", group_id);
+                throw std::runtime_error(fmt::format("Group {} not found in group_info_map", group_id));
+            }
+            return result->get(); 
+        }
+
+        inline std::optional<std::reference_wrapper<const GroupWrapper>> get_group_safe(qq_id_t group_id) const {
+            auto result = group_info_map.find(group_id);
+            if (!result.has_value()) {
+                return std::nullopt;
+            }
+            return std::ref(result->get());
+        }
 
         /**
          * @brief Get the group announcement object

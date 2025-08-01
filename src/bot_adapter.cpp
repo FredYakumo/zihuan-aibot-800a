@@ -10,7 +10,6 @@
 #include "easywsclient.hpp"
 #include "get_optional.hpp"
 #include "global_data.h"
-#include "neural_network/text_model.h"
 #include "nlohmann/json_fwd.hpp"
 #include "time_utils.h"
 #include "utils.h"
@@ -35,9 +34,12 @@ namespace bot_adapter {
     using namespace wheel;
 
     void fetch_message_list_from_db(bot_adapter::BotAdapter &adapter) {
+        spdlog::info("从持久化数据中加载并初始化bot的记忆数据");
+
         spdlog::info("从Database中获取1000条消息记录");
         spdlog::info("获取Bot的所有群信息");
         const auto group_list = adapter.get_bot_all_group_info();
+
         for (auto group : group_list) {
             spdlog::info("Fetch message list in group '{}'({})", group.name, group.group_id);
             auto message_list =
@@ -52,13 +54,20 @@ namespace bot_adapter {
             message_id_t padding_message_id = 0;
             std::vector<std::shared_ptr<MessageStorageEntry>> this_msg_entry_ptr_vec;
             this_msg_entry_ptr_vec.reserve(message_list.size());
+
+            std::vector<qq_id_t> member_id_vec;
+            std::vector<std::string> member_name_vec;
+
             for (const auto &msg : message_list) {
                 message_id_t msg_id = msg.message_id_opt.value_or(padding_message_id++);
                 this_message_id_vec.push_back(msg_id);
                 this_msg_entry_ptr_vec.push_back(std::make_shared<MessageStorageEntry>(
                     msg_id, msg.sender.name, msg.sender.id, msg.send_time,
                     std::make_shared<MessageChainPtrList>(make_message_chain_list(PlainTextMessage(msg.content)))));
+                member_id_vec.push_back(msg.sender.id);
+                member_name_vec.push_back(msg.sender.name);
             }
+
             std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
             spdlog::info("Prepare batch add message storage data cost: {}ms",
                          std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
@@ -67,6 +76,15 @@ namespace bot_adapter {
             g_group_message_storage.batch_add_message(this_group_id_vec, this_message_id_vec, this_msg_entry_ptr_vec);
             end_time = std::chrono::high_resolution_clock::now();
             spdlog::info("Batch add database message records cost: {}ms",
+                         std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
+            auto embedding_map = adapter.group_member_name_embedding_map.get_or_emplace_value(
+                group.group_id, bot_adapter::GroupMemberNameEmbeddngMatrix{});
+
+            spdlog::info("Calculate group member name embedding matrix");
+            start_time = std::chrono::high_resolution_clock::now();
+            embedding_map->batch_add_member(member_id_vec, member_name_vec);
+            end_time = std::chrono::high_resolution_clock::now();
+            spdlog::info("Calculate group member name embedding matrix cost: {}ms",
                          std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
         }
 
@@ -123,7 +141,7 @@ namespace bot_adapter {
             spdlog::info("从Database中获取持久化的消息记录并初始化到内存中");
             fetch_message_list_from_db(*this);
             spdlog::info("完成从Database中获取消息记录");
-            
+
             spdlog::info("等待{}秒后再次运行update_group_info()", config.update_group_info_period_sec);
             std::this_thread::sleep_for(std::chrono::seconds(config.update_group_info_period_sec));
             while (is_running) {
@@ -482,143 +500,6 @@ namespace bot_adapter {
         }
     }
 
-    /**
-     * @brief 对markdown节点进行合并，连续同类型合并，单块不超过max_lines。
-     * @param nodes 原始markdown节点
-     * @param max_lines 单块最大行数
-     * @param font_size rich_text时用于word-break的字体大小
-     * @param body_width rich_text时用于word-break的最大宽度
-     * @return 合并后的节点
-     */
-    static std::vector<wheel::MarkdownNode> merge_markdown_nodes(const std::vector<wheel::MarkdownNode> &nodes,
-                                                                 size_t max_lines = 500, float font_size = 15,
-                                                                 int body_width = 350) {
-        using wheel::MarkdownNode;
-        std::vector<MarkdownNode> merged;
-        auto count_lines = [](const std::string &text) -> size_t {
-            return std::count(text.begin(), text.end(), '\n') + 1;
-        };
-        auto word_break_for_rich_text = [font_size, body_width](const std::string &text) -> std::string {
-            size_t max_chars_per_line = static_cast<size_t>(body_width / font_size);
-            std::string result;
-            size_t char_count = 0;
-            for (size_t i = 0; i < text.size(); ++i) {
-                char c = text[i];
-                if (c == '\n') {
-                    result += c;
-                    char_count = 0;
-                } else {
-                    result += c;
-                    ++char_count;
-                    if (char_count >= max_chars_per_line) {
-                        result += '\n';
-                        char_count = 0;
-                    }
-                }
-            }
-            return result;
-        };
-        auto try_merge = [&](MarkdownNode &current, const MarkdownNode &next) -> bool {
-            // rich_text
-            if (current.rich_text && next.rich_text)
-                return true;
-            if (current.code_text && next.code_text && current.code_language == next.code_language)
-                return true;
-            if (current.table_text && next.table_text)
-                return true;
-            if (current.latex_text && next.latex_text)
-                return true;
-            return false;
-        };
-        MarkdownNode current;
-        size_t current_lines = 0;
-        bool has_current = false;
-        for (const auto &node : nodes) {
-            std::string node_text = node.text;
-            // rich_text word-break
-            if (node.rich_text) {
-                node_text = word_break_for_rich_text(node_text);
-            }
-            size_t node_lines = count_lines(node_text);
-            if (!has_current) {
-                current = node;
-                current.text = node_text;
-                current_lines = node_lines;
-                has_current = true;
-                continue;
-            }
-            if (try_merge(current, node) && current_lines + node_lines <= max_lines) {
-                // 合并
-                if (current.rich_text && node.rich_text) {
-                    if (current.rich_text && node.rich_text) {
-                        *current.rich_text += "\n" + *node.rich_text;
-                    }
-                }
-                if (current.code_text && node.code_text) {
-                    if (current.code_text && node.code_text) {
-                        *current.code_text += "\n" + *node.code_text;
-                    }
-                }
-                if (current.table_text && node.table_text) {
-                    if (current.table_text && node.table_text) {
-                        *current.table_text += "\n" + *node.table_text;
-                    }
-                }
-                if (current.latex_text && node.latex_text) {
-                    if (current.latex_text && node.latex_text) {
-                        *current.latex_text += "\n" + *node.latex_text;
-                    }
-                }
-                current.text += "\n" + node_text;
-                current_lines += node_lines;
-            } else {
-                merged.push_back(current);
-                current = node;
-                current.text = node_text;
-                current_lines = node_lines;
-            }
-            // 拆分超长
-            while (current_lines > max_lines) {
-                // 拆分text
-                size_t line_cnt = 0, split_pos = 0;
-                for (size_t i = 0; i < current.text.size(); ++i) {
-                    if (current.text[i] == '\n')
-                        ++line_cnt;
-                    if (line_cnt == max_lines) {
-                        split_pos = i;
-                        break;
-                    }
-                }
-                MarkdownNode part = current;
-                part.text = current.text.substr(0, split_pos);
-                if (current.rich_text)
-                    part.rich_text = part.text;
-                if (current.code_text)
-                    part.code_text = part.text;
-                if (current.table_text)
-                    part.table_text = part.text;
-                if (current.latex_text)
-                    part.latex_text = part.text;
-                merged.push_back(part);
-                // 剩余部分
-                current.text = current.text.substr(split_pos + 1);
-                if (current.rich_text)
-                    current.rich_text = current.text;
-                if (current.code_text)
-                    current.code_text = current.text;
-                if (current.table_text)
-                    current.table_text = current.text;
-                if (current.latex_text)
-                    current.latex_text = current.text;
-                current_lines = count_lines(current.text);
-            }
-        }
-        if (has_current && !current.text.empty()) {
-            merged.push_back(current);
-        }
-        return merged;
-    }
-
     void BotAdapter::send_long_plain_text_reply(const Sender &sender, const std::string &text, bool at_target,
                                                 uint64_t msg_length_limit,
                                                 std::optional<std::function<void(uint64_t &)>> out_message_id_option,
@@ -634,8 +515,7 @@ namespace bot_adapter {
         // Check if it's simple text (not markdown blocks)
         if (markdown_node.empty() || (markdown_node.size() == 1 && !markdown_node[0].render_html_text.has_value())) {
             spdlog::info("Markdown text is short and no render HTML.");
-            send_replay_msg(sender, make_message_chain_list(PlainTextMessage(text)), true,
-                            out_message_id_option);
+            send_replay_msg(sender, make_message_chain_list(PlainTextMessage(text)), true, out_message_id_option);
             return;
         }
 
@@ -848,6 +728,20 @@ namespace bot_adapter {
             }
 
             group_wrapper_map.insert(std::make_pair(group_info.group_id, std::move(group_wrapper)));
+
+            // #ifdef __USE_LIBTORCH__
+            //             spdlog::info("计算member list的member name embedding matrix");
+            //             std::chrono::high_resolution_clock::time_point start_time =
+            //             std::chrono::high_resolution_clock::now(); auto member_name_embedding_matrix =
+            //                 neural_network::get_model_set().text_embedding_model->embed(member_name_list);
+            //             std::chrono::high_resolution_clock::time_point end_time =
+            //             std::chrono::high_resolution_clock::now(); spdlog::info("计算member name embedding matrix
+            //             cost: {}ms",
+            //                          std::chrono::duration_cast<std::chrono::milliseconds>(end_time -
+            //                          start_time).count());
+            //             group_member_name_embedding_map.get_or_emplace_value(group_info.group_id,
+            //                                                                  std::move(member_name_embedding_matrix));
+            // #endif // __USE_LIBTORCH__
         }
         spdlog::info("Fetch group info list successed.");
         group_info_map = std::move(group_wrapper_map);

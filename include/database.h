@@ -16,6 +16,8 @@
 #include <string_view>
 #include <time_utils.h>
 #include <vector>
+#include <functional>
+#include <thread>
 
 namespace database {
     using mysqlx::SessionOption;
@@ -76,7 +78,8 @@ namespace database {
       public:
         DBConnection(const std::string &host, unsigned port, const std::string &user, const std::string &password,
                      const std::string_view schema = DEFAULT_MYSQL_SCHEMA_NAME)
-            : session(SessionOption::HOST, host, SessionOption::PORT, port, SessionOption::USER, user,
+            : m_host(host), m_port(port), m_user(user), m_password(password), m_schema_name(schema),
+              session(SessionOption::HOST, host, SessionOption::PORT, port, SessionOption::USER, user,
                       SessionOption::PWD, password, SessionOption::DB, std::string(schema)),
               schema(session.getSchema(std::string(schema), true)) {}
 
@@ -145,27 +148,32 @@ namespace database {
         }
 
         std::optional<UserPreference> get_user_preference(qq_id_t id) {
-            auto table = get_user_preference_table();
-            auto result = table.select("render_markdown_output", "text_output", "auto_new_chat_session")
-                              .where("user_id = :user_id")
-                              .bind("user_id", std::to_string(id))
-                              .execute();
+            try {
+                auto table = get_user_preference_table();
+                auto result = table.select("render_markdown_output", "text_output", "auto_new_chat_session")
+                                  .where("user_id = :user_id")
+                                  .bind("user_id", std::to_string(id))
+                                  .execute();
 
-            if (auto row = result.fetchOne()) {
-                // The C++ connector returns tinyint as integer.
-                UserPreference pref{
-                    static_cast<bool>(row[0].get<int>()), static_cast<bool>(row[1].get<int>()),
-                    std::nullopt // 默认为 nullopt
-                };
+                if (auto row = result.fetchOne()) {
+                    // The C++ connector returns tinyint as integer.
+                    UserPreference pref{
+                        static_cast<bool>(row[0].get<int>()), static_cast<bool>(row[1].get<int>()),
+                        std::nullopt // 默认为 nullopt
+                    };
 
-                // 如果 auto_new_chat_session 不为 NULL，则设置具体值
-                if (!row[2].isNull()) {
-                    pref.auto_new_chat_session_sec = row[2].get<int64_t>();
+                    // 如果 auto_new_chat_session 不为 NULL，则设置具体值
+                    if (!row[2].isNull()) {
+                        pref.auto_new_chat_session_sec = row[2].get<int64_t>();
+                    }
+
+                    return pref;
                 }
-
-                return pref;
+                return std::nullopt;
+            } catch (const mysqlx::Error &e) {
+                spdlog::error("Failed to get user preference for user {}: {}", id, e.what());
+                return std::nullopt;
             }
-            return std::nullopt;
         }
 
         /**
@@ -214,33 +222,164 @@ namespace database {
                                                             size_t count_limit = 10);
 
       private:
+        // Connection parameters for reconnection
+        std::string m_host;
+        unsigned m_port;
+        std::string m_user;
+        std::string m_password;
+        std::string m_schema_name;
+        
         mysqlx::Session session;
         mysqlx::Schema schema;
         std::optional<mysqlx::Table> message_record_table = std::nullopt;
         std::optional<mysqlx::Table> tool_calls_record_table = std::nullopt;
         std::optional<mysqlx::Table> user_protait_table = std::nullopt;
 
+        /**
+         * @brief Reconnect to the database with fresh session and schema
+         * This method is used when connection errors occur that cannot be resolved by schema refresh
+         */
+        void reconnect() {
+            try {
+                spdlog::info("Attempting to reconnect to database...");
+                
+                // Create new session using placement new
+                session.~Session();
+                new (&session) mysqlx::Session(SessionOption::HOST, m_host, SessionOption::PORT, m_port, 
+                                             SessionOption::USER, m_user, SessionOption::PWD, m_password, 
+                                             SessionOption::DB, m_schema_name);
+                
+                // Create new schema
+                schema = session.getSchema(m_schema_name, true);
+                
+                // Reset all cached table references
+                message_record_table = std::nullopt;
+                tool_calls_record_table = std::nullopt;
+                user_protait_table = std::nullopt;
+                
+                spdlog::info("Database reconnection successful");
+            } catch (const mysqlx::Error &e) {
+                spdlog::error("Failed to reconnect to database: {}", e.what());
+                throw;
+            }
+        }
+
+        /**
+         * @brief Generic table retrieval method with retry mechanism for handling connection issues
+         * @param table_name The name of the table to retrieve
+         * @return mysqlx::Table object for the specified table
+         */
+        inline mysqlx::Table get_table_with_retry(const std::string &table_name) {
+            try {
+                return schema.getTable(table_name, true);
+            } catch (const mysqlx::Error &e) {
+                const std::string error_msg = e.what();
+                spdlog::error("Failed to get table '{}': {}. Attempting to refresh schema...", table_name, error_msg);
+                
+                try {
+                    // First try schema refresh
+                    schema = session.getSchema(m_schema_name, true);
+                    return schema.getTable(table_name, true);
+                } catch (const mysqlx::Error &retry_e) {
+                    const std::string retry_error_msg = retry_e.what();
+                    spdlog::error("Failed to get table '{}' after schema refresh: {}. Attempting full reconnection...", 
+                                table_name, retry_error_msg);
+                    
+                    // If schema refresh fails and error is connection-related, try full reconnection
+                    if (retry_error_msg.find("incorrect resume") != std::string::npos ||
+                        retry_error_msg.find("CDK Error") != std::string::npos) {
+                        try {
+                            reconnect();
+                            return schema.getTable(table_name, true);
+                        } catch (const mysqlx::Error &reconnect_e) {
+                            spdlog::error("Failed to get table '{}' after full reconnection: {}", 
+                                        table_name, reconnect_e.what());
+                            throw;
+                        }
+                    } else {
+                        throw;
+                    }
+                }
+            }
+        }
+
+        /**
+         * @brief Execute database operation with retry mechanism for connection issues
+         * @param operation Lambda function that performs the database operation
+         * @param operation_name Description of the operation for logging
+         * @param reset_table_cache Function to reset cached table references (optional)
+         */
+        template<typename Operation>
+        void execute_with_retry(Operation&& operation, const std::string& operation_name, 
+                               std::function<void()> reset_cache = [](){}) {
+            const int max_retries = 3;
+            int retry_count = 0;
+            
+            while (retry_count < max_retries) {
+                try {
+                    operation();
+                    return; // Success, exit the retry loop
+                } catch (const mysqlx::Error &e) {
+                    retry_count++;
+                    const std::string error_msg = e.what();
+                    
+                    // Check if this is a connection-related error that might benefit from retry
+                    const bool is_connection_error = error_msg.find("CDK Error") != std::string::npos ||
+                                                   error_msg.find("incorrect resume") != std::string::npos ||
+                                                   error_msg.find("Connection") != std::string::npos ||
+                                                   error_msg.find("timeout") != std::string::npos;
+                    
+                    if (is_connection_error && retry_count < max_retries) {
+                        spdlog::warn("{} failed (attempt {}/{}), retrying... Error: {}", 
+                                   operation_name, retry_count, max_retries, error_msg);
+                        
+                        // For "incorrect resume" errors, try full reconnection first
+                        if (error_msg.find("incorrect resume") != std::string::npos) {
+                            try {
+                                spdlog::info("Attempting full database reconnection for '{}'", operation_name);
+                                reconnect();
+                            } catch (const mysqlx::Error &reconnect_e) {
+                                spdlog::error("Reconnection failed for '{}': {}", operation_name, reconnect_e.what());
+                                // Continue to normal retry logic
+                            }
+                        }
+                        
+                        // Reset cached table references to force reconnection
+                        reset_cache();
+                        
+                        // Progressive delay before retry
+                        std::this_thread::sleep_for(std::chrono::milliseconds(100 * retry_count));
+                        continue;
+                    } else {
+                        spdlog::error("{} error at MySQL X DevAPI Error (final attempt {}/{}): {}", 
+                                    operation_name, retry_count, max_retries, error_msg);
+                        break;
+                    }
+                }
+            }
+        }
+
         inline mysqlx::Table &get_message_record_table() {
             if (!message_record_table) {
-                message_record_table = schema.getTable(std::string(DEFAULT_MESSAGE_RECORD_TABLE_NAME), true);
+                message_record_table = get_table_with_retry(std::string(DEFAULT_MESSAGE_RECORD_TABLE_NAME));
             }
             return *message_record_table;
         }
 
         inline mysqlx::Table &get_tool_calls_record_table() {
             if (!tool_calls_record_table) {
-                tool_calls_record_table = schema.getTable(std::string(DEFAULT_TOOLS_CALL_RECORD_TABLE), true);
+                tool_calls_record_table = get_table_with_retry(std::string(DEFAULT_TOOLS_CALL_RECORD_TABLE));
             }
             return *tool_calls_record_table;
         }
 
         inline mysqlx::Table get_user_preference_table() {
-            return schema.getTable(std::string(DEFAULT_USER_PREFERENCE_TABLE_NAME), true);
+            return get_table_with_retry(std::string(DEFAULT_USER_PREFERENCE_TABLE_NAME));
         }
 
         inline mysqlx::Table &get_user_protait_table() {
             if (!user_protait_table) {
-                user_protait_table = schema.getTable(std::string(DEFAULT_USER_PORTAIT_TABLE_NAME), true);
+                user_protait_table = get_table_with_retry(std::string(DEFAULT_USER_PORTAIT_TABLE_NAME));
             }
             return *user_protait_table;
         }

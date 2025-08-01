@@ -33,7 +33,10 @@ namespace rag {
         std::vector<std::pair<std::string, std::string>> failed_reason;
     };
 
-    std::vector<DBKnowledge> query_knowledge(const std::string_view query, bool exactly_match = false);
+    std::optional<std::string> query_knowledge(const std::string_view query, 
+                                               bool exactly_match = false,
+                                               std::optional<qq_id_t> user_id = std::nullopt,
+                                               std::optional<std::string> user_name = std::nullopt);
 
     void insert_knowledge(const DBKnowledge &knowledge);
 

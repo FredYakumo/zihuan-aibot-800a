@@ -8,6 +8,7 @@
 #include "msg_prop.h"
 #include "rag.h"
 #include "utils.h"
+#include "vec_db/weaviate.h"
 #include <charconv>
 #include <chrono>
 #include <exception>
@@ -44,7 +45,7 @@ namespace bot_cmd {
 
     CommandRes query_knowledge_command(CommandContext context) {
         std::string res{};
-        const auto query_msg = rag::query_knowledge(context.param);
+        const auto query_msg = vec_db::query_knowledge_from_vec_db(context.param, 0.7f);
         if (query_msg.empty()) {
             context.adapter.send_replay_msg(*context.event->sender_ptr,
                                             bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
@@ -52,8 +53,23 @@ namespace bot_cmd {
             return CommandRes{true};
         }
         for (const auto &e : query_msg) {
-            res.append(fmt::format("\nkey: \"{}\", value: \"{}\"。创建者: {}, 时间: {},   置信度: {:.4f}", e.key,
-                                   e.value, e.creator_name, e.create_dt, e.certainty));
+            // Format keywords as comma-separated string
+            std::string keywords_str = wheel::join_str(std::cbegin(e.keyword), std::cend(e.keyword), ", ");
+            res.append(fmt::format(
+                "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                "\n📝 内容: {}"
+                "\n🏷️ 关键词: [{}]"
+                "\n📂 分类: {}"
+                "\n👤 创建者: {}"
+                "\n📅 时间: {}"
+                "\n📊 置信度: {:.4f}"
+                "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", 
+                e.content, 
+                keywords_str, 
+                e.knowledge_class_filter.empty() ? "未分类" : e.knowledge_class_filter,
+                e.creator_name, 
+                e.create_time, 
+                e.certainty));
         }
         context.adapter.send_long_plain_text_reply(*context.event->sender_ptr, res);
         return CommandRes{true};
@@ -142,8 +158,22 @@ namespace bot_cmd {
         for (; index < 4 && index < g_wait_add_knowledge_list.size(); ++index) {
             if (const auto &knowledge = g_wait_add_knowledge_list[index]; knowledge.has_value()) {
                 const auto &k = knowledge->get();
+                std::string keywords_str = wheel::join_str(std::cbegin(k.keyword), std::cend(k.keyword), ", ");
                 wait_add_list_str.append(
-                    fmt::format("\n{}: {} - {} - {}: {}", index, k.creator_name, k.create_dt, k.key, k.value));
+                    fmt::format("\n━━━ 条目 {} ━━━"
+                               "\n📝 内容: {}"
+                               "\n🏷️ 关键词: [{}]"
+                               "\n📂 分类: {}"
+                               "\n👤 创建者: {}"
+                               "\n📅 时间: {}"
+                               "\n📊 置信度: {:.4f}",
+                               index, 
+                               k.content,
+                               keywords_str, 
+                               k.knowledge_class_filter.empty() ? "未分类" : k.knowledge_class_filter,
+                               k.creator_name, 
+                               k.create_time, 
+                               k.certainty));
             }
         }
         auto size = g_wait_add_knowledge_list.size();

@@ -6,40 +6,50 @@
 #include <chrono>
 #include <cpr/cpr.h>
 #include <fmt/format.h>
+#include <general-wheel-cpp/string_utils.hpp>
 #include <iterator>
 #include <string>
-#include <general-wheel-cpp/string_utils.hpp>
 
 namespace vec_db {
     std::string graphql_query(const std::string_view schema, const neural_network::emb_vec_t &emb,
-                              float certainty_threshold, size_t top_k) {
-        return fmt::format(
+                              float certainty_threshold, std::optional<size_t> top_k) {
+        std::string query_base = fmt::format(
             R"({{
                     Get{{
                         {}(
                     nearVector: {{
                         vector: [{}],
                         certainty: {}
-                    }}
-                    limit: {}
-                    ) {{
-                        key
-                        value
-                        creator_name
-                        create_time
-                        _additional {{
-                            certainty
-                        }}
-                    }}
-            }}
-        }})",
+                    }})",
             "AIBot_knowledge",
             wheel::join_str(std::cbegin(emb), std::cend(emb), ",", [](auto v) { return std::to_string(v); }),
-            certainty_threshold, top_k);
+            certainty_threshold);
+
+        if (top_k.has_value()) {
+            query_base += fmt::format(
+                R"(
+                    limit: {})",
+                top_k.value());
+        }
+
+        query_base += R"(
+                    ) {
+                        keyword
+                        content
+                        creator_name
+                        create_time
+                        _additional {
+                            certainty
+                        }
+                    }
+            }
+        })";
+
+        return query_base;
     }
 
     std::vector<DBKnowledge> query_knowledge_from_vec_db(const std::string_view query, float certainty_threshold,
-                                                         size_t top_k) {
+                                                         std::optional<size_t> top_k) {
         std::vector<DBKnowledge> results;
         if (query.empty()) {
             return results; // Return empty if query is empty
@@ -106,10 +116,22 @@ namespace vec_db {
                                      duration.count());
                         for (const auto &item : knowledge.value()) {
                             DBKnowledge db_knowledge;
-                            db_knowledge.key = get_optional(item, "key").value_or("");
-                            db_knowledge.value = get_optional(item, "value").value_or("");
+                            if (auto keyword_opt = get_optional(item, "keyword");
+                                keyword_opt.has_value() && keyword_opt->is_array()) {
+                                db_knowledge.keyword.clear();
+                                for (const auto &kw : *keyword_opt) {
+                                    if (kw.is_string()) {
+                                        db_knowledge.keyword.push_back(kw.get<std::string>());
+                                    }
+                                }
+                            } else {
+                                db_knowledge.keyword.clear();
+                            }
+                            db_knowledge.content = get_optional(item, "content").value_or("");
                             db_knowledge.creator_name = get_optional(item, "creator_name").value_or("");
-                            db_knowledge.create_dt = get_optional(item, "create_dt").value_or("");
+                            db_knowledge.create_time = get_optional(item, "create_time").value_or("");
+                            db_knowledge.knowledge_class_filter =
+                                get_optional(item, "knowledge_class_filter").value_or("");
 
                             if (auto additional = get_optional(item, "_additional"); additional.has_value()) {
                                 db_knowledge.certainty = get_optional(additional.value(), "certainty").value_or(0.0f);
@@ -117,8 +139,12 @@ namespace vec_db {
                                 db_knowledge.certainty = 0.0f;
                             }
                             spdlog::info(
-                                "Found knowledge: key={}, value={}, creator_name={}, create_dt={}, certainty={}",
-                                db_knowledge.key, db_knowledge.value, db_knowledge.creator_name, db_knowledge.create_dt,
+                                "Found knowledge: knowledge_class_filter={}, content={}, keywords={}, creator_name={}, create_time={}, certainty={}, ",
+                                db_knowledge.knowledge_class_filter,
+                                db_knowledge.content,
+                                wheel::join_str(std::cbegin(db_knowledge.keyword), std::cend(db_knowledge.keyword), ","),
+                                db_knowledge.creator_name,
+                                db_knowledge.create_time,
                                 db_knowledge.certainty);
                             results.push_back(db_knowledge);
                         }

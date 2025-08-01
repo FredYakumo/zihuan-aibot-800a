@@ -78,7 +78,8 @@ print(f"\nCurrent device: {device}")
 
 text_embedder = TextEmbedder(device=device)
 tokenizer = text_embedder.tokenizer
-embedding_model = text_embedder.model
+# Use the underlying transformer model from TextEmbedder
+embedding_model = text_embedder.model.model  # Get the actual AutoModel from TextEmbeddingModel
 
 # --- 3. Dataset and DataLoader ---
 class TextDataset(Dataset):
@@ -121,8 +122,8 @@ train_texts, val_texts, train_labels, val_labels = train_test_split(
     random_state=42
 )
 
-MAX_LEN = 128 # Maximum text length, can be adjusted according to actual needs
-BATCH_SIZE = 8 # Batch size, can be adjusted according to GPU memory
+MAX_LEN = 128
+BATCH_SIZE = 8
 
 train_dataset = TextDataset(
     texts=train_texts,

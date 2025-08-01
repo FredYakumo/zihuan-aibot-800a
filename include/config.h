@@ -65,6 +65,13 @@ struct Config {
     /// A location to store temporary results, such as rendered html files.
     std::string temp_res_path;
 
+    /// Path to LAC model
+    std::string lac_model_path;
+    /// Path to segmentation model
+    std::string seg_model_path;
+    /// Path to rank model
+    std::string rank_model_path;
+
     inline static Config &instance() {
         static Config config;
         return config;

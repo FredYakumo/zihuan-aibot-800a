@@ -67,6 +67,7 @@ endif()
 # Collect source files
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/ SRC_FILES)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network NN_SRC_FILES)
+aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/text_model NN_TEXT_MODEL_SRC_FILES)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/vec_db VEC_DB_SRC_FILES)
 
 
@@ -80,6 +81,7 @@ aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/vec_db VEC_DB_SRC_FILES)
 set(BIN_SOURCES
     ${SRC_FILES}
     ${NN_SRC_FILES}
+    ${NN_TEXT_MODEL_SRC_FILES}
     ${VEC_DB_SRC_FILES}
     ${PLUGIN_SOURCE_PATH}
     ${CMAKE_CURRENT_SOURCE_DIR}/external/easywsclient/easywsclient.cpp
@@ -91,7 +93,13 @@ foreach(file IN LISTS SRC_FILES)
     message(STATUS "Source file: ${file}")
 endforeach()
 foreach(file IN LISTS NN_SRC_FILES)
-    message(STATUS "Source file: ${file}")
+    message(STATUS "NN Source file: ${file}")
+endforeach()
+foreach(file IN LISTS NN_TEXT_MODEL_SRC_FILES)
+    message(STATUS "NN Text Model Source file: ${file}")
+endforeach()
+foreach(file IN LISTS VEC_DB_SRC_FILES)
+    message(STATUS "Vec DB Source file: ${file}")
 endforeach()
 
 # Create shared library
@@ -118,6 +126,13 @@ endif()
 if(use_libtorch)
     target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE torch)
 endif()
+# Link Paddle Inference library if defined
+if(paddle_inference_path)
+    target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE ${PADDLE_LIB})
+    if(DEFINED MATH_LIB)
+        target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE ${MATH_LIB})
+    endif()
+endif()
 target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE general-wheel-cpp::general-wheel-cpp)
 
 
@@ -133,8 +148,10 @@ include(CTest)
 add_executable(unit_test
     ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/nn.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/text_model.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/model_set.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/text_model/text_embedding_model.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/text_model/text_embedding_with_mean_pooling_model.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/text_model/tokenizer_wrapper.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/vec_db/weaviate.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/utils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/global_data.cpp
@@ -146,6 +163,8 @@ add_executable(unit_test
 set(use_libtorch "" CACHE PATH "Path to libtorch directory; leave empty to disable libtorch")
 # Allow users to specify onnxruntime path via use_ort (string), empty means use default search
 set(use_ort "" CACHE PATH "Path to onnxruntime directory; leave empty to use system default")
+# Allow users to specify paddle inference path for LAC
+set(paddle_inference_path "~/paddle_inference" CACHE PATH "Path to paddle inference directory for LAC")
 
 # If use_libtorch is specified (i.e., path is not empty), include libtorch, otherwise include onnxruntime
 if(use_libtorch)
@@ -162,6 +181,62 @@ else()
     endif()
 endif()
 
+# Configure Paddle Inference Library for LAC
+if(paddle_inference_path)
+    # Convert ~ to absolute path if it exists in the path
+    string(REGEX REPLACE "^~" "$ENV{HOME}" PADDLE_ABS_PATH ${paddle_inference_path})
+    
+    # Check if the path exists
+    if(NOT EXISTS ${PADDLE_ABS_PATH})
+        message(FATAL_ERROR "Paddle Inference path does not exist: ${PADDLE_ABS_PATH}")
+    endif()
+    
+    message(STATUS "Using Paddle Inference from: ${PADDLE_ABS_PATH}")
+    
+    # Include Paddle headers
+    include_directories(${PADDLE_ABS_PATH}/paddle/include)
+    
+    # Include third-party libraries
+    set(PADDLE_LIB_THIRD_PARTY_PATH "${PADDLE_ABS_PATH}/third_party/install/")
+    include_directories("${PADDLE_LIB_THIRD_PARTY_PATH}protobuf/include")
+    include_directories("${PADDLE_LIB_THIRD_PARTY_PATH}glog/include")
+    include_directories("${PADDLE_LIB_THIRD_PARTY_PATH}gflags/include")
+    include_directories("${PADDLE_LIB_THIRD_PARTY_PATH}xxhash/include")
+    
+    # Link directories
+    link_directories("${PADDLE_LIB_THIRD_PARTY_PATH}protobuf/lib")
+    link_directories("${PADDLE_LIB_THIRD_PARTY_PATH}glog/lib")
+    link_directories("${PADDLE_LIB_THIRD_PARTY_PATH}gflags/lib")
+    link_directories("${PADDLE_LIB_THIRD_PARTY_PATH}xxhash/lib")
+    link_directories("${PADDLE_ABS_PATH}/paddle/lib")
+    
+    # Check for MKL
+    set(mklml_inc_path ${PADDLE_ABS_PATH}/third_party/install/mklml/include)
+    set(mklml_lib_path ${PADDLE_ABS_PATH}/third_party/install/mklml/lib)
+    if(EXISTS ${mklml_inc_path} AND EXISTS ${mklml_lib_path})
+        message(STATUS "MKLML lib found in Paddle.")
+        include_directories(${PADDLE_ABS_PATH}/third_party/install/mklml/include)
+        if(APPLE)
+            set(MATH_LIB ${mklml_lib_path}/libmklml_intel.dylib
+                         ${mklml_lib_path}/libiomp5.dylib)
+        elseif(UNIX)
+            set(MATH_LIB ${mklml_lib_path}/libmklml_intel.so
+                         ${mklml_lib_path}/libiomp5.so)
+        endif()
+    endif()
+    
+    # Define the Paddle library to link against
+    if(APPLE)
+        set(PADDLE_LIB ${PADDLE_ABS_PATH}/paddle/lib/libpaddle_inference.dylib)
+    else()
+        set(PADDLE_LIB ${PADDLE_ABS_PATH}/paddle/lib/libpaddle_inference.so)
+    endif()
+    
+    # Add definition to indicate Paddle is available
+    add_definitions(-D__USE_PADDLE_INFERENCE__)
+    message(STATUS "Defined macro: __USE_PADDLE_INFERENCE__")
+endif()
+
 if(LINUX)
     target_link_libraries(unit_test PRIVATE cpr::cpr gtest gtest_main fmt::fmt yaml-cpp::yaml-cpp Boost::filesystem tokenizers_cpp ncnn)
     if(NOT use_libtorch)
@@ -169,6 +244,13 @@ if(LINUX)
     endif()
     if(use_libtorch)
         target_link_libraries(unit_test PRIVATE torch)
+    endif()
+    # Link Paddle Inference library for unit tests if defined
+    if(paddle_inference_path)
+        target_link_libraries(unit_test PRIVATE ${PADDLE_LIB})
+        if(DEFINED MATH_LIB)
+            target_link_libraries(unit_test PRIVATE ${MATH_LIB})
+        endif()
     endif()
     target_link_libraries(unit_test PRIVATE /usr/local/lib64/libmysqlcppconnx.so)
 else()
@@ -178,6 +260,13 @@ else()
     endif()
     if(use_libtorch)
         target_link_libraries(unit_test PRIVATE torch)
+    endif()
+    # Link Paddle Inference library for unit tests if defined
+    if(paddle_inference_path)
+        target_link_libraries(unit_test PRIVATE ${PADDLE_LIB})
+        if(DEFINED MATH_LIB)
+            target_link_libraries(unit_test PRIVATE ${MATH_LIB})
+        endif()
     endif()
     target_link_libraries(unit_test PRIVATE /opt/homebrew/lib/libmysqlcppconnx.dylib)
 endif()
@@ -229,4 +318,30 @@ if(use_libtorch)
 else()
     add_definitions(-D__USE_ONNX_RUNTIME__)
     message(STATUS "Defined macro: __USE_ONNX_RUNTIME__")
+endif()
+
+# Create symlink for compile_commands.json to main build directory for clangd
+if(CMAKE_EXPORT_COMPILE_COMMANDS)
+    # Ensure the main build directory exists
+    file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/build)
+    
+    # Create symlink immediately during configure phase
+    # First, remove existing symlink if it exists to avoid conflicts
+    if(EXISTS ${CMAKE_SOURCE_DIR}/build/compile_commands.json)
+        file(REMOVE ${CMAKE_SOURCE_DIR}/build/compile_commands.json)
+    endif()
+    
+    # Create the symlink to the binary directory's compile_commands.json
+    execute_process(
+        COMMAND ${CMAKE_COMMAND} -E create_symlink 
+            ${CMAKE_BINARY_DIR}/compile_commands.json 
+            ${CMAKE_SOURCE_DIR}/build/compile_commands.json
+        RESULT_VARIABLE symlink_result
+    )
+    
+    if(symlink_result EQUAL 0)
+        message(STATUS "Created compile_commands.json symlink: ${CMAKE_SOURCE_DIR}/build/compile_commands.json -> ${CMAKE_BINARY_DIR}/compile_commands.json")
+    else()
+        message(WARNING "Failed to create compile_commands.json symlink")
+    endif()
 endif()

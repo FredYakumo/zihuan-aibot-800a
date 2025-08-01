@@ -14,6 +14,7 @@
 #include <config.h>
 #include <cpr/cpr.h>
 #include <fmt/format.h>
+#include <general-wheel-cpp/string_utils.hpp>
 #include <iterator>
 #include <optional>
 #include <spdlog/spdlog.h>
@@ -21,7 +22,6 @@
 #include <string_view>
 #include <utility>
 #include <vector>
-#include <general-wheel-cpp/string_utils.hpp>
 
 namespace rag {
     const Config &config = Config::instance();
@@ -108,8 +108,57 @@ namespace rag {
         return result;
     }
 
-    std::vector<DBKnowledge> query_knowledge(const std::string_view query, bool exactly_match) {
-        return vec_db::query_knowledge_from_vec_db(query, 0.7f, 5);
+    std::optional<std::string> query_knowledge(const std::string_view query, bool exactly_match,
+                                               std::optional<qq_id_t> user_id, std::optional<std::string> user_name) {
+        // Search knowledge for this query
+        spdlog::info("Search knowledge for query: {}", query);
+        auto msg_knowledge_list = vec_db::query_knowledge_from_vec_db(query, 0.85f);
+
+        // If user_id is not provided, return nullopt (no session management)
+        if (!user_id.has_value()) {
+            return std::nullopt;
+        }
+
+        std::string chat_use_knowledge_str;
+        if (!g_chat_session_knowledge_list_map.contains(*user_id)) {
+            g_chat_session_knowledge_list_map.insert_or_assign(*user_id, std::set<std::string>());
+        }
+        auto session_knowledge_set = g_chat_session_knowledge_list_map.find(*user_id).value();
+
+        // Add new knowledge to session
+        for (const auto &knowledge : msg_knowledge_list) {
+            if (knowledge.content.empty()) {
+                continue;
+            }
+            session_knowledge_set->insert(fmt::format("{}", knowledge.content));
+        }
+
+        // Apply length limit
+        size_t total_len = 0;
+        auto it = session_knowledge_set->rbegin();
+        while (it != session_knowledge_set->rend() && total_len < MAX_KNOWLEDGE_LENGTH) {
+            total_len += it->length();
+            ++it;
+        }
+
+        // Remove entries that exceed the limit
+        if (it != session_knowledge_set->rend()) {
+            std::string user_name_str = user_name.value_or(std::to_string(*user_id));
+            spdlog::info("{}({})的对话session知识数量超过限制, 删除'{}'之前的知识内容", user_name_str, *user_id, *it);
+            session_knowledge_set->erase(session_knowledge_set->begin(), it.base());
+        }
+
+        // Generate session knowledge string
+        if (session_knowledge_set->empty()) {
+            spdlog::info("未查询到对话关联的知识");
+            return std::nullopt;
+        }
+        chat_use_knowledge_str.append("相关的知识:\"");
+        chat_use_knowledge_str.append(
+            wheel::join_str(std::cbegin(*session_knowledge_set), std::cend(*session_knowledge_set), "."));
+        chat_use_knowledge_str.append("\"");
+
+        return chat_use_knowledge_str;
     }
 
     void insert_group_msg(uint64_t group_id, const std::string_view group_name, uint64_t sender_id,
@@ -144,12 +193,15 @@ namespace rag {
     void insert_knowledge(const DBKnowledge &knowledge) {
         spdlog::info("Insert msg to AIBot_knowledge collection");
 
-        nlohmann::json request = {{"objects", nlohmann::json::array({{{"class", "AIBot_knowledge"},
-                                                                      {"properties",
-                                                                       {{"creator_name", knowledge.creator_name},
-                                                                        {"create_time", knowledge.create_dt},
-                                                                        {"key", knowledge.key},
-                                                                        {"value", knowledge.value}}}}})}};
+        nlohmann::json request = {
+            {"objects",
+             nlohmann::json::array(
+                 {{{"class", "AIBot_knowledge"},
+                   {"properties",
+                    {{"creator_name", knowledge.creator_name},
+                     {"create_time", knowledge.create_time},
+                     {"key", wheel::join_str(std::cbegin(knowledge.keyword), std::cend(knowledge.keyword), ",")},
+                     {"value", knowledge.content}}}}})}};
         spdlog::info("{}", request.dump());
 
         cpr::Response response =
@@ -248,7 +300,7 @@ namespace rag {
         //     return std::nullopt;
         // }
         std::string ret;
-        
+
         return ret;
     }
 

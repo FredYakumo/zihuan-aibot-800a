@@ -6,7 +6,8 @@
 #include "get_optional.hpp"
 #include "neural_network/model_set.h"
 #include "neural_network/nn.h"
-#include "neural_network/text_model.h"
+#include "neural_network/text_model/text_embedding_with_mean_pooling_model.h"
+#include "neural_network/text_model/tokenizer_wrapper.h"
 #include <chrono>
 #include <general-wheel-cpp/collection/concurrent_vector.hpp>
 #include <cstdint>
@@ -19,6 +20,7 @@
 #include <spdlog/spdlog.h>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 namespace bot_adapter {
@@ -407,6 +409,17 @@ namespace bot_adapter {
         GroupMemberNameEmbeddngMatrix(GroupMemberNameEmbeddngMatrix&&) noexcept = default;
         GroupMemberNameEmbeddngMatrix& operator=(GroupMemberNameEmbeddngMatrix&&) noexcept = default;
 
+
+        /**
+         * @brief Constructs GroupMemberNameEmbeddngMatrix with pre-computed embedding matrix
+         * @param embedding_matrix Pre-computed embedding matrix
+         */
+        explicit GroupMemberNameEmbeddngMatrix(neural_network::emb_mat_t embedding_matrix)
+            : member_name_embedding_matrix(std::move(embedding_matrix)) {
+            // Note: This constructor assumes the embedding matrix corresponds to members
+            // but doesn't populate member_ids or contain_member_ids as we don't have that info
+        }
+
         /**
          * @brief Adds a member to the embedding matrix.
          *
@@ -434,6 +447,67 @@ namespace bot_adapter {
             contain_member_ids.insert(member_id);
             member_ids.push_back(member_id);
             member_name_embedding_matrix.push_back(embedding);
+        }
+
+        /**
+         * @brief Batch adds multiple members to the embedding matrix using batch inference.
+         *
+         * This function efficiently processes multiple members at once by using the model's
+         * batch inference capability. It filters out members that already exist and only
+         * computes embeddings for new members.
+         *
+         * @param member_ids A vector containing member IDs.
+         * @param member_names A vector containing corresponding member names.
+         */
+        inline void batch_add_member(const std::vector<qq_id_t> &member_ids, const std::vector<std::string> &member_names) {
+            if (member_ids.empty() || member_names.empty() || member_ids.size() != member_names.size()) {
+                if (member_ids.size() != member_names.size()) {
+                    spdlog::error("[GroupMemberNameEmbeddngMatrix] member_ids and member_names size mismatch: {} vs {}", 
+                                 member_ids.size(), member_names.size());
+                }
+                return;
+            }
+
+            // Filter out members that already exist and deduplicate input
+            std::vector<qq_id_t> new_member_ids;
+            std::vector<std::string> new_member_names;
+            std::unordered_set<qq_id_t> seen_in_batch; // Track duplicates within this batch
+            
+            for (size_t i = 0; i < member_ids.size(); ++i) {
+                const qq_id_t member_id = member_ids[i];
+                const std::string &member_name = member_names[i];
+                // Check both existing members and duplicates within current batch
+                if (!contain_member_ids.contains(member_id) && seen_in_batch.find(member_id) == seen_in_batch.end()) {
+                    new_member_ids.push_back(member_id);
+                    new_member_names.push_back(member_name);
+                    seen_in_batch.insert(member_id);
+                }
+            }
+
+            if (new_member_ids.empty()) {
+                spdlog::info("[GroupMemberNameEmbeddngMatrix] All {} members already exist, skipping batch computation", member_ids.size());
+                return;
+            }
+
+            spdlog::info("[GroupMemberNameEmbeddngMatrix] Batch computing embeddings for {} new members out of {} total", 
+                        new_member_ids.size(), member_ids.size());
+            auto start_time = std::chrono::high_resolution_clock::now();
+
+            auto embeddings = neural_network::get_model_set().text_embedding_model->embed(new_member_names);
+
+            auto end_time = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+            spdlog::info("[GroupMemberNameEmbeddngMatrix] Batch embedding computation took {} ms for {} members (avg: {:.2f} ms/member)", 
+                        duration.count(), new_member_ids.size(), 
+                        static_cast<double>(duration.count()) / new_member_ids.size());
+
+            // Add all new members to the containers
+            for (size_t i = 0; i < new_member_ids.size(); ++i) {
+                const qq_id_t member_id = new_member_ids[i];
+                contain_member_ids.insert(member_id);
+                this->member_ids.push_back(member_id);
+                member_name_embedding_matrix.push_back(embeddings[i]);
+            }
         }
 
         /**
@@ -512,7 +586,7 @@ namespace bot_adapter {
 
         FriendInfo(const nlohmann::json &friend_info)
             : id(get_optional<qq_id_t>(friend_info, "id").value_or(0)),
-              name(get_optional<std::string>(friend_info, "name").value_or("")),
+              name(get_optional<std::string>(friend_info, "nickname").value_or("")),
               remark(get_optional<std::string>(friend_info, "remark")) {}
     };
 } // namespace bot_adapter

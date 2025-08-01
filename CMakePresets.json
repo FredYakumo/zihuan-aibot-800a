@@ -14,12 +14,31 @@
             "binaryDir": "${sourceDir}/build/libtorch-debug",
             "cacheVariables": {
                 "use_libtorch": "/Users/fredyakumo/libtorch",
+                "paddle_inference_path": "/Users/fredyakumo/paddle_inference",
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
             },
             "environment": {
                 "CC": "clang",
                 "CXX": "clang++"
+            }
+        },
+        {
+            "name": "make-libtorch-debug",
+            "displayName": "Make - LibTorch (Debug)",
+            "description": "Build using Make generator with LibTorch support in Debug mode",
+            "generator": "Unix Makefiles",
+            "binaryDir": "${sourceDir}/build/libtorch-debug",
+            "cacheVariables": {
+                "use_libtorch": "/Users/fredyakumo/libtorch",
+                "paddle_inference_path": "/Users/fredyakumo/paddle_inference",
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+            },
+            "environment": {
+                "CC": "clang",
+                "CXX": "clang++",
+                "MAKEFLAGS": "-j4"
             }
         },
         {
@@ -30,6 +49,7 @@
             "binaryDir": "${sourceDir}/build/libtorch-release",
             "cacheVariables": {
                 "use_libtorch": "/Users/fredyakumo/libtorch",
+                "paddle_inference_path": "/Users/fredyakumo/paddle_inference",
                 "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
             },
@@ -45,6 +65,7 @@
             "generator": "Ninja",
             "binaryDir": "${sourceDir}/build/onnx-debug",
             "cacheVariables": {
+                "paddle_inference_path": "/Users/fredyakumo/paddle_inference",
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
             },
@@ -60,6 +81,7 @@
             "generator": "Ninja",
             "binaryDir": "${sourceDir}/build/onnx-release",
             "cacheVariables": {
+                "paddle_inference_path": "/Users/fredyakumo/paddle_inference",
                 "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
             },
@@ -74,6 +96,11 @@
             "name": "ninja-libtorch-debug-build",
             "displayName": "Build with LibTorch (Debug)",
             "configurePreset": "ninja-libtorch-debug"
+        },
+        {
+            "name": "make-libtorch-debug-build",
+            "displayName": "Build with LibTorch (Debug)",
+            "configurePreset": "make-libtorch-debug"
         },
         {
             "name": "ninja-libtorch-release-build",

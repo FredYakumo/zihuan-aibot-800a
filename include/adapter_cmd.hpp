@@ -83,7 +83,6 @@ namespace bot_adapter {
         AdapterCommandRes(uint64_t sync_id, std::optional<nlohmann::json> data_json_option = std::nullopt)
             : sync_id(sync_id), data_json_option(data_json_option) {}
     };
-
 } // namespace bot_adapter
 
 #endif

@@ -29,4 +29,6 @@ dependencies = [
     "tqdm",
     "netron>=8.4.4",
     "tensorboard>=2.19.0",
+    "ltp>=4.2.14",
+    "numpy>=2.2.6",
 ]

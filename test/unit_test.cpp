@@ -1,5 +1,7 @@
 #include "net.h"
-#include "neural_network/text_model.h"
+#include "neural_network/text_model/text_embedding_model.h"
+#include "neural_network/text_model/text_embedding_with_mean_pooling_model.h"
+#include "neural_network/text_model/tokenizer_wrapper.h"
 #include "neural_network/model_set.h"
 #include "utils.h"
 #include <general-wheel-cpp/string_utils.hpp>
@@ -11,10 +13,10 @@
 
 using namespace wheel;
 
-TEST(UnitTest, MainTest) { GTEST_LOG_(INFO) << "Main unit test"; }
+TEST(BasicSetup, FrameworkInitialization) { GTEST_LOG_(INFO) << "Basic test framework initialization"; }
 
 #ifdef __USE_ONNX_RUNTIME__
-TEST(UnitTest, ONNX_RUNTIME) {
+TEST(ONNXRuntime, ProviderAvailabilityCheck) {
     spdlog::info(Ort::GetVersionString());
     for (const auto &provider : Ort::GetAvailableProviders()) {
         spdlog::info("Available provider: {}", provider);
@@ -22,7 +24,7 @@ TEST(UnitTest, ONNX_RUNTIME) {
 }
 #endif
 
-TEST(UnitTest, BotAdapterTest) {
+TEST(BotAdapter, WebSocketConnectionSetup) {
     spdlog::set_level(spdlog::level::debug);
     // bot_adapter::BotAdapter adapter{"ws://localhost:13378/all"};
     // const auto test_sender_id = 3507578481;
@@ -40,7 +42,7 @@ TEST(UnitTest, BotAdapterTest) {
     // adapter.start();
 }
 
-TEST(UnitTest, ReplaceString) {
+TEST(StringUtils, KeywordReplacementOperations) {
     std::string str0 = "#联网 abc";
     std::string new_str0 = replace_str(str0, "#联网", "");
     EXPECT_EQ(new_str0, " abc");
@@ -53,7 +55,7 @@ TEST(UnitTest, ReplaceString) {
 
 constexpr std::string_view test_url = "ws://localhost:13378/all";
 
-TEST(UnitTest, GetMessageIdTest) {
+TEST(BotAdapter, MessageIdRetrieval) {
     // spdlog::set_level(spdlog::level::debug);
     // bot_adapter::BotAdapter adapter{test_url};
     // adapter.get_message_id(2259, 790544814,
@@ -62,7 +64,7 @@ TEST(UnitTest, GetMessageIdTest) {
     // adapter.start();
 }
 
-// TEST(UnitTest, SendLongText) {
+// TEST(BotAdapter, LongTextMessageSending) {
 //     spdlog::set_level(spdlog::level::debug);
 //     bot_adapter::BotAdapter adapter{test_url};
 //     adapter.send_long_plain_text_replay(
@@ -87,263 +89,360 @@ TEST(UnitTest, GetMessageIdTest) {
 //     adapter.start();
 // }
 
-
 #ifdef __USE_ONNX_RUNTIME__
-TEST(UnitTest, TestCosineSimilarity) {
+TEST(ONNXRuntime, CosineSimilarityInference) {
     neural_network::init_onnx_runtime();
 
-    neural_network::TextEmbeddingWithMeanPoolingModel embedder("embedding.onnx");
+    neural_network::TextEmbeddingWithMeanPoolingModel embedder("exported_model/text_embedding_mean_pooling.onnx");
     const auto tokenizer = neural_network::load_tokenizers("tokenizer/tokenizer.json");
     const auto tokenizer_wrapper = neural_network::TokenizerWrapper(tokenizer, neural_network::TokenizerConfig());
 
     const std::vector<std::string> batch_text{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"};
-    std::vector<neural_network::token_id_vec_with_mask_t> batch_token;
-    std::vector<std::vector<float>> batch_embedding;
+    const std::string target_text = "杀猪";
+    
+    spdlog::info("Computing embeddings for similarity test...");
+    
+    // 计算目标文本的嵌入向量
+    auto target_embedding = embedder.embed(target_text);
+    spdlog::info("Target embedding dim: {}", target_embedding.size());
+    
+    // 计算候选文本的嵌入向量
+    auto start_embed = std::chrono::high_resolution_clock::now();
+    std::vector<std::vector<float>> batch_embeddings;
     for (const auto &text : batch_text) {
-        auto token_mask = tokenizer_wrapper.encode_with_mask(text);
-        spdlog::info("\"{}\" tokens: [{}], mask: [{}]", text,
-                     join_str(std::cbegin(token_mask.first), std::cend(token_mask.first), ",",
-                              [](auto i) { return std::to_string(i); }),
-                     join_str(std::cbegin(token_mask.second), std::cend(token_mask.second), ",",
-                              [](auto i) { return std::to_string(i); }));
-        auto embedding = embedder.embed(token_mask.first, token_mask.second);
-        batch_token.emplace_back(std::move(token_mask));
-        spdlog::info("Embedding dim: {}", embedding.size());
-        spdlog::info("embedding:\n[{}]...", join_str(std::cbegin(embedding), std::cbegin(embedding) + 100, ",",
-                                                     [](auto f) { return std::to_string(f); }));
-        batch_embedding.emplace_back(std::move(embedding));
+        auto embedding = embedder.embed(text);
+        batch_embeddings.emplace_back(std::move(embedding));
     }
-
-    neural_network::token_id_vec_with_mask_t target_token = tokenizer_wrapper.encode_with_mask("杀猪盘");
-    auto target_embedding = embedder.embed(target_token.first, target_token.second);
-
-    ncnn::Net cos_similarity_net;
-    cos_similarity_net.load_param("cosine_sim.ncnn.param");
-    cos_similarity_net.load_model("cosine_sim.ncnn.bin");
-
-    std::vector<float> &target_emb = target_embedding;
-    ncnn::Mat in0(1, target_emb.size(), target_emb.data()); // 形状: 1×嵌入维度
-
-    size_t batch_size = batch_embedding.size();
-    if (batch_size == 0) {
-        spdlog::error("Batch embedding is empty");
-        return;
+    auto end_embed = std::chrono::high_resolution_clock::now();
+    auto embed_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_embed - start_embed).count();
+    
+    spdlog::info("Batch embedding computation took {} ms", embed_duration);
+    spdlog::info("Generated {} embeddings with dimension {}", batch_embeddings.size(), 
+                 batch_embeddings.empty() ? 0 : batch_embeddings[0].size());
+    
+    for (size_t i = 0; i < batch_text.size() && i < batch_embeddings.size(); ++i) {
+        spdlog::info("Text: \"{}\" - Embedding dim: {}", batch_text[i], batch_embeddings[i].size());
     }
-    size_t embedding_dim = batch_embedding[0].size();
-    std::vector<float> in1_data;
-    in1_data.reserve(batch_size * embedding_dim);
-    for (const auto &emb : batch_embedding) {
-        if (emb.size() != embedding_dim) {
-            spdlog::error("Inconsistent embedding dimensions in batch");
-            return;
-        }
-        in1_data.insert(in1_data.end(), emb.begin(), emb.end());
+    
+    spdlog::info("Computing cosine similarities using ONNX model...");
+    
+    // 使用ONNX余弦相似度模型计算相似度
+    neural_network::CosineSimilarityModel cosine_model{"cosine_sim.onnx", neural_network::Device::CPU};
+    
+    auto start_time = std::chrono::high_resolution_clock::now();
+    auto similarity_scores = cosine_model.inference(target_embedding, batch_embeddings);
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+    
+    spdlog::info("ONNX cosine similarity computation took {} ms", duration);
+    spdlog::info("Similarity results:");
+    
+    for (size_t i = 0; i < batch_text.size() && i < similarity_scores.size(); ++i) {
+        spdlog::info("  \"{}\" <-> \"{}\": {:.6f}", target_text, batch_text[i], similarity_scores[i]);
     }
-    ncnn::Mat in1(batch_size, embedding_dim, in1_data.data());
-
-    ncnn::Extractor ex = cos_similarity_net.create_extractor();
-    ex.input("in0", in0);
-    ex.input("in1", in1);
-
-    ncnn::Mat out;
-    ex.extract("out0", out);
-    spdlog::info("{}x{}", out.w, out.h);
-
-    // for (int i = 0; i < out.w; ++i) {
-    //     spdlog::info("Similarity[{}]: {}", i, out[i]);
-    // }
-
-    for (int i = 0; i < batch_size; ++i) {
-        spdlog::info("Similarity[{}]: {}", i, out[i]);
+    
+    // 验证结果
+    EXPECT_EQ(similarity_scores.size(), batch_text.size());
+    
+    // 验证相似度范围在[-1, 1]之间, 容许误差
+    for (const auto &score : similarity_scores) {
+        EXPECT_GE(score, -1.0f - 1e-6);
+        EXPECT_LE(score, 1.0f + 1e-6);
     }
+    
+    // 验证"杀猪"与自身的相似度最高
+    auto max_score_it = std::max_element(similarity_scores.begin(), similarity_scores.end());
+    size_t max_index = std::distance(similarity_scores.begin(), max_score_it);
+    EXPECT_EQ(batch_text[max_index], "杀猪");
+    
+    spdlog::info("ONNX cosine similarity test completed successfully!");
 }
 #endif
 
 #ifdef __USE_ONNX_RUNTIME__
-TEST(UnitTest, TestCosineSimilarityOnnx) {
+TEST(ONNXRuntime, BatchTextEmbeddingInference) {
     neural_network::init_onnx_runtime();
-
-    neural_network::TextEmbeddingWithMeanPoolingModel embedder("embedding.onnx");
-    const auto tokenizer = neural_network::load_tokenizers("tokenizer/tokenizer.json");
+    neural_network::init_model_set(neural_network::Device::CPU);
+    neural_network::TextEmbeddingWithMeanPoolingModel embedder("exported_model/text_embedding_mean_pooling.onnx");
+    const auto tokenizer = neural_network::load_tokenizers("exported_model/tokenizer/tokenizer.json");
     const auto tokenizer_wrapper = neural_network::TokenizerWrapper(tokenizer, neural_network::TokenizerConfig());
 
-    std::vector<std::string> batch_text{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的价值"};
-    std::vector<neural_network::token_id_vec_with_mask_t> batch_token;
-    std::vector<std::vector<float>> batch_embedding;
-    for (const auto &text : batch_text) {
-        auto token_mask = tokenizer_wrapper.encode_with_mask(text);
-        // spdlog::info("\"{}\" tokens: [{}], mask: [{}]", text,
-        //              join_str(std::cbegin(token_mask.first), std::cend(token_mask.first), ",",
-        //                       [](auto i) { return std::to_string(i); }),
-        //              join_str(std::cbegin(token_mask.second), std::cend(token_mask.second), ",",
-        //                       [](auto i) { return std::to_string(i); }));
-        auto embedding = embedder.embed(token_mask.first, token_mask.second);
-        batch_token.emplace_back(std::move(token_mask));
-        // spdlog::info("Embedding dim: {}", embedding.size());
-        // spdlog::info("embedding:\n[{}]...", join_str(std::cbegin(embedding), std::cbegin(embedding) + 100, ",",
-        //                                              [](auto f) { return std::to_string(f); }));
-        batch_embedding.emplace_back(std::move(embedding));
+    const std::vector<std::string> batch_text{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"};
+    const std::string target_text = "杀猪";
+    
+    spdlog::info("Computing embeddings for similarity test...");
+    
+    // 计算目标文本的嵌入向量
+    auto target_embedding = embedder.embed(target_text);
+    spdlog::info("Target embedding dim: {}", target_embedding.size());
+    
+    // 计算候选文本的嵌入向量
+    auto start_embed = std::chrono::high_resolution_clock::now();
+    std::vector<std::vector<float>> batch_embeddings = embedder.embed(batch_text);
+    auto end_embed = std::chrono::high_resolution_clock::now();
+    auto embed_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_embed - start_embed).count();
+    
+    spdlog::info("Batch embedding computation took {} ms", embed_duration);
+    spdlog::info("Generated {} embeddings with dimension {}", batch_embeddings.size(), 
+                 batch_embeddings.empty() ? 0 : batch_embeddings[0].size());
+    
+    for (size_t i = 0; i < batch_text.size() && i < batch_embeddings.size(); ++i) {
+        spdlog::info("Text: \"{}\" - Embedding dim: {}", batch_text[i], batch_embeddings[i].size());
     }
-
-    spdlog::info("正在拷贝额外的向量");
-    const auto emb = batch_embedding[0];
-    for (size_t i = 0; i < 400000; ++i) {
-        batch_embedding.push_back(emb);
+    
+    spdlog::info("Computing cosine similarities using ONNX model...");
+    
+    // 使用ONNX余弦相似度模型计算相似度
+    neural_network::CosineSimilarityModel cosine_model{"cosine_sim.onnx", neural_network::Device::CPU};
+    
+    auto start_time = std::chrono::high_resolution_clock::now();
+    auto similarity_scores = cosine_model.inference(target_embedding, batch_embeddings);
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+    
+    spdlog::info("ONNX cosine similarity computation took {} ms", duration);
+    spdlog::info("Similarity results:");
+    
+    for (size_t i = 0; i < batch_text.size() && i < similarity_scores.size(); ++i) {
+        spdlog::info("  \"{}\" <-> \"{}\": {:.6f}", target_text, batch_text[i], similarity_scores[i]);
     }
-
-    spdlog::info("开始进行推理");
-
-    neural_network::token_id_vec_with_mask_t target_token = tokenizer_wrapper.encode_with_mask("杀猪盘");
-    auto target_embedding = embedder.embed(target_token.first, target_token.second);
-
-    neural_network::CosineSimilarityModel coreml_model{"cosine_sim.onnx", neural_network::Device::CPU};
-
-    auto start = std::chrono::high_resolution_clock::now();
-    auto res = coreml_model.inference(target_embedding, batch_embedding);
-    auto end = std::chrono::high_resolution_clock::now();
-    auto coreml_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-
-    // spdlog::info("Similarity (ONNX):");
-    // for (const auto r : res) {
-    //     spdlog::info(r);
-    // }
-
-    neural_network::CosineSimilarityModel cpu_model{"cosine_sim.onnx"};
-
-    start = std::chrono::high_resolution_clock::now();
-    auto res_core_ml = cpu_model.inference(target_embedding, batch_embedding);
-    end = std::chrono::high_resolution_clock::now();
-    auto cpu_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-
-    // spdlog::info("Similarity (Core ML ONNX):");
-    // for (const auto r : res_core_ml) {
-    //     spdlog::info(r);
-    // }
-
-    spdlog::info("Inference time (Core ML): {} ms", coreml_duration);
-    spdlog::info("Inference time (CPU): {} ms", cpu_duration);
+    
+    // 验证结果
+    EXPECT_EQ(similarity_scores.size(), batch_text.size());
+    
+    // 验证相似度范围在[-1, 1]之间, 容许误差
+    for (const auto &score : similarity_scores) {
+        EXPECT_GE(score, -1.0f - 1e-6);
+        EXPECT_LE(score, 1.0f + 1e-6);
+    }
+    
+    // 验证"杀猪"与自身的相似度最高
+    auto max_score_it = std::max_element(similarity_scores.begin(), similarity_scores.end());
+    size_t max_index = std::distance(similarity_scores.begin(), max_score_it);
+    EXPECT_EQ(batch_text[max_index], "杀猪");
+    
+    spdlog::info("ONNX cosine similarity test completed successfully!");
 }
 
 #endif
 
 #ifdef __USE_LIBTORCH__
-TEST(UnitTest, TestCosineSimilarityLibTorch) {
-    neural_network::TextEmbeddingWithMeanPoolingModel embedder("exported_model/text_embedding_mean_pooling.pt");
-    const auto tokenizer = neural_network::load_tokenizers("tokenizer/tokenizer.json");
-    const auto tokenizer_wrapper = neural_network::TokenizerWrapper(tokenizer, neural_network::TokenizerConfig());
 
-    std::vector<std::string> batch_text{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的价值"};
-    std::vector<neural_network::token_id_vec_with_mask_t> batch_token;
-    std::vector<std::vector<float>> batch_embedding;
-    for (const auto &text : batch_text) {
-        auto token_mask = tokenizer_wrapper.encode_with_mask(text);
-        // spdlog::info("\"{}\" tokens: [{}], mask: [{}]", text,
-        //              join_str(std::cbegin(token_mask.first), std::cend(token_mask.first), ",",
-        //                       [](auto i) { return std::to_string(i); }),
-        //              join_str(std::cbegin(token_mask.second), std::cend(token_mask.second), ",",
-        //                       [](auto i) { return std::to_string(i); }));
-        auto embedding = embedder.embed(token_mask.first, token_mask.second);
-        batch_token.emplace_back(std::move(token_mask));
-        // spdlog::info("Embedding dim: {}", embedding.size());
-        // spdlog::info("embedding:\n[{}]...", join_str(std::cbegin(embedding), std::cbegin(embedding) + 100, ",",
-        //                                              [](auto f) { return std::to_string(f); }));
-        batch_embedding.emplace_back(std::move(embedding));
-    }
-
-    spdlog::info("正在拷贝额外的向量 (LibTorch)");
-    const auto emb = batch_embedding[0];
-    for (size_t i = 0; i < 400000; ++i) {
-        batch_embedding.push_back(emb);
-    }
-
-    spdlog::info("开始进行推理 (LibTorch)");
-
-    neural_network::token_id_vec_with_mask_t target_token = tokenizer_wrapper.encode_with_mask("杀猪盘");
-    auto target_embedding = embedder.embed(target_token.first, target_token.second);
-
-    neural_network::CosineSimilarityModel cpu_model{"exported_model/cosine_sim.bin", neural_network::Device::CPU};
-
-    auto start = std::chrono::high_resolution_clock::now();
-    auto res = cpu_model.inference(target_embedding, batch_embedding);
-    auto end = std::chrono::high_resolution_clock::now();
-    auto cpu_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-
-    // spdlog::info("Similarity (LibTorch):");
-    // for (const auto r : res) {
-    //     spdlog::info(r);
-    // }
-
-    spdlog::info("Inference time (LibTorch CPU): {} ms", cpu_duration);
-
-    // Test GPU if available
-    try {
-        neural_network::CosineSimilarityModel cuda_model{"exported_model/cosine_sim.bin", neural_network::Device::CUDA};
-        
-        start = std::chrono::high_resolution_clock::now();
-        auto res_cuda = cuda_model.inference(target_embedding, batch_embedding);
-        end = std::chrono::high_resolution_clock::now();
-        auto cuda_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-        
-        spdlog::info("Inference time (LibTorch CUDA): {} ms", cuda_duration);
-        
-        // Verify results are similar
-        EXPECT_EQ(res.size(), res_cuda.size());
-        for (size_t i = 0; i < std::min(res.size(), static_cast<size_t>(10)); ++i) {
-            EXPECT_NEAR(res[i], res_cuda[i], 0.01f) << "Mismatch at index " << i;
-        }
-    } catch (const std::exception &e) {
-        spdlog::warn("CUDA test skipped: {}", e.what());
-    }
-
-    // Test MPS if available (for macOS)
-    try {
-        neural_network::CosineSimilarityModel mps_model{"exported_model/cosine_sim.bin", neural_network::Device::MPS};
-        
-        start = std::chrono::high_resolution_clock::now();
-        auto res_mps = mps_model.inference(target_embedding, batch_embedding);
-        end = std::chrono::high_resolution_clock::now();
-        auto mps_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-        
-        spdlog::info("Inference time (LibTorch MPS): {} ms", mps_duration);
-        
-        // Verify results are similar
-        EXPECT_EQ(res.size(), res_mps.size());
-        for (size_t i = 0; i < std::min(res.size(), static_cast<size_t>(10)); ++i) {
-            EXPECT_NEAR(res[i], res_mps[i], 0.01f) << "Mismatch at index " << i;
-        }
-    } catch (const std::exception &e) {
-        spdlog::warn("MPS test skipped: {}", e.what());
-    }
-}
-
-TEST(UnitTest, TestTextEmbeddingLibTorch) {
+TEST(LibTorchMPS, BatchVsSingleInferenceSpeedComparison) {
     neural_network::init_model_set(neural_network::Device::MPS);
     auto &model_set = neural_network::get_model_set();
     
     std::vector<std::string> test_texts;
     const std::vector<std::string> base_texts{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"};
-    for (int i = 0; i < 50; ++i) {
+    for (int i = 0; i < 5; ++i) {
         test_texts.insert(test_texts.end(), base_texts.begin(), base_texts.end());
     }
 
-    spdlog::info("Single");
+    spdlog::info("=== MPS Text Embedding Speed Comparison: Batch vs Single Inference ===");
+    spdlog::info("Total test texts: {}", test_texts.size());
+
+    spdlog::info("Testing single inference...");
     auto start_single = std::chrono::high_resolution_clock::now();
-    for (const auto &i : test_texts) {
-        model_set.text_embedding_model->embed(i);
+    for (const auto &text : test_texts) {
+        model_set.text_embedding_model->embed(text);
     }
     auto end_single = std::chrono::high_resolution_clock::now();
     auto duration_single = std::chrono::duration_cast<std::chrono::milliseconds>(end_single - start_single).count();
     spdlog::info("Single embedding total time: {} ms", duration_single);
 
-    spdlog::info("Batch");
+    spdlog::info("Testing batch inference...");
     auto start_batch = std::chrono::high_resolution_clock::now();
     model_set.text_embedding_model->embed(test_texts);
     auto end_batch = std::chrono::high_resolution_clock::now();
     auto duration_batch = std::chrono::duration_cast<std::chrono::milliseconds>(end_batch - start_batch).count();
     spdlog::info("Batch embedding total time: {} ms", duration_batch);
+
+    // 计算速度倍率
+    if (duration_batch > 0) {
+        float speed_ratio = static_cast<float>(duration_single) / duration_batch;
+        spdlog::info("=== Speed Comparison Results ===");
+        spdlog::info("Batch inference is {:.2f}x faster than single inference", speed_ratio);
+        spdlog::info("Performance improvement: {:.1f}%", (speed_ratio - 1.0f) * 100.0f);
+    } else {
+        spdlog::warn("Batch inference time too small to calculate meaningful ratio");
+    }
 }
 
-TEST(UnitTest, TestTextEmbeddingLibTorchCPU) {
+TEST(LibTorchMPS, BatchVsSingleInferenceSpeedComparisonSize100) {
+    neural_network::init_model_set(neural_network::Device::MPS);
+    auto &model_set = neural_network::get_model_set();
+    
+    std::vector<std::string> test_texts;
+    const std::vector<std::string> base_texts{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"};
+    for (int i = 0; i < 20; ++i) {
+        test_texts.insert(test_texts.end(), base_texts.begin(), base_texts.end());
+    }
+
+    spdlog::info("=== MPS Text Embedding Speed Comparison: Batch vs Single Inference ===");
+    spdlog::info("Total test texts: {}", test_texts.size());
+
+    spdlog::info("Testing single inference...");
+    auto start_single = std::chrono::high_resolution_clock::now();
+    for (const auto &text : test_texts) {
+        model_set.text_embedding_model->embed(text);
+    }
+    auto end_single = std::chrono::high_resolution_clock::now();
+    auto duration_single = std::chrono::duration_cast<std::chrono::milliseconds>(end_single - start_single).count();
+    spdlog::info("Single embedding total time: {} ms", duration_single);
+
+    spdlog::info("Testing batch inference...");
+    auto start_batch = std::chrono::high_resolution_clock::now();
+    model_set.text_embedding_model->embed(test_texts);
+    auto end_batch = std::chrono::high_resolution_clock::now();
+    auto duration_batch = std::chrono::duration_cast<std::chrono::milliseconds>(end_batch - start_batch).count();
+    spdlog::info("Batch embedding total time: {} ms", duration_batch);
+
+    // 计算速度倍率
+    if (duration_batch > 0) {
+        float speed_ratio = static_cast<float>(duration_single) / duration_batch;
+        spdlog::info("=== Speed Comparison Results ===");
+        spdlog::info("Batch inference is {:.2f}x faster than single inference", speed_ratio);
+        spdlog::info("Performance improvement: {:.1f}%", (speed_ratio - 1.0f) * 100.0f);
+    } else {
+        spdlog::warn("Batch inference time too small to calculate meaningful ratio");
+    }
+}
+
+TEST(LibTorchPerformance, MPSVsCPUInferenceSpeedComparison) {
+    std::vector<std::string> test_texts;
+    const std::vector<std::string> base_texts{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"};
+    for (int i = 0; i < 10; ++i) {
+        test_texts.insert(test_texts.end(), base_texts.begin(), base_texts.end());
+    }
+
+    spdlog::info("=== MPS vs CPU Text Embedding Speed Comparison ===");
+    spdlog::info("Total test texts: {}", test_texts.size());
+
+    // ===================
+    // MPS Performance Test
+    // ===================
+    spdlog::info("=== Testing MPS Performance ===");
+    neural_network::init_model_set(neural_network::Device::MPS);
+    auto &mps_model_set = neural_network::get_model_set();
+
+    // MPS Single Inference
+    spdlog::info("MPS - Testing single inference...");
+    auto mps_start_single = std::chrono::high_resolution_clock::now();
+    for (const auto &text : test_texts) {
+        mps_model_set.text_embedding_model->embed(text);
+    }
+    auto mps_end_single = std::chrono::high_resolution_clock::now();
+    auto mps_duration_single = std::chrono::duration_cast<std::chrono::milliseconds>(mps_end_single - mps_start_single).count();
+    spdlog::info("MPS Single embedding total time: {} ms", mps_duration_single);
+
+    // MPS Batch Inference
+    spdlog::info("MPS - Testing batch inference...");
+    auto mps_start_batch = std::chrono::high_resolution_clock::now();
+    mps_model_set.text_embedding_model->embed(test_texts);
+    auto mps_end_batch = std::chrono::high_resolution_clock::now();
+    auto mps_duration_batch = std::chrono::duration_cast<std::chrono::milliseconds>(mps_end_batch - mps_start_batch).count();
+    spdlog::info("MPS Batch embedding total time: {} ms", mps_duration_batch);
+
+    // ===================
+    // CPU Performance Test
+    // ===================
+    spdlog::info("=== Testing CPU Performance ===");
+    neural_network::init_model_set(neural_network::Device::CPU);
+    auto &cpu_model_set = neural_network::get_model_set();
+
+    // CPU Single Inference
+    spdlog::info("CPU - Testing single inference...");
+    auto cpu_start_single = std::chrono::high_resolution_clock::now();
+    for (const auto &text : test_texts) {
+        cpu_model_set.text_embedding_model->embed(text);
+    }
+    auto cpu_end_single = std::chrono::high_resolution_clock::now();
+    auto cpu_duration_single = std::chrono::duration_cast<std::chrono::milliseconds>(cpu_end_single - cpu_start_single).count();
+    spdlog::info("CPU Single embedding total time: {} ms", cpu_duration_single);
+
+    // CPU Batch Inference
+    spdlog::info("CPU - Testing batch inference...");
+    auto cpu_start_batch = std::chrono::high_resolution_clock::now();
+    cpu_model_set.text_embedding_model->embed(test_texts);
+    auto cpu_end_batch = std::chrono::high_resolution_clock::now();
+    auto cpu_duration_batch = std::chrono::duration_cast<std::chrono::milliseconds>(cpu_end_batch - cpu_start_batch).count();
+    spdlog::info("CPU Batch embedding total time: {} ms", cpu_duration_batch);
+
+    // ===================
+    // Performance Analysis
+    // ===================
+    spdlog::info("=== Performance Comparison Results ===");
+    
+    // Single Inference Comparison
+    if (cpu_duration_single > 0) {
+        float single_speedup = static_cast<float>(cpu_duration_single) / mps_duration_single;
+        spdlog::info("Single Inference:");
+        spdlog::info("  MPS: {} ms", mps_duration_single);
+        spdlog::info("  CPU: {} ms", cpu_duration_single);
+        spdlog::info("  MPS is {:.2f}x {} than CPU", 
+                    single_speedup > 1.0f ? single_speedup : (1.0f / single_speedup),
+                    single_speedup > 1.0f ? "faster" : "slower");
+    }
+
+    // Batch Inference Comparison
+    if (cpu_duration_batch > 0) {
+        float batch_speedup = static_cast<float>(cpu_duration_batch) / mps_duration_batch;
+        spdlog::info("Batch Inference:");
+        spdlog::info("  MPS: {} ms", mps_duration_batch);
+        spdlog::info("  CPU: {} ms", cpu_duration_batch);
+        spdlog::info("  MPS is {:.2f}x {} than CPU", 
+                    batch_speedup > 1.0f ? batch_speedup : (1.0f / batch_speedup),
+                    batch_speedup > 1.0f ? "faster" : "slower");
+    }
+
+    // Batch vs Single Analysis for each device
+    spdlog::info("=== Batch vs Single Analysis ===");
+    
+    if (mps_duration_batch > 0) {
+        float mps_batch_ratio = static_cast<float>(mps_duration_single) / mps_duration_batch;
+        spdlog::info("MPS - Batch is {:.2f}x faster than single inference", mps_batch_ratio);
+    }
+    
+    if (cpu_duration_batch > 0) {
+        float cpu_batch_ratio = static_cast<float>(cpu_duration_single) / cpu_duration_batch;
+        spdlog::info("CPU - Batch is {:.2f}x faster than single inference", cpu_batch_ratio);
+    }
+
+    // Performance per text analysis
+    spdlog::info("=== Performance Per Text ===");
+    size_t text_count = test_texts.size();
+    if (text_count > 0) {
+        spdlog::info("Average time per text (single inference):");
+        spdlog::info("  MPS: {:.2f} ms/text", static_cast<float>(mps_duration_single) / text_count);
+        spdlog::info("  CPU: {:.2f} ms/text", static_cast<float>(cpu_duration_single) / text_count);
+        
+        spdlog::info("Average time per text (batch inference):");
+        spdlog::info("  MPS: {:.2f} ms/text", static_cast<float>(mps_duration_batch) / text_count);
+        spdlog::info("  CPU: {:.2f} ms/text", static_cast<float>(cpu_duration_batch) / text_count);
+    }
+
+    spdlog::info("MPS vs CPU performance comparison completed!");
+}
+
+
+
+TEST(LibTorchMPS, LargeBatchTextEmbedding) {
+    neural_network::init_model_set(neural_network::Device::MPS);
+    auto &model_set = neural_network::get_model_set();
+    
+    std::vector<std::string> test_texts;
+    const std::vector<std::string> base_texts{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"};
+    for (int i = 0; i < 2000; ++i) {
+        test_texts.insert(test_texts.end(), base_texts.begin(), base_texts.end());
+    }
+    auto start_batch = std::chrono::high_resolution_clock::now();
+    model_set.text_embedding_model->embed(test_texts, 200);
+    auto end_batch = std::chrono::high_resolution_clock::now();
+    auto duration_batch = std::chrono::duration_cast<std::chrono::milliseconds>(end_batch - start_batch).count();
+    spdlog::info("Batch embedding total time: {} ms", duration_batch);
+}
+
+TEST(LibTorchCPU, TextEmbeddingPerformanceComparison) {
     neural_network::init_model_set(neural_network::Device::CPU);
     auto &model_set = neural_network::get_model_set();
     
@@ -370,99 +469,528 @@ TEST(UnitTest, TestTextEmbeddingLibTorchCPU) {
     spdlog::info("Batch embedding total time: {} ms", duration_batch);
 }
 
-TEST(UnitTest, TestTextEmbeddingWithMeanPoolingLibTorch) {
-    neural_network::TextEmbeddingWithMeanPoolingModel embedder("exported_model/text_embedding_mean_pooling.pt");
-    const auto tokenizer = neural_network::load_tokenizers("tokenizer/tokenizer.json");
-    const auto tokenizer_wrapper = neural_network::TokenizerWrapper(tokenizer, neural_network::TokenizerConfig());
-
-    const std::vector<std::string> test_texts{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"};
+TEST(LibTorchCPU, CosineSimilarityInference) {
+    neural_network::init_model_set(neural_network::Device::CPU);
+    auto &model_set = neural_network::get_model_set();
     
-    // Test single text embedding with mean pooling
-    for (const auto &text : test_texts) {
-        auto token_mask = tokenizer_wrapper.encode_with_mask(text);
-        auto sentence_embedding = embedder.embed(token_mask.first, token_mask.second);
-        
-        EXPECT_GT(sentence_embedding.size(), 0) << "Sentence embedding should not be empty for text: " << text;
-        spdlog::info("Text: '{}', Sentence embedding dim: {}", text, sentence_embedding.size());
-    }
-
-    // Test batch text embedding with mean pooling
-    std::vector<neural_network::token_id_list_t> batch_token_ids;
-    std::vector<neural_network::attention_mask_list_t> batch_attention_masks;
+    const std::vector<std::string> batch_text{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"};
+    const std::string target_text = "杀猪";
     
-    for (const auto &text : test_texts) {
-        auto token_mask = tokenizer_wrapper.encode_with_mask(text);
-        batch_token_ids.push_back(token_mask.first);
-        batch_attention_masks.push_back(token_mask.second);
-    }
+    spdlog::info("Computing embeddings for similarity test...");
     
-    auto batch_sentence_embeddings = embedder.embed(batch_token_ids, batch_attention_masks);
-    EXPECT_EQ(batch_sentence_embeddings.size(), test_texts.size()) << "Batch sentence embedding count should match input count";
+    // 计算目标文本的嵌入向量
+    auto target_embedding = model_set.text_embedding_model->embed(target_text);
+    spdlog::info("Target embedding dim: {}", target_embedding.size());
     
-    for (size_t i = 0; i < batch_sentence_embeddings.size(); ++i) {
-        EXPECT_GT(batch_sentence_embeddings[i].size(), 0) << "Batch sentence embedding " << i << " should not be empty";
+    // 使用批量嵌入函数计算候选文本的嵌入向量
+    auto start_embed = std::chrono::high_resolution_clock::now();
+    auto batch_embeddings = model_set.text_embedding_model->embed(batch_text);
+    auto end_embed = std::chrono::high_resolution_clock::now();
+    auto embed_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_embed - start_embed).count();
+    
+    spdlog::info("Batch embedding computation took {} ms", embed_duration);
+    spdlog::info("Generated {} embeddings with dimension {}", batch_embeddings.size(), 
+                 batch_embeddings.empty() ? 0 : batch_embeddings[0].size());
+    
+    for (size_t i = 0; i < batch_text.size() && i < batch_embeddings.size(); ++i) {
+        spdlog::info("Text: \"{}\" - Embedding dim: {}", batch_text[i], batch_embeddings[i].size());
     }
     
-    spdlog::info("Batch sentence embeddings test passed for {} texts", test_texts.size());
+    spdlog::info("Computing cosine similarities using LibTorch model...");
     
-    // Test string-based API
-    auto simple_embedding = embedder.embed("测试文本");
-    EXPECT_GT(simple_embedding.size(), 0) << "Simple text embedding should not be empty";
+    // 使用LibTorch余弦相似度模型计算相似度
+    auto start_time = std::chrono::high_resolution_clock::now();
+    auto similarity_scores = model_set.cosine_similarity_model->inference(target_embedding, batch_embeddings);
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
     
-    auto batch_simple_embeddings = embedder.embed(test_texts);
-    EXPECT_EQ(batch_simple_embeddings.size(), test_texts.size()) << "Simple batch embedding count should match";
+    spdlog::info("LibTorch cosine similarity computation took {} ms", duration);
+    spdlog::info("Similarity results:");
     
-    spdlog::info("String-based API test passed");
+    for (size_t i = 0; i < batch_text.size() && i < similarity_scores.size(); ++i) {
+        spdlog::info("  \"{}\" <-> \"{}\": {:.6f}", target_text, batch_text[i], similarity_scores[i]);
+    }
+    
+    // 验证结果
+    EXPECT_EQ(similarity_scores.size(), batch_text.size());
+    
+    // 验证相似度范围在[-1, 1]之间
+    for (const auto &score : similarity_scores) {
+        EXPECT_GE(score, -1.0f);
+        EXPECT_LE(score, 1.0f);
+    }
+    
+    // 验证"杀猪"与自身的相似度最高
+    auto max_score_it = std::max_element(similarity_scores.begin(), similarity_scores.end());
+    size_t max_index = std::distance(similarity_scores.begin(), max_score_it);
+    EXPECT_EQ(batch_text[max_index], "杀猪");
+    
+    spdlog::info("LibTorch cosine similarity test completed successfully!");
 }
 
-TEST(UnitTest, TestModelSetLibTorch) {
-    spdlog::info("Testing ModelSet with LibTorch backend");
+TEST(LibTorchHybrid, MPSEmbeddingWithCPUSimilarity) {
+    neural_network::init_model_set(neural_network::Device::MPS);
+    auto &model_set = neural_network::get_model_set();
     
-    try {
-        neural_network::init_model_set(neural_network::Device::CPU);
-        auto &model_set = neural_network::get_model_set();
+    const std::vector<std::string> batch_text{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"};
+    const std::string target_text = "杀猪";
+    
+    spdlog::info("Computing embeddings using MPS for CPU similarity verification...");
+    
+    // 使用MPS计算目标文本的嵌入向量
+    auto target_embedding = model_set.text_embedding_model->embed(target_text);
+    spdlog::info("Target embedding dim: {}", target_embedding.size());
+    
+    // 使用MPS批量嵌入函数计算候选文本的嵌入向量
+    auto start_embed = std::chrono::high_resolution_clock::now();
+    auto batch_embeddings = model_set.text_embedding_model->embed(batch_text);
+    auto end_embed = std::chrono::high_resolution_clock::now();
+    auto embed_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_embed - start_embed).count();
+    
+    spdlog::info("MPS batch embedding computation took {} ms", embed_duration);
+    spdlog::info("Generated {} embeddings with dimension {}", batch_embeddings.size(), 
+                 batch_embeddings.empty() ? 0 : batch_embeddings[0].size());
+    
+    for (size_t i = 0; i < batch_text.size() && i < batch_embeddings.size(); ++i) {
+        spdlog::info("Text: \"{}\" - Embedding dim: {}", batch_text[i], batch_embeddings[i].size());
+    }
+    
+    spdlog::info("Computing cosine similarities using CPU implementation...");
+    
+    // 使用CPU版本的余弦相似度函数计算相似度
+    auto start_time = std::chrono::high_resolution_clock::now();
+    std::vector<float> similarity_scores;
+    similarity_scores.reserve(batch_embeddings.size());
+    
+    for (const auto &embedding : batch_embeddings) {
+        if (target_embedding.size() != embedding.size()) {
+            spdlog::error("Embedding dimension mismatch: target {} vs candidate {}", 
+                         target_embedding.size(), embedding.size());
+            continue;
+        }
+        float similarity = neural_network::cpu::cosine_similarity(
+            target_embedding.data(), embedding.data(), target_embedding.size());
+        similarity_scores.push_back(similarity);
+    }
+    
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+    
+    spdlog::info("CPU cosine similarity computation took {} ms", duration);
+    spdlog::info("Similarity results (MPS embedding + CPU similarity):");
+    
+    for (size_t i = 0; i < batch_text.size() && i < similarity_scores.size(); ++i) {
+        spdlog::info("  \"{}\" <-> \"{}\": {:.6f}", target_text, batch_text[i], similarity_scores[i]);
+    }
+    
+    // 验证结果
+    EXPECT_EQ(similarity_scores.size(), batch_text.size());
+    
+    // 验证相似度范围在[-1, 1]之间
+    for (const auto &score : similarity_scores) {
+        EXPECT_GE(score, -1.0f);
+        EXPECT_LE(score, 1.0f);
+    }
+    
+    // 验证"杀猪"与自身的相似度最高
+    auto max_score_it = std::max_element(similarity_scores.begin(), similarity_scores.end());
+    size_t max_index = std::distance(similarity_scores.begin(), max_score_it);
+    EXPECT_EQ(batch_text[max_index], "杀猪");
+    
+    spdlog::info("MPS embedding + CPU similarity test completed successfully!");
+    
+    // 额外验证：与LibTorch模型结果对比（如果存在）
+    if (model_set.cosine_similarity_model) {
+        spdlog::info("Comparing with LibTorch cosine similarity model results...");
+        auto libtorch_scores = model_set.cosine_similarity_model->inference(target_embedding, batch_embeddings);
         
-        // Test text embedding model
-        EXPECT_NE(model_set.text_embedding_model, nullptr) << "Text embedding model should be initialized";
+        for (size_t i = 0; i < std::min(similarity_scores.size(), libtorch_scores.size()); ++i) {
+            float diff = std::abs(similarity_scores[i] - libtorch_scores[i]);
+            spdlog::info("  Text[{}]: CPU={:.6f}, LibTorch={:.6f}, Diff={:.6f}", 
+                        i, similarity_scores[i], libtorch_scores[i], diff);
+            
+            // 允许一定的数值误差（约0.001）
+            EXPECT_LT(diff, 0.001f) << "Significant difference between CPU and LibTorch results for text " << i;
+        }
+    }
+}
+
+TEST(LibTorchHybrid, MPSIndividualEmbeddingWithCPUSimilarity) {
+    neural_network::init_model_set(neural_network::Device::MPS);
+    auto &model_set = neural_network::get_model_set();
+    
+    const std::vector<std::string> batch_text{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"};
+    const std::string target_text = "杀猪";
+    
+    spdlog::info("Computing embeddings individually using MPS for CPU similarity verification...");
+    
+    // 使用MPS逐个计算目标文本的嵌入向量
+    auto target_embedding = model_set.text_embedding_model->embed(target_text);
+    spdlog::info("Target embedding dim: {}", target_embedding.size());
+    
+    // 逐个计算候选文本的嵌入向量
+    auto start_embed = std::chrono::high_resolution_clock::now();
+    std::vector<std::vector<float>> batch_embeddings;
+    batch_embeddings.reserve(batch_text.size());
+    
+    for (size_t i = 0; i < batch_text.size(); ++i) {
+        auto embedding = model_set.text_embedding_model->embed(batch_text[i]);
+        batch_embeddings.emplace_back(std::move(embedding));
+        spdlog::info("Individual embedding[{}] for \"{}\": dim={}", i, batch_text[i], batch_embeddings[i].size());
+    }
+    
+    auto end_embed = std::chrono::high_resolution_clock::now();
+    auto embed_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_embed - start_embed).count();
+    
+    spdlog::info("Individual MPS embedding computation took {} ms", embed_duration);
+    spdlog::info("Generated {} embeddings with dimension {}", batch_embeddings.size(), 
+                 batch_embeddings.empty() ? 0 : batch_embeddings[0].size());
+    
+    spdlog::info("Computing cosine similarities using CPU implementation...");
+    
+    // 使用CPU版本的余弦相似度函数计算相似度
+    auto start_time = std::chrono::high_resolution_clock::now();
+    std::vector<float> similarity_scores;
+    similarity_scores.reserve(batch_embeddings.size());
+    
+    for (size_t i = 0; i < batch_embeddings.size(); ++i) {
+        const auto &embedding = batch_embeddings[i];
+        if (target_embedding.size() != embedding.size()) {
+            spdlog::error("Embedding dimension mismatch: target {} vs candidate[{}] {}", 
+                         target_embedding.size(), i, embedding.size());
+            continue;
+        }
+        float similarity = neural_network::cpu::cosine_similarity(
+            target_embedding.data(), embedding.data(), target_embedding.size());
+        similarity_scores.push_back(similarity);
+        spdlog::info("Individual similarity[{}]: {:.6f}", i, similarity);
+    }
+    
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+    
+    spdlog::info("CPU cosine similarity computation took {} ms", duration);
+    spdlog::info("Final similarity results (Individual MPS embedding + CPU similarity):");
+    
+    for (size_t i = 0; i < batch_text.size() && i < similarity_scores.size(); ++i) {
+        spdlog::info("  \"{}\" <-> \"{}\": {:.6f}", target_text, batch_text[i], similarity_scores[i]);
+    }
+    
+    // 验证结果
+    EXPECT_EQ(similarity_scores.size(), batch_text.size());
+    
+    // 验证相似度范围在[-1, 1]之间
+    for (const auto &score : similarity_scores) {
+        EXPECT_GE(score, -1.0f);
+        EXPECT_LE(score, 1.0f);
+    }
+    
+    // 验证"杀猪"与自身的相似度最高
+    auto max_score_it = std::max_element(similarity_scores.begin(), similarity_scores.end());
+    size_t max_index = std::distance(similarity_scores.begin(), max_score_it);
+    EXPECT_EQ(batch_text[max_index], "杀猪");
+    
+    spdlog::info("Individual MPS embedding + CPU similarity test completed successfully!");
+    
+    // 主要对比：与批量embedding结果的一致性验证（仅使用CPU余弦相似度计算）
+    spdlog::info("Comparing individual vs batch embedding results (CPU cosine similarity only)...");
+    auto batch_embeddings_for_comparison = model_set.text_embedding_model->embed(batch_text);
+    
+    // 计算批量embedding + CPU相似度作为参考
+    std::vector<float> batch_cpu_similarity_scores;
+    batch_cpu_similarity_scores.reserve(batch_embeddings_for_comparison.size());
+    
+    for (const auto &embedding : batch_embeddings_for_comparison) {
+        if (target_embedding.size() == embedding.size()) {
+            float similarity = neural_network::cpu::cosine_similarity(
+                target_embedding.data(), embedding.data(), target_embedding.size());
+            batch_cpu_similarity_scores.push_back(similarity);
+        }
+    }
+    
+    spdlog::info("=== Text Embedding Model Inference Comparison (CPU Cosine Similarity Only) ===");
+    
+    // 主要对比：Individual vs Batch embedding similarity results
+    spdlog::info("Individual vs Batch Text Embedding Model Inference Results:");
+    for (size_t i = 0; i < std::min(similarity_scores.size(), batch_cpu_similarity_scores.size()); ++i) {
+        float diff = std::abs(similarity_scores[i] - batch_cpu_similarity_scores[i]);
+        spdlog::info("  Text[{}] \"{}\": Individual_Embed+CPU_Sim={:.6f}, Batch_Embed+CPU_Sim={:.6f}, Diff={:.6f}", 
+                    i, batch_text[i], similarity_scores[i], batch_cpu_similarity_scores[i], diff);
         
-        // Test cosine similarity model
-        EXPECT_NE(model_set.cosine_similarity_model, nullptr) << "Cosine similarity model should be initialized";
+        // 验证个别推理和批量推理的embedding结果应该一致（允许很小的数值误差）
+        EXPECT_LT(diff, 0.0001f) << "Individual and batch text embedding inference results differ significantly for text " << i;
+    }
+    
+    // 总结比较结果
+    spdlog::info("Summary: Text Embedding Model Individual vs Batch Inference Comparison:");
+    for (size_t i = 0; i < batch_text.size() && i < similarity_scores.size() && 
+         i < batch_cpu_similarity_scores.size(); ++i) {
+        spdlog::info("  Text[{}] \"{}\": ", i, batch_text[i]);
+        spdlog::info("    Individual_Embedding+CPU_Similarity: {:.6f}", similarity_scores[i]);
+        spdlog::info("    Batch_Embedding+CPU_Similarity:      {:.6f}", batch_cpu_similarity_scores[i]);
+    }
+}
+
+TEST(LibTorchAccuracy, TextEmbeddingBatchVsIndividualConsistency) {
+    neural_network::init_model_set(neural_network::Device::CPU);
+    auto &model_set = neural_network::get_model_set();
+    
+    const std::vector<std::string> batch_text{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"};
+    
+    spdlog::info("=== LibTorch Text Embedding Vector Difference Analysis ===");
+    
+    // 计算单个推理的嵌入向量
+    spdlog::info("Computing individual embeddings...");
+    auto start_individual = std::chrono::high_resolution_clock::now();
+    std::vector<std::vector<float>> individual_embeddings;
+    individual_embeddings.reserve(batch_text.size());
+    
+    for (size_t i = 0; i < batch_text.size(); ++i) {
+        auto embedding = model_set.text_embedding_model->embed(batch_text[i]);
+        individual_embeddings.emplace_back(std::move(embedding));
+        spdlog::info("Individual[{}] \"{}\" - embedding dim: {}", i, batch_text[i], individual_embeddings[i].size());
+    }
+    auto end_individual = std::chrono::high_resolution_clock::now();
+    auto individual_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_individual - start_individual).count();
+    
+    // 计算批量推理的嵌入向量
+    spdlog::info("Computing batch embeddings...");
+    auto start_batch = std::chrono::high_resolution_clock::now();
+    auto batch_embeddings = model_set.text_embedding_model->embed(batch_text);
+    auto end_batch = std::chrono::high_resolution_clock::now();
+    auto batch_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_batch - start_batch).count();
+    
+    spdlog::info("Timing comparison:");
+    spdlog::info("  Individual inference: {} ms", individual_duration);
+    spdlog::info("  Batch inference: {} ms", batch_duration);
+    spdlog::info("  Speed ratio: {:.2f}x", static_cast<float>(individual_duration) / batch_duration);
+    
+    // 验证向量维度一致性
+    ASSERT_EQ(individual_embeddings.size(), batch_embeddings.size());
+    
+    spdlog::info("=== Vector Difference Analysis ===");
+    
+    for (size_t i = 0; i < batch_text.size(); ++i) {
+        const auto &individual_vec = individual_embeddings[i];
+        const auto &batch_vec = batch_embeddings[i];
         
-        // Test tokenizer
-        EXPECT_NE(model_set.tokenizer, nullptr) << "Tokenizer should be initialized";
+        ASSERT_EQ(individual_vec.size(), batch_vec.size()) 
+            << "Embedding dimension mismatch for text " << i;
         
-        // Test a complete workflow
-        const std::string test_text = "这是一个测试文本";
-        auto target_embedding = model_set.text_embedding_model->embed(test_text);
-        EXPECT_GT(target_embedding.size(), 0) << "Target embedding should not be empty";
+        // 计算向量差异统计
+        std::vector<float> differences;
+        differences.reserve(individual_vec.size());
+        float sum_abs_diff = 0.0f;
+        float max_diff = 0.0f;
+        float sum_squared_diff = 0.0f;
         
-        // Create some reference embeddings
-        std::vector<std::string> reference_texts = {
-            "这是另一个测试文本",
-            "完全不同的内容",
-            "这是一个测试文本"  // Same as target
-        };
-        
-        neural_network::emb_mat_t reference_embeddings;
-        for (const auto &text : reference_texts) {
-            auto emb = model_set.text_embedding_model->embed(text);
-            reference_embeddings.push_back(emb);
+        for (size_t j = 0; j < individual_vec.size(); ++j) {
+            float diff = individual_vec[j] - batch_vec[j];
+            differences.push_back(diff);
+            float abs_diff = std::abs(diff);
+            sum_abs_diff += abs_diff;
+            max_diff = std::max(max_diff, abs_diff);
+            sum_squared_diff += diff * diff;
         }
         
-        // Test cosine similarity
-        auto similarities = model_set.cosine_similarity_model->inference(target_embedding, reference_embeddings);
-        EXPECT_EQ(similarities.size(), reference_texts.size()) << "Similarity count should match reference count";
+        float mean_abs_diff = sum_abs_diff / individual_vec.size();
+        float rmse = std::sqrt(sum_squared_diff / individual_vec.size());
         
-        // The similarity with the same text should be highest
-        auto max_sim_idx = std::distance(similarities.begin(), 
-                                       std::max_element(similarities.begin(), similarities.end()));
-        EXPECT_EQ(max_sim_idx, 2) << "Highest similarity should be with the same text";
+        spdlog::info("Text[{}] \"{}\": ", i, batch_text[i]);
+        spdlog::info("  Vector dimension: {}", individual_vec.size());
+        spdlog::info("  Mean absolute difference: {:.8f}", mean_abs_diff);
+        spdlog::info("  Maximum absolute difference: {:.8f}", max_diff);
+        spdlog::info("  Root Mean Square Error (RMSE): {:.8f}", rmse);
         
-        spdlog::info("ModelSet integration test passed");
-        spdlog::info("Similarities: [{}, {}, {}]", similarities[0], similarities[1], similarities[2]);
+        // 输出前20个元素的详细对比
+        spdlog::info("  First 20 elements comparison:");
+        size_t first_elements_to_show = std::min(static_cast<size_t>(20), individual_vec.size());
+        for (size_t j = 0; j < first_elements_to_show; ++j) {
+            spdlog::info("    [{}]: Individual={:.8f}, Batch={:.8f}, Diff={:.8f}", 
+                        j, individual_vec[j], batch_vec[j], differences[j]);
+        }
         
-    } catch (const std::exception &e) {
-        FAIL() << "ModelSet test failed with exception: " << e.what();
+        // 输出后20个元素的详细对比
+        if (individual_vec.size() > 20) {
+            spdlog::info("  Last 20 elements comparison:");
+            size_t start_idx = individual_vec.size() - 20;
+            for (size_t j = start_idx; j < individual_vec.size(); ++j) {
+                spdlog::info("    [{}]: Individual={:.8f}, Batch={:.8f}, Diff={:.8f}", 
+                            j, individual_vec[j], batch_vec[j], differences[j]);
+            }
+        }
+        
+        // 验证差异在可接受范围内（通常embedding应该是相同的）
+        EXPECT_LT(mean_abs_diff, 1e-6f) 
+            << "Mean absolute difference too large for text " << i;
+        EXPECT_LT(max_diff, 1e-5f) 
+            << "Maximum difference too large for text " << i;
     }
+    
+    spdlog::info("=== Summary ===");
+    spdlog::info("LibTorch text embedding individual vs batch inference comparison completed.");
+    spdlog::info("All vectors should be nearly identical with minimal numerical differences.");
+    spdlog::info("Performance: Batch inference is {:.2f}x faster than individual inference.", 
+                 static_cast<float>(individual_duration) / batch_duration);
 }
+
+TEST(LibTorchAccuracy, TokenEmbeddingBatchVsIndividualConsistency) {
+    neural_network::init_model_set(neural_network::Device::CPU);
+    auto &model_set = neural_network::get_model_set();
+    
+    // 创建 TextEmbeddingModel 实例（不带 mean pooling）
+    neural_network::TextEmbeddingModel token_embedding_model("exported_model/text_embedding.pt", neural_network::Device::CPU);
+    
+    const std::vector<std::string> batch_text{"如何进行杀猪盘", "怎么快速杀猪", "怎么学习Rust", "杀猪的经验", "杀猪"};
+    
+    spdlog::info("=== LibTorch Token Embedding Vector Difference Analysis ===");
+    
+    // 使用 TextEmbeddingModel 计算单个推理的 token 嵌入向量
+    spdlog::info("Computing individual token embeddings...");
+    auto start_individual = std::chrono::high_resolution_clock::now();
+    std::vector<std::vector<std::vector<float>>> individual_token_embeddings;
+    individual_token_embeddings.reserve(batch_text.size());
+    
+    for (size_t i = 0; i < batch_text.size(); ++i) {
+        // 使用非 mean pooling 的模型获取 token 级别嵌入
+        auto token_embedding_matrix = token_embedding_model.embed(batch_text[i]);
+        individual_token_embeddings.emplace_back(std::move(token_embedding_matrix));
+        
+        spdlog::info("Individual[{}] \"{}\" - token count: {}, embedding dim per token: {}", 
+                    i, batch_text[i], 
+                    individual_token_embeddings[i].size(),
+                    individual_token_embeddings[i].empty() ? 0 : individual_token_embeddings[i][0].size());
+    }
+    auto end_individual = std::chrono::high_resolution_clock::now();
+    auto individual_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_individual - start_individual).count();
+    
+    // 计算批量推理的 token 嵌入向量
+    spdlog::info("Computing batch token embeddings...");
+    auto start_batch = std::chrono::high_resolution_clock::now();
+
+
+    auto batch_token_embeddings = token_embedding_model.embed(batch_text);
+    auto end_batch = std::chrono::high_resolution_clock::now();
+    auto batch_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_batch - start_batch).count();
+    
+    spdlog::info("Timing comparison:");
+    spdlog::info("  Individual inference: {} ms", individual_duration);
+    spdlog::info("  Batch inference: {} ms", batch_duration);
+    spdlog::info("  Speed ratio: {:.2f}x", static_cast<float>(individual_duration) / batch_duration);
+    
+    // 验证向量维度一致性
+    ASSERT_EQ(individual_token_embeddings.size(), batch_token_embeddings.size());
+    
+    spdlog::info("=== Token Embedding Vector Difference Analysis ===");
+    
+    for (size_t i = 0; i < batch_text.size(); ++i) {
+        const auto &individual_token_matrix = individual_token_embeddings[i];
+        const auto &batch_token_matrix = batch_token_embeddings[i];
+        
+        ASSERT_EQ(individual_token_matrix.size(), batch_token_matrix.size()) 
+            << "Token count mismatch for text " << i;
+        
+        spdlog::info("Text[{}] \"{}\": ", i, batch_text[i]);
+        spdlog::info("  Token count: {}", individual_token_matrix.size());
+        
+        if (individual_token_matrix.empty()) {
+            spdlog::info("  No tokens to compare");
+            continue;
+        }
+        
+        // 统计所有 token 的差异
+        float total_sum_abs_diff = 0.0f;
+        float total_max_diff = 0.0f;
+        float total_sum_squared_diff = 0.0f;
+        size_t total_elements = 0;
+        
+        for (size_t token_idx = 0; token_idx < individual_token_matrix.size(); ++token_idx) {
+            const auto &individual_token_vec = individual_token_matrix[token_idx];
+            const auto &batch_token_vec = batch_token_matrix[token_idx];
+            
+            ASSERT_EQ(individual_token_vec.size(), batch_token_vec.size()) 
+                << "Token embedding dimension mismatch for text " << i << " token " << token_idx;
+            
+            // 计算当前 token 的向量差异
+            float token_sum_abs_diff = 0.0f;
+            float token_max_diff = 0.0f;
+            float token_sum_squared_diff = 0.0f;
+            
+            for (size_t j = 0; j < individual_token_vec.size(); ++j) {
+                float diff = individual_token_vec[j] - batch_token_vec[j];
+                float abs_diff = std::abs(diff);
+                token_sum_abs_diff += abs_diff;
+                token_max_diff = std::max(token_max_diff, abs_diff);
+                token_sum_squared_diff += diff * diff;
+                
+                total_sum_abs_diff += abs_diff;
+                total_max_diff = std::max(total_max_diff, abs_diff);
+                total_sum_squared_diff += diff * diff;
+                total_elements++;
+            }
+            
+            float token_mean_abs_diff = token_sum_abs_diff / individual_token_vec.size();
+            float token_rmse = std::sqrt(token_sum_squared_diff / individual_token_vec.size());
+            
+            spdlog::info("    Token[{}]: dim={}, mean_abs_diff={:.8f}, max_diff={:.8f}, rmse={:.8f}", 
+                        token_idx, individual_token_vec.size(), token_mean_abs_diff, token_max_diff, token_rmse);
+            
+            // 验证每个 token 的差异在可接受范围内
+            EXPECT_LT(token_mean_abs_diff, 1e-6f) 
+                << "Token embedding mean absolute difference too large for text " << i << " token " << token_idx;
+            EXPECT_LT(token_max_diff, 1e-5f) 
+                << "Token embedding maximum difference too large for text " << i << " token " << token_idx;
+        }
+        
+        // 计算整个文本的总体差异统计
+        if (total_elements > 0) {
+            float overall_mean_abs_diff = total_sum_abs_diff / total_elements;
+            float overall_rmse = std::sqrt(total_sum_squared_diff / total_elements);
+            
+            spdlog::info("  Overall statistics:");
+            spdlog::info("    Total elements: {}", total_elements);
+            spdlog::info("    Overall mean absolute difference: {:.8f}", overall_mean_abs_diff);
+            spdlog::info("    Overall maximum absolute difference: {:.8f}", total_max_diff);
+            spdlog::info("    Overall Root Mean Square Error (RMSE): {:.8f}", overall_rmse);
+            
+            // 验证整体差异在可接受范围内
+            EXPECT_LT(overall_mean_abs_diff, 1e-6f) 
+                << "Overall token embedding mean absolute difference too large for text " << i;
+            EXPECT_LT(total_max_diff, 1e-5f) 
+                << "Overall token embedding maximum difference too large for text " << i;
+        }
+        
+        // 输出第一个和最后一个 token 的详细对比（前10个元素）
+        if (!individual_token_matrix.empty()) {
+            spdlog::info("  First token detailed comparison (first 10 elements):");
+            const auto &first_individual = individual_token_matrix[0];
+            const auto &first_batch = batch_token_matrix[0];
+            size_t elements_to_show = std::min(static_cast<size_t>(10), first_individual.size());
+            for (size_t j = 0; j < elements_to_show; ++j) {
+                float diff = first_individual[j] - first_batch[j];
+                spdlog::info("    [{}]: Individual={:.8f}, Batch={:.8f}, Diff={:.8f}", 
+                            j, first_individual[j], first_batch[j], diff);
+            }
+            
+            if (individual_token_matrix.size() > 1) {
+                spdlog::info("  Last token detailed comparison (first 10 elements):");
+                const auto &last_individual = individual_token_matrix.back();
+                const auto &last_batch = batch_token_matrix.back();
+                elements_to_show = std::min(static_cast<size_t>(10), last_individual.size());
+                for (size_t j = 0; j < elements_to_show; ++j) {
+                    float diff = last_individual[j] - last_batch[j];
+                    spdlog::info("    [{}]: Individual={:.8f}, Batch={:.8f}, Diff={:.8f}", 
+                                j, last_individual[j], last_batch[j], diff);
+                }
+            }
+        }
+    }
+    
+    spdlog::info("=== Summary ===");
+    spdlog::info("LibTorch token embedding individual vs batch inference comparison completed.");
+    spdlog::info("All token embeddings should be nearly identical with minimal numerical differences.");
+    spdlog::info("Performance: Batch inference is {:.2f}x faster than individual inference.", 
+                 static_cast<float>(individual_duration) / batch_duration);
+}
+
 #endif

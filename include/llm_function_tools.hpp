@@ -65,23 +65,25 @@ const nlohmann::json DEFAULT_TOOLS = nlohmann::json::array(
                {{"type", "string"}, {"description", "互动内容.如揍'张三'则为'揍'或者'打一顿', 如@1232142则为@"}}}})),
 
      // query user tool
-    //  make_tool_function(
-    //      "query_user", "你可以调用此函数来查看用户或者群友的资料,如性别,地址信息等",
-    //      make_object_params({{"target", {{"type", "string"}, {"description", "对象.只能为QQ号或者名字"}}},
-    //                          {"item",
-    //                           {{"type", "string"},
-    //                            {"description", "查询内容,仅支持PROFILE(用户资料),AVATAR(头像),SUMMARY(印象或者评价),"
-    //                                            ".除此以外则是OTHER"}}}})),
+     //  make_tool_function(
+     //      "query_user", "你可以调用此函数来查看用户或者群友的资料,如性别,地址信息等",
+     //      make_object_params({{"target", {{"type", "string"}, {"description", "对象.只能为QQ号或者名字"}}},
+     //                          {"item",
+     //                           {{"type", "string"},
+     //                            {"description",
+     //                            "查询内容,仅支持PROFILE(用户资料),AVATAR(头像),SUMMARY(印象或者评价),"
+     //                                            ".除此以外则是OTHER"}}}})),
      // query group tool
      make_tool_function("query_group", "如果用户的消息中涉及查看群的信息,调用此函数",
                         make_object_params({{"item",
                                              {{"type", "string"},
                                               {"description", "查询内容,仅支持OWNER(群主),ADMIN(管理员),"
                                                               "NOTICE(群公告).除此以外则是OTHER"}}}})),
-        // make_tool_function("get_group_member_list", "查询群成员列表.")
+     // make_tool_function("get_group_member_list", "查询群成员列表.")
 
      // Fetch URL content tool
      make_tool_function(
          "fetch_url_content", "你可以使用这个函数来查看网页链接里的内容",
          make_object_params({{"urls", {{"type", "array"}, {"description", "网页链接列表,每个元素为url字符串"}}}},
-                            {"url"}))});
+                            {"url"})),
+     make_tool_function("get_function_list", "获取紫幻可用功能,函数,function calls,指令列表.", {})});
