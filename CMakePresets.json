@@ -14,6 +14,7 @@
             "binaryDir": "${sourceDir}/build/libtorch-debug",
             "cacheVariables": {
                 "use_libtorch": "/Users/fredyakumo/libtorch",
+                "paddle_inference_path": "/Users/fredyakumo/paddle_inference",
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
             },
@@ -30,6 +31,7 @@
             "binaryDir": "${sourceDir}/build/libtorch-debug",
             "cacheVariables": {
                 "use_libtorch": "/Users/fredyakumo/libtorch",
+                "paddle_inference_path": "/Users/fredyakumo/paddle_inference",
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
             },
@@ -47,6 +49,7 @@
             "binaryDir": "${sourceDir}/build/libtorch-release",
             "cacheVariables": {
                 "use_libtorch": "/Users/fredyakumo/libtorch",
+                "paddle_inference_path": "/Users/fredyakumo/paddle_inference",
                 "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
             },
@@ -62,6 +65,7 @@
             "generator": "Ninja",
             "binaryDir": "${sourceDir}/build/onnx-debug",
             "cacheVariables": {
+                "paddle_inference_path": "/Users/fredyakumo/paddle_inference",
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
             },
@@ -77,6 +81,7 @@
             "generator": "Ninja",
             "binaryDir": "${sourceDir}/build/onnx-release",
             "cacheVariables": {
+                "paddle_inference_path": "/Users/fredyakumo/paddle_inference",
                 "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
             },
