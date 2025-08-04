@@ -215,7 +215,14 @@ namespace bot_adapter {
             } else if (*type == "Quote") {
                 std::string quote_text = "";
                 get_optional(msg, "origin")
-                    .and_then([&msg](const auto &origin) { return get_optional(origin[0], "text"); })
+                    .and_then([](const auto &origin) -> std::optional<std::string> { 
+                        // Check if origin array is empty before accessing its elements
+                        if (origin.empty()) {
+                            return std::nullopt;
+                        }
+                        // Try to get the text from the first element of origin
+                        return get_optional(origin[0], "text").value_or("");
+                    })
                     .and_then([&quote_text](const auto &text) {
                         quote_text = text;
                         return std::optional<std::string>{text};
