@@ -1,4 +1,4 @@
-#include "llm.h"
+#include "neural_network/llm/llm.h"
 #include "adapter_message.h"
 #include "adapter_model.h"
 #include "bot_adapter.h"
@@ -252,7 +252,7 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ll
         spdlog::warn("LLM did not response any chat message...");
         context.adapter.send_replay_msg(*context.event->sender_ptr,
                                         bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("?")));
-        release_processing_llm(context.event->sender_ptr->id);
+        release_processing_replay_person(context.event->sender_ptr->id);
         return;
     }
 
@@ -582,7 +582,7 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ll
             spdlog::warn("LLM did not response any chat message...");
             context.adapter.send_replay_msg(*context.event->sender_ptr,
                                             bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("?")));
-            release_processing_llm(context.event->sender_ptr->id);
+            release_processing_replay_person(context.event->sender_ptr->id);
 
             return;
         }
@@ -671,7 +671,7 @@ void on_llm_thread(const bot_cmd::CommandContext &context, const std::string &ll
         },
         user_preference_option);
 
-    release_processing_llm(context.event->sender_ptr->id);
+    release_processing_replay_person(context.event->sender_ptr->id);
 
     g_last_chat_message_time_map.insert_or_assign(context.event->sender_ptr->id, std::chrono::system_clock::now());
 }
@@ -681,7 +681,7 @@ void process_llm(const bot_cmd::CommandContext &context,
                  const std::optional<database::UserPreference> &user_preference_option) {
     spdlog::info("开始处理LLM信息");
 
-    if (!try_begin_processing_llm(context.event->sender_ptr->id)) {
+    if (!try_to_replay_person(context.event->sender_ptr->id)) {
         spdlog::warn("User {} try to let bot answer, but bot is still thiking", context.event->sender_ptr->id);
         context.adapter.send_replay_msg(
             *context.event->sender_ptr,

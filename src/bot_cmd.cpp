@@ -4,7 +4,7 @@
 #include "bot_adapter.h"
 #include "database.h"
 #include "global_data.h"
-#include "llm.h"
+#include "neural_network/llm/llm.h"
 #include "msg_prop.h"
 #include "rag.h"
 #include "utils.h"

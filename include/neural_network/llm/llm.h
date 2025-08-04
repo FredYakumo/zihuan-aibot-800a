@@ -2,10 +2,13 @@
 #define LLM_H
 #include "adapter_model.h"
 #include "bot_cmd.h"
-#include "chat_session.hpp"
 #include "constant_types.hpp"
-#include "global_data.h"
 #include "user_protait.h"
+#include "msg_prop.h"
+#include <optional>
+#include <nlohmann/json.hpp>
+#include <string>
+#include <vector>
 
 std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot_adapter::BotAdapter &adapter,
                               const bot_adapter::Sender &sender, bool is_deep_think);
@@ -13,25 +16,6 @@ std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot
 void process_llm(const bot_cmd::CommandContext &context,
                  const std::optional<std::string> &additional_system_prompt_option,
                  const std::optional<database::UserPreference> &user_preference_option);
-
-inline bool try_begin_processing_llm(uint64_t target_id) {
-    if (auto v = g_chat_processing_map.find(target_id); v.has_value()) {
-        if (*v) {
-            return false;
-        } else {
-            v->get() = true;
-            return true;
-        }
-    }
-    g_chat_processing_map.insert_or_assign(target_id, true);
-    return true;
-}
-
-inline void release_processing_llm(qq_id_t id) {
-    if (auto v = g_chat_processing_map.find(id); v.has_value()) {
-        v->get() = false;
-    }
-}
 
 /**
  * @brief Stores information needed for data fetching operations.

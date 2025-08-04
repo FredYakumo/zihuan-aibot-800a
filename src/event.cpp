@@ -6,7 +6,7 @@
 #include "constants.hpp"
 #include "database.h"
 #include "individual_message_storage.hpp"
-#include "llm.h"
+#include "neural_network/llm/llm.h"
 #include "msg_prop.h"
 #include "time_utils.h"
 #include "utils.h"
