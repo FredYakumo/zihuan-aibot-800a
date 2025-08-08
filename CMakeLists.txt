@@ -174,7 +174,7 @@ set(use_libtorch "" CACHE PATH "Path to libtorch directory; leave empty to disab
 # Allow users to specify onnxruntime path via use_ort (string), empty means use default search
 set(use_ort "" CACHE PATH "Path to onnxruntime directory; leave empty to use system default")
 # Allow users to specify paddle inference path for LAC
-set(paddle_inference_path "~/paddle_inference" CACHE PATH "Path to paddle inference directory for LAC")
+set(paddle_inference_path "" CACHE PATH "Path to paddle inference directory for LAC")
 
 # If use_libtorch is specified (i.e., path is not empty), include libtorch, otherwise include onnxruntime
 if(use_libtorch)
@@ -193,21 +193,19 @@ endif()
 
 # Configure Paddle Inference Library for LAC
 if(paddle_inference_path)
-    # Convert ~ to absolute path if it exists in the path
-    string(REGEX REPLACE "^~" "$ENV{HOME}" PADDLE_ABS_PATH ${paddle_inference_path})
-    
+
     # Check if the path exists
-    if(NOT EXISTS ${PADDLE_ABS_PATH})
-        message(FATAL_ERROR "Paddle Inference path does not exist: ${PADDLE_ABS_PATH}")
+    if(NOT EXISTS ${paddle_inference_path})
+        message(FATAL_ERROR "Paddle Inference path does not exist: ${paddle_inference_path}")
     endif()
-    
-    message(STATUS "Using Paddle Inference from: ${PADDLE_ABS_PATH}")
-    
+
+    message(STATUS "Using Paddle Inference from: ${paddle_inference_path}")
+
     # Include Paddle headers
-    include_directories(${PADDLE_ABS_PATH}/paddle/include)
-    
+    include_directories(${paddle_inference_path}/paddle/include)
+
     # Include third-party libraries
-    set(PADDLE_LIB_THIRD_PARTY_PATH "${PADDLE_ABS_PATH}/third_party/install/")
+    set(PADDLE_LIB_THIRD_PARTY_PATH "${paddle_inference_path}/third_party/install/")
     include_directories("${PADDLE_LIB_THIRD_PARTY_PATH}protobuf/include")
     include_directories("${PADDLE_LIB_THIRD_PARTY_PATH}glog/include")
     include_directories("${PADDLE_LIB_THIRD_PARTY_PATH}gflags/include")
@@ -218,14 +216,14 @@ if(paddle_inference_path)
     link_directories("${PADDLE_LIB_THIRD_PARTY_PATH}glog/lib")
     link_directories("${PADDLE_LIB_THIRD_PARTY_PATH}gflags/lib")
     link_directories("${PADDLE_LIB_THIRD_PARTY_PATH}xxhash/lib")
-    link_directories("${PADDLE_ABS_PATH}/paddle/lib")
-    
+    link_directories("${paddle_inference_path}/paddle/lib")
+
     # Check for MKL
-    set(mklml_inc_path ${PADDLE_ABS_PATH}/third_party/install/mklml/include)
-    set(mklml_lib_path ${PADDLE_ABS_PATH}/third_party/install/mklml/lib)
+    set(mklml_inc_path ${paddle_inference_path}/third_party/install/mklml/include)
+    set(mklml_lib_path ${paddle_inference_path}/third_party/install/mklml/lib)
     if(EXISTS ${mklml_inc_path} AND EXISTS ${mklml_lib_path})
         message(STATUS "MKLML lib found in Paddle.")
-        include_directories(${PADDLE_ABS_PATH}/third_party/install/mklml/include)
+        include_directories(${paddle_inference_path}/third_party/install/mklml/include)
         if(APPLE)
             set(MATH_LIB ${mklml_lib_path}/libmklml_intel.dylib
                          ${mklml_lib_path}/libiomp5.dylib)
@@ -237,9 +235,9 @@ if(paddle_inference_path)
     
     # Define the Paddle library to link against
     if(APPLE)
-        set(PADDLE_LIB ${PADDLE_ABS_PATH}/paddle/lib/libpaddle_inference.dylib)
+        set(PADDLE_LIB ${paddle_inference_path}/paddle/lib/libpaddle_inference.dylib)
     else()
-        set(PADDLE_LIB ${PADDLE_ABS_PATH}/paddle/lib/libpaddle_inference.so)
+        set(PADDLE_LIB ${paddle_inference_path}/paddle/lib/libpaddle_inference.so)
     endif()
     
     # Add definition to indicate Paddle is available
