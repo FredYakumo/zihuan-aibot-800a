@@ -5,7 +5,7 @@
 #include "neural_network/text_model/lac/lac_custom.h"
 #include "neural_network/text_model/lac/lac_util.h"
 
-#include <paddle_api.h>
+#include <paddle_inference_api.h>
 #include <spdlog/spdlog.h>
 
 namespace lac {
@@ -29,23 +29,23 @@ namespace lac {
         std::string label_dict_path = model_path + "/conf/tag.dic";
         load_id2label_dict(label_dict_path, *m_id2label_dict);
 
-        // Use AnalysisConfig to load and optimize model
-        m_device = neural_network::Device::CPU;
-        paddle::AnalysisConfig config;
-        // config.SwitchIrOptim(false);  // Disable optimization if needed
-        config.EnableMKLDNN();
-        config.DisableGpu();
-        config.DisableGlogInfo();
-        config.SetModel(model_path + "/model");
-        config.SetCpuMathLibraryNumThreads(1);
-        config.SwitchUseFeedFetchOps(false);
-        m_predictor = paddle::CreatePaddlePredictor<paddle::AnalysisConfig>(config);
+    // Use paddle_infer::Config to load and optimize model
+    m_device = neural_network::Device::CPU;
+    paddle_infer::Config config;
+    config.SetModel(model_path + "/model");
+    config.DisableGpu();
+    config.DisableGlogInfo();
+    config.SetCpuMathLibraryNumThreads(1);
+    // ZeroCopy API is default via GetInputHandle/GetOutputHandle
+    {
+        m_predictor = paddle_infer::CreatePredictor(config);
+    }
 
-        // Initialize input/output variables
-        auto input_names = m_predictor->GetInputNames();
-        m_input_tensor = m_predictor->GetInputTensor(input_names[0]);
-        auto output_names = m_predictor->GetOutputNames();
-        m_output_tensor = m_predictor->GetOutputTensor(output_names[0]);
+    // Initialize input/output variables
+    auto input_names = m_predictor->GetInputNames();
+    m_input_tensor = m_predictor->GetInputHandle(input_names[0]);
+    auto output_names = m_predictor->GetOutputNames();
+    m_output_tensor = m_predictor->GetOutputHandle(output_names[0]);
         m_oov_id = m_word2id_dict->size() - 1;
         auto word_iter = m_word2id_dict->find("OOV");
         if (word_iter != m_word2id_dict->end()) {
@@ -60,12 +60,12 @@ namespace lac {
     LAC::LAC(LAC &lac)
         : m_code_type(lac.m_code_type), m_lod(std::vector<std::vector<size_t>>(1)),
           m_id2label_dict(lac.m_id2label_dict), m_q2b_dict(lac.m_q2b_dict), m_word2id_dict(lac.m_word2id_dict),
-          m_oov_id(lac.m_oov_id), m_device(lac.m_device), m_predictor(lac.m_predictor->Clone()),
+          m_oov_id(lac.m_oov_id), m_device(lac.m_device), m_predictor(lac.m_predictor),
           m_custom(lac.m_custom) {
-        auto input_names = m_predictor->GetInputNames();
-        m_input_tensor = m_predictor->GetInputTensor(input_names[0]);
-        auto output_names = m_predictor->GetOutputNames();
-        m_output_tensor = m_predictor->GetOutputTensor(output_names[0]);
+    auto input_names = m_predictor->GetInputNames();
+    m_input_tensor = m_predictor->GetInputHandle(input_names[0]);
+    auto output_names = m_predictor->GetOutputNames();
+    m_output_tensor = m_predictor->GetOutputHandle(output_names[0]);
     }
 
     /**
@@ -98,14 +98,13 @@ namespace lac {
             m_lod[0].push_back(shape);
         }
 
-        m_input_tensor->SetLoD(m_lod);
-        m_input_tensor->Reshape({shape, 1});
+    m_input_tensor->SetLoD(m_lod);
+    m_input_tensor->Reshape({shape, 1});
 
-        // Convert to paddle device place
-        paddle::PaddlePlace paddle_place = convert_to_paddle_place(m_device);
-        int64_t *input_d = m_input_tensor->mutable_data<int64_t>(paddle_place);
+    // Prepare CPU buffer and copy
+    std::vector<int64_t> input_buf;
+    input_buf.reserve(shape);
 
-        int index = 0;
         for (size_t i = 0; i < m_seq_words_batch.size(); ++i) {
             for (size_t j = 0; j < m_seq_words_batch[i].size(); ++j) {
                 // Normalize characters (full-width to half-width conversion)
@@ -121,9 +120,10 @@ namespace lac {
                 if (word_iter != m_word2id_dict->end()) {
                     word_id = word_iter->second;
                 }
-                input_d[index++] = word_id;
+        input_buf.push_back(word_id);
             }
         }
+    m_input_tensor->CopyFromCpu(input_buf.data());
         return 0;
     }
 
@@ -171,12 +171,15 @@ namespace lac {
     std::vector<std::vector<OutputItem>> LAC::run(const std::vector<std::string> &querys) {
         // Feed data to the model
         feed_data(querys);
-        m_predictor->ZeroCopyRun();
+    m_predictor->Run();
 
         // Decode model output
-        int output_size = 0;
-        paddle::PaddlePlace paddle_place = convert_to_paddle_place(m_device);
-        int64_t *output_d = m_output_tensor->data<int64_t>(&paddle_place, &output_size);
+    std::vector<int64_t> output_buf;
+    auto out_shape = m_output_tensor->shape();
+    size_t output_size = 1;
+    for (auto dim : out_shape) output_size *= static_cast<size_t>(dim);
+    output_buf.resize(output_size);
+    m_output_tensor->CopyToCpu(output_buf.data());
 
         m_labels.clear();
         m_results_batch.clear();
@@ -184,7 +187,7 @@ namespace lac {
         for (size_t i = 0; i < m_lod[0].size() - 1; ++i) {
             // Extract labels for current sequence
             for (size_t j = 0; j < m_lod[0][i + 1] - m_lod[0][i]; ++j) {
-                int64_t cur_label_id = output_d[m_lod[0][i] + j];
+                int64_t cur_label_id = output_buf[m_lod[0][i] + j];
                 auto it = m_id2label_dict->find(cur_label_id);
                 m_labels.push_back(it->second);
             }

@@ -136,13 +136,6 @@ endif()
 if(use_libtorch)
     target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE torch)
 endif()
-# Link Paddle Inference library if defined
-if(paddle_inference_path)
-    target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE ${PADDLE_LIB})
-    if(DEFINED MATH_LIB)
-        target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE ${MATH_LIB})
-    endif()
-endif()
 target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE general-wheel-cpp::general-wheel-cpp)
 
 
@@ -243,6 +236,12 @@ if(paddle_inference_path)
     # Add definition to indicate Paddle is available
     add_definitions(-D__USE_PADDLE_INFERENCE__)
     message(STATUS "Defined macro: __USE_PADDLE_INFERENCE__")
+
+    # Link the Paddle Inference library to main target now that PADDLE_LIB is defined
+    target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE ${PADDLE_LIB})
+    if(DEFINED MATH_LIB)
+        target_link_libraries(${AIBOT_TARGET_NAME} PRIVATE ${MATH_LIB})
+    endif()
 endif()
 
 if(LINUX)
