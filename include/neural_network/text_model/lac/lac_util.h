@@ -6,12 +6,14 @@
  * and character encoding operations used by the LAC model
  * @see https://github.com/baidu/lac/blob/master/c%2B%2B/include/lac_util.h
  */
+#ifdef __USE_PADDLE_INFERENCE__
+
 #include <vector>
 #include <string>
 #include <fstream>
 #include <unordered_map>
 
-#include "lac.h"
+#include "neural_network/text_model/lac/lac.h"
 
 namespace lac {
 
@@ -112,3 +114,4 @@ RVAL split_words(const char *input, int len, CODE_TYPE codetype, std::vector<std
 RVAL split_words(const std::string &input, CODE_TYPE codetype, std::vector<std::string> &words);
 
 } // namespace lac
+#endif // __USE_PADDLE_INFERENCE__

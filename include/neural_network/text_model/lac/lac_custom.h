@@ -7,13 +7,14 @@
  * and tagging behavior for domain-specific terms and phrases
  * @see https://github.com/baidu/lac/blob/master/c%2B%2B/include/lac_custom.h
  */
+#ifdef __USE_PADDLE_INFERENCE__
 
 #include<vector>
 #include<string>
 #include <memory>
 
-#include "lac_util.h"
-#include "ahocorasick.h"
+#include "neural_network/text_model/lac/lac_util.h"
+#include "neural_network/text_model/lac/ahocorasick.h"
 
 namespace lac {
 
@@ -81,3 +82,4 @@ public:
 };
 
 } // namespace lac
+#endif // __USE_PADDLE_INFERENCE__

@@ -68,6 +68,8 @@ endif()
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/ SRC_FILES)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network NN_SRC_FILES)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/text_model NN_TEXT_MODEL_SRC_FILES)
+aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/text_model/lac NN_TEXT_MODEL_LAC_SRC_FILES)
+aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/llm NN_LLM_SRC_FILES)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/vec_db VEC_DB_SRC_FILES)
 
 
@@ -82,6 +84,8 @@ set(BIN_SOURCES
     ${SRC_FILES}
     ${NN_SRC_FILES}
     ${NN_TEXT_MODEL_SRC_FILES}
+    ${NN_TEXT_MODEL_LAC_SRC_FILES}
+    ${NN_LLM_SRC_FILES}
     ${VEC_DB_SRC_FILES}
     ${PLUGIN_SOURCE_PATH}
     ${CMAKE_CURRENT_SOURCE_DIR}/external/easywsclient/easywsclient.cpp
@@ -98,8 +102,14 @@ endforeach()
 foreach(file IN LISTS NN_TEXT_MODEL_SRC_FILES)
     message(STATUS "NN Text Model Source file: ${file}")
 endforeach()
+foreach(file IN LISTS NN_TEXT_MODEL_LAC_SRC_FILES)
+    message(STATUS "NN Text Model LAC Source file: ${file}")
+endforeach()
 foreach(file IN LISTS VEC_DB_SRC_FILES)
     message(STATUS "Vec DB Source file: ${file}")
+endforeach()
+foreach(file IN LISTS NN_LLM_SRC_FILES)
+    message(STATUS "NN LLM Source file: ${file}")
 endforeach()
 
 # Create shared library

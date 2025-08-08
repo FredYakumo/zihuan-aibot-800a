@@ -1,4 +1,6 @@
-#include "neural_network/text_model/lac_custom.h"
+#ifdef __USE_PADDLE_INFERENCE__
+
+#include "neural_network/text_model/lac/lac_custom.h"
 #include "spdlog/spdlog.h"
 #include <fstream>
 
@@ -126,3 +128,5 @@ namespace lac {
     }
 
 } // namespace lac
+
+#endif // __USE_PADDLE_INFERENCE__

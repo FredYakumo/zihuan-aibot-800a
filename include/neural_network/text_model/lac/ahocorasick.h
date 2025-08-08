@@ -6,6 +6,7 @@
  * Provides an implementation of the Aho-Corasick algorithm for efficient
  * multi-pattern string matching used by the LAC customization dictionary
  */
+#ifdef __USE_PADDLE_INFERENCE__
 
 #include<vector>
 #include<utility>
@@ -97,3 +98,4 @@ public:
 };
 
 } // namespace lac
+#endif // __USE_PADDLE_INFERENCE__

@@ -23,12 +23,15 @@ namespace spdlog {
          * 2. Size-based rotation when file exceeds maximum size
          *
          * File rotation behavior:
-         * - Current logs: aibot_800a_2025-07-20.txt (newest)
+         * - Current logs: aibot_800a_2025-07-20.txt (newest)3223da
          * - When size limit reached: current -> highest available number
          * - .1 = oldest archived, .2, .3... = progressively newer, highest number = newest archived
          */
         template <typename Mutex> class daily_rotating_file_sink : public base_sink<Mutex> {
           public:
+            /// Maximum number of rotating files per day
+            static constexpr int max_files = 1000;
+            
             /**
              * @brief Constructs a daily rotating file sink
              *
@@ -63,13 +66,22 @@ namespace spdlog {
                 spdlog::debug("Log file opened: {}, initial size: {} bytes", current_filename, current_size);
             }
 
+            /**
+             * @brief Virtual destructor to allow proper cleanup in derived classes
+             */
+            virtual ~daily_rotating_file_sink() {
+                // Close the file if it's open
+                this->flush();
+                file_helper.close();
+            }
+
           protected:
             /**
              * @brief Processes a log message, performs rotation if needed
              *
              * @param msg The log message to process
              */
-            void sink_it(const details::log_msg &msg) override {
+            void sink_it_(const details::log_msg &msg) override {
                 auto time = msg.time;
 
                 // Check if we need to rotate based on date
@@ -94,7 +106,7 @@ namespace spdlog {
             /**
              * @brief Flushes the log file
              */
-            void flush() override { file_helper.flush(); }
+            void flush_() override { file_helper.flush(); }
 
           private:
             /**
@@ -260,9 +272,6 @@ namespace spdlog {
             filename_t current_filename;       ///< Current active log filename
             log_clock::time_point rotation_tp; ///< Next scheduled rotation time point
             details::file_helper file_helper;  ///< File helper for I/O operations
-
-            /// Maximum number of rotating files per day
-            static const int max_files = 1000;
         };
 
         using daily_rotating_file_sink_mt = daily_rotating_file_sink<std::mutex>;

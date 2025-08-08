@@ -7,6 +7,8 @@
  * @see https://github.com/baidu/lac/blob/master/c%2B%2B/include/lac.h
  */
 #include "neural_network/nn.h"
+
+#ifdef __USE_PADDLE_INFERENCE__
 #include <paddle_inference_api.h>
 #include <unordered_map>
 
@@ -138,3 +140,4 @@ namespace lac {
     };
 
 } // namespace lac
+#endif // __USE_PADDLE_INFERENCE__

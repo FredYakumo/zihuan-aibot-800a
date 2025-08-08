@@ -8,6 +8,7 @@
 #include "constant_types.hpp"
 #include "constants.hpp"
 #include "database.h"
+#include "event.h"
 #include "get_optional.hpp"
 #include "global_data.h"
 #include "neural_network/model_set.h"

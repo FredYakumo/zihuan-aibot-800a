@@ -31,7 +31,7 @@
             "binaryDir": "${sourceDir}/build/libtorch-debug",
             "cacheVariables": {
                 "use_libtorch": "/Users/fredyakumo/libtorch",
-                "paddle_inference_path": "/Users/fredyakumo/paddle_inference",
+                "paddle_inference_path": "/Users/fredyakumo/Paddle/build/paddle_inference_install_dir",
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
             },
@@ -49,7 +49,6 @@
             "binaryDir": "${sourceDir}/build/libtorch-release",
             "cacheVariables": {
                 "use_libtorch": "/Users/fredyakumo/libtorch",
-                "paddle_inference_path": "/Users/fredyakumo/paddle_inference",
                 "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
             },
