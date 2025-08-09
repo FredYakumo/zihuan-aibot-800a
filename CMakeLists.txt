@@ -155,6 +155,8 @@ add_executable(unit_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/text_model/text_embedding_model.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/text_model/text_embedding_with_mean_pooling_model.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/text_model/tokenizer_wrapper.cpp
+    # Include LAC sources to satisfy tests referencing lac:: symbols
+    ${NN_TEXT_MODEL_LAC_SRC_FILES}
     ${CMAKE_CURRENT_SOURCE_DIR}/src/vec_db/weaviate.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/utils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/global_data.cpp
