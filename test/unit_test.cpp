@@ -1008,8 +1008,8 @@ TEST(LACUtil, Utf8SplitWords) {
     // UTF-8 splitting of mixed Chinese + ASCII
     const std::string text = "如何进行杀猪盘123";
     std::vector<std::string> words;
-    auto r = lac::split_words(text, lac::CODE_UTF8, words);
-    ASSERT_EQ(r, lac::SUCCESS);
+    auto r =  neural_network::lac::split_words(text, neural_network::lac::CODE_UTF8, words);
+    ASSERT_EQ(r, neural_network::lac::SUCCESS);
     ASSERT_EQ(words.size(), 10u); // 7 Chinese chars + 3 ASCII digits
     EXPECT_EQ(words[0], "如");
     EXPECT_EQ(words[1], "何");
@@ -1026,15 +1026,15 @@ TEST(LACUtil, Utf8SplitWords) {
 TEST(LACAhoCorasick, BasicMatch) {
     // Build automaton for pattern "杀猪"
     std::vector<std::string> pattern_chars;
-    ASSERT_EQ(lac::split_words("杀猪", lac::CODE_UTF8, pattern_chars), lac::SUCCESS);
+    ASSERT_EQ( neural_network::lac::split_words("杀猪", neural_network::lac::CODE_UTF8, pattern_chars), neural_network::lac::SUCCESS);
 
-    lac::AhoCorasick ac;
+     neural_network::lac::AhoCorasick ac;
     ac.insert(pattern_chars, 0);
     ac.make_fail();
 
     // Sentence contains one occurrence
     std::vector<std::string> sent_chars;
-    ASSERT_EQ(lac::split_words("怎么快速杀猪", lac::CODE_UTF8, sent_chars), lac::SUCCESS);
+    ASSERT_EQ( neural_network::lac::split_words("怎么快速杀猪", neural_network::lac::CODE_UTF8, sent_chars), neural_network::lac::SUCCESS);
 
     std::vector<std::pair<int, int>> res;
     int count = ac.search(sent_chars, res);
@@ -1052,15 +1052,15 @@ TEST(LACCustomization, LoadAndApply) {
         ofs << "杀猪/n\n";
     }
 
-    lac::Customization custom(dict_path);
+    neural_network::lac::Customization custom(dict_path);
 
     std::vector<std::string> chars;
-    ASSERT_EQ(lac::split_words("今天要去杀猪", lac::CODE_UTF8, chars), lac::SUCCESS);
+    ASSERT_EQ(neural_network::lac::split_words("今天要去杀猪", neural_network::lac::CODE_UTF8, chars), neural_network::lac::SUCCESS);
     std::vector<std::string> tag_ids(chars.size(), "O-I");
 
     // Apply customization
     auto ret = custom.parse_customization(chars, tag_ids);
-    ASSERT_EQ(ret, lac::SUCCESS);
+    ASSERT_EQ(ret, neural_network::lac::SUCCESS);
 
     // Find start index of "杀猪"
     size_t start = std::string::npos;
@@ -1086,7 +1086,7 @@ constexpr const char *lac_model_path = "/Users/fredyakumo/models_general/lac_mod
 
 TEST(LACModel, ChineseSegmentationAndPOSTagging) {
     // Initialize LAC segmenter
-    lac::LAC lac_model(lac_model_path);
+    neural_network::lac::LAC lac_model(lac_model_path);
 
     // Test basic segmentation and POS tagging
     const std::string test_text = "原神是一款开放世界冒险游戏";
@@ -1152,7 +1152,7 @@ TEST(LACModel, ChineseSegmentationAndPOSTagging) {
 
     // Load custom dictionary
     int ret = lac_model.load_customization(dict_path);
-    ASSERT_EQ(ret, lac::SUCCESS);
+    ASSERT_EQ(ret,  neural_network::lac::SUCCESS);
 
     // Re-run segmentation with custom dictionary
     auto custom_result = lac_model.run(test_text);
@@ -1192,7 +1192,7 @@ TEST(LACModel, InteractiveTest) {
     model_check.close();
 
     // Initialize LAC segmenter
-    lac::LAC lac_model(lac_model_path);
+     neural_network::lac::LAC lac_model(lac_model_path);
 
     // Define test cases with Genshin Impact related sentences
     const std::vector<std::string> test_cases = {"原神是一款开放世界冒险游戏", "胡桃是璃月港最受欢迎的角色之一",
@@ -1232,7 +1232,7 @@ TEST(LACModel, InteractiveTest) {
 
     // Load custom dictionary
     int ret = lac_model.load_customization(dict_path);
-    ASSERT_EQ(ret, lac::SUCCESS);
+    ASSERT_EQ(ret,  neural_network::lac::SUCCESS);
 
     spdlog::info("\nLAC interactive segmentation test with custom dictionary:");
     for (const auto &query : test_cases) {
@@ -1269,7 +1269,7 @@ TEST(LACModel, CustomDictSegmentationAndBatchPerformance) {
     model_check.close();
 
     // Initialize LAC segmenter
-    lac::LAC lac_model(lac_model_path);
+     neural_network::lac::LAC lac_model(lac_model_path);
 
     // Create a custom dictionary with project-specific terms
     const std::string dict_path = "lac_custom_dict_test.dic";
@@ -1292,7 +1292,7 @@ TEST(LACModel, CustomDictSegmentationAndBatchPerformance) {
 
     // Load custom dictionary
     int ret = lac_model.load_customization(dict_path);
-    ASSERT_EQ(ret, lac::SUCCESS);
+    ASSERT_EQ(ret,  neural_network::lac::SUCCESS);
 
     // Define test cases simulating real conversation scenarios
     struct TestCase {

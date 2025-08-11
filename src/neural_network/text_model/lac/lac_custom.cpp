@@ -4,7 +4,7 @@
 #include "spdlog/spdlog.h"
 #include <fstream>
 
-namespace lac {
+namespace neural_network::lac {
 
     /**
      * @brief Load custom dictionary from file

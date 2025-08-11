@@ -12,7 +12,7 @@
 #include <paddle_inference_api.h>
 #include <unordered_map>
 
-namespace lac {
+namespace neural_network::lac {
     /**
      * Encoding type settings for the LAC model
      */

@@ -3,19 +3,22 @@
 #include "neural_network/text_model/text_embedding_model.h"
 #include "neural_network/text_model/text_embedding_with_mean_pooling_model.h"
 #include "neural_network/text_model/tokenizer_wrapper.h"
+#include "config.h"
 #include <chrono>
-#include <exception>
 #include <memory>
 #include <stdexcept>
+#include <spdlog/spdlog.h>
+
+#ifdef __USE_PADDLE_INFERENCE__
+#include "neural_network/text_model/lac/lac.h"
+#endif
 
 #ifdef __USE_ONNX_RUNTIME__
 constexpr const char *TEXT_EMBEDDING_MEAN_POOLING_MODEL_PATH = "exported_model/text_embedding_mean_pooling.onnx";
 constexpr const char *COSINE_SIMILARITY_MODEL_PATH = "exported_model/cosine_sim.onnx";
-constexpr const char *LTP_MODEL_PATH = "exported_model/ltp_model.onnx";
 #elif defined(__USE_LIBTORCH__)
 constexpr const char *TEXT_EMBEDDING_MEAN_POOLING_MODEL_PATH = "exported_model/text_embedding_mean_pooling.pt";
 constexpr const char *COSINE_SIMILARITY_MODEL_PATH = "exported_model/cosine_sim.pt";
-constexpr const char *LTP_MODEL_PATH = "exported_model/ltp_model.pt";
 #endif
 
 namespace neural_network {
@@ -43,6 +46,16 @@ namespace neural_network {
         duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
         spdlog::info("Loading cosine similarity model from {} successfully in {} ms", COSINE_SIMILARITY_MODEL_PATH,
                      duration.count());
+
+#ifdef __USE_PADDLE_INFERENCE__
+        // Load LAC model using path from config
+        const std::string& lac_model_path = Config::instance().lac_model_path;
+        start_time = std::chrono::high_resolution_clock::now();
+        this->lac_model = std::make_unique<neural_network::lac::LAC>(lac_model_path, neural_network::lac::CODE_UTF8);
+        end_time = std::chrono::high_resolution_clock::now();
+        duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+        spdlog::info("Loading LAC model from {} successfully in {} ms", lac_model_path, duration.count());
+#endif
     }
 
     std::unique_ptr<ModelSet> model_set = nullptr;

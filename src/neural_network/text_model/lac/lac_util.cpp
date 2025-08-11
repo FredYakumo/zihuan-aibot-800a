@@ -1,7 +1,7 @@
 #ifdef __USE_PADDLE_INFERENCE__
 #include "neural_network/text_model/lac/lac_util.h"
 #include "spdlog/spdlog.h"
-namespace lac {
+namespace neural_network::lac {
 
     /**
      * @brief Split a string into tokens using specified pattern

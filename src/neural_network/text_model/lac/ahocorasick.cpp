@@ -2,7 +2,7 @@
 #include "neural_network/text_model/lac/ahocorasick.h"
 #include <queue>
 
-namespace lac {
+namespace neural_network::lac {
 
     Node *Node::get_child(const std::string &str) {
         for (auto i : next) {
