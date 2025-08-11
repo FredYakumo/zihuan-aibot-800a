@@ -112,7 +112,7 @@ namespace rag {
                                                std::optional<qq_id_t> user_id, std::optional<std::string> user_name) {
         // Search knowledge for this query
         spdlog::info("Search knowledge for query: {}", query);
-        auto msg_knowledge_list = vec_db::query_knowledge_from_vec_db(query, 0.85f);
+        auto msg_knowledge_list = vec_db::query_knowledge_from_vec_db(query, 0.7f);
 
         // If user_id is not provided, return nullopt (no session management)
         if (!user_id.has_value()) {
