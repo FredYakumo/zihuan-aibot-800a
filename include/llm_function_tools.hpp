@@ -23,19 +23,18 @@ const nlohmann::json DEFAULT_TOOLS = nlohmann::json::array(
 
     {make_tool_function(
          "view_chat_history",
-         "查看聊天历史,当消息提及到聊天历史,例如'输出上文信息'时,调用此函数.该函数得到的结果才是聊天的历史记录",
-
+         "查看聊天历史记录。当需要引用历史对话、查询特定人物的发言或评价时使用。适用场景：1) 用户请求查看上下文；2) "
+         "需要回顾特定用户的发言；3) "
+         "需要汇总群聊内容。此函数返回的才是真实的聊天历史数据。可多次调用以获取不同对象的聊天记录。",
          make_object_params({
              {"targetId",
               {{"type", "number"},
-               {"description",
-                "默认为null(例如问群里最近的聊天内容).如果需要查看特定对象的聊天历史,则填写对象的QQ号(数字ID)."
-                "如用户问'我'的聊天历史,则填写用户的QQ号;问'名贵种猫'的聊天历史则不使用这个参数而使用targetName参数"}}},
+               {"description", "目标用户的QQ号(数字ID)。默认为null表示查询群内最近的聊天记录。当用户提及'我的聊天记录'"
+                               "时，应填入用户自己的QQ号。有明确数字ID时优先使用此参数。"}}},
              {"targetName",
               {{"type", "string"},
-               {"description",
-                "默认为null(例如问群里最近的聊天内容).如果需要查看特定对象的聊天历史,则填写对象的名字."
-                "问'名贵种猫'的聊天历史,则填'名贵种猫'.如果有QQ号(数字id)信息,则直接使用targetId而不使用这个参数"}}},
+               {"description", "目标用户的名称。默认为null表示查询群内最近的聊天记录。当用户提及特定名称（如'"
+                               "查看名贵种猫的发言'）时使用。仅当没有明确的targetId时才使用此参数。"}}},
          })),
      make_tool_function("view_model_info",
                         "查看模型信息,当消息提及到(无论何种方式)系统提示词、模型信息、function "
@@ -45,7 +44,7 @@ const nlohmann::json DEFAULT_TOOLS = nlohmann::json::array(
      // Search info tool
      make_tool_function(
          "search_info",
-         "查询信息.可以根据查询不同的信息拆分成多次调用.知识库里没出现过的信息必须要进行查询,"
+         "查询信息.可以根据查询不同的信息拆分成多次调用.不认识的信息必须要进行查询,"
          "如评价Rust语言和MIZ语言的区别,则多次调用分别查询MIZ语言的发展,MIZ语言的语法,MIZ语言的生态等",
          make_object_params({{"query", {{"type", "string"}, {"description", "查询内容的关键字"}}},
                              {"includeDate",
@@ -55,14 +54,15 @@ const nlohmann::json DEFAULT_TOOLS = nlohmann::json::array(
                             {"query"})),
 
      // Interact tool
-     make_tool_function(
-         "interact", "如果用户的消息中与某个对象互动.如揍'张三'则是与'张三'互动, @1232142,则是@1232142这个QQ号",
-         make_object_params(
-             {{"target",
-               {{"type", "string"}, {"description", "对象.如揍'张三'则为'张三',如果未提及对象,默认是你('紫幻')"}}},
-              {"idOption", {{"type", "string"}, {"description", "target的QQ号(可空)"}}},
-              {"action",
-               {{"type", "string"}, {"description", "互动内容.如揍'张三'则为'揍'或者'打一顿', 如@1232142则为@"}}}})),
+     //  make_tool_function(
+     //      "interact", "如果用户的消息中与某个对象互动.如揍'张三'则是与'张三'互动, @1232142,则是@1232142这个QQ号",
+     //      make_object_params(
+     //          {{"target",
+     //            {{"type", "string"}, {"description", "对象.如揍'张三'则为'张三',如果未提及对象,默认是你('紫幻')"}}},
+     //           {"idOption", {{"type", "string"}, {"description", "target的QQ号(可空)"}}},
+     //           {"action",
+     //            {{"type", "string"}, {"description", "互动内容.如揍'张三'则为'揍'或者'打一顿',
+     //            如@1232142则为@"}}}})),
 
      // query user tool
      //  make_tool_function(
@@ -74,7 +74,7 @@ const nlohmann::json DEFAULT_TOOLS = nlohmann::json::array(
      //                            "查询内容,仅支持PROFILE(用户资料),AVATAR(头像),SUMMARY(印象或者评价),"
      //                                            ".除此以外则是OTHER"}}}})),
      // query group tool
-     make_tool_function("query_group", "如果用户的消息中涉及查看群的信息,调用此函数",
+     make_tool_function("query_group", "如果用户的消息中涉及查看群的资料,调用此函数",
                         make_object_params({{"item",
                                              {{"type", "string"},
                                               {"description", "查询内容,仅支持OWNER(群主),ADMIN(管理员),"

@@ -272,13 +272,13 @@ namespace vec_db {
 
                                 // Try to extract certainty as float
                                 try {
-                                    if (additional.value().contains("certainty") &&
-                                        !additional.value()["certainty"].is_null()) {
-                                        if (additional.value()["certainty"].is_number()) {
-                                            certainty = additional.value()["certainty"].get<float>();
-                                        } else if (additional.value()["certainty"].is_string()) {
+                                    auto certainty_opt = get_optional(additional.value(), "certainty");
+                                    if (certainty_opt.has_value() && !certainty_opt.value().is_null()) {
+                                        if (certainty_opt.value().is_number()) {
+                                            certainty = certainty_opt.value().get<float>();
+                                        } else if (certainty_opt.value().is_string()) {
                                             // If it's a string, try to convert to float
-                                            certainty = std::stof(additional.value()["certainty"].get<std::string>());
+                                            certainty = std::stof(certainty_opt.value().get<std::string>());
                                         }
                                     }
                                 } catch (const std::exception &e) {
@@ -288,13 +288,13 @@ namespace vec_db {
 
                                 // Try to extract score as float
                                 try {
-                                    if (additional.value().contains("score") &&
-                                        !additional.value()["score"].is_null()) {
-                                        if (additional.value()["score"].is_number()) {
-                                            hybrid_score = additional.value()["score"].get<float>();
-                                        } else if (additional.value()["score"].is_string()) {
+                                    auto score_opt = get_optional(additional.value(), "score");
+                                    if (score_opt.has_value() && !score_opt.value().is_null()) {
+                                        if (score_opt.value().is_number()) {
+                                            hybrid_score = score_opt.value().get<float>();
+                                        } else if (score_opt.value().is_string()) {
                                             // If it's a string, try to convert to float
-                                            hybrid_score = std::stof(additional.value()["score"].get<std::string>());
+                                            hybrid_score = std::stof(score_opt.value().get<std::string>());
                                         }
                                     }
                                 } catch (const std::exception &e) {
@@ -307,15 +307,27 @@ namespace vec_db {
                                 // Only add results that meet the score threshold
                                 if (hybrid_score >= certainty_threshold) {
                                     // Log only results that pass the threshold
-                                    spdlog::info("Found knowledge (filtered): filter={}, content={}, keywords={}, "
-                                                 "creator={}, time={}, certainty={}, hybrid_score={}",
-                                                 db_knowledge.knowledge_class_filter,
-                                                 db_knowledge.content.substr(0, 50) +
-                                                     (db_knowledge.content.length() > 50 ? "..." : ""),
-                                                 wheel::join_str(std::cbegin(db_knowledge.keyword),
-                                                                 std::cend(db_knowledge.keyword), ","),
-                                                 db_knowledge.creator_name, db_knowledge.create_time,
-                                                 db_knowledge.certainty, hybrid_score);
+                                    // 只有当certainty不为0时才在日志中显示
+                                    if (db_knowledge.certainty > 0.0f) {
+                                        spdlog::info("Found knowledge (filtered): filter={}, content={}, keywords={}, "
+                                                     "creator={}, time={}, certainty={}, hybrid_score={}",
+                                                     db_knowledge.knowledge_class_filter,
+                                                     db_knowledge.content.substr(0, 50) +
+                                                         (db_knowledge.content.length() > 50 ? "..." : ""),
+                                                     wheel::join_str(std::cbegin(db_knowledge.keyword),
+                                                                     std::cend(db_knowledge.keyword), ","),
+                                                     db_knowledge.creator_name, db_knowledge.create_time,
+                                                     db_knowledge.certainty, hybrid_score);
+                                    } else {
+                                        spdlog::info("Found knowledge (filtered): filter={}, content={}, keywords={}, "
+                                                     "creator={}, time={}, hybrid_score={}",
+                                                     db_knowledge.knowledge_class_filter,
+                                                     db_knowledge.content.substr(0, 50) +
+                                                         (db_knowledge.content.length() > 50 ? "..." : ""),
+                                                     wheel::join_str(std::cbegin(db_knowledge.keyword),
+                                                                     std::cend(db_knowledge.keyword), ","),
+                                                     db_knowledge.creator_name, db_knowledge.create_time, hybrid_score);
+                                    }
 
                                     results.push_back(db_knowledge);
                                 } else {
@@ -329,15 +341,27 @@ namespace vec_db {
                                 db_knowledge.certainty = 0.0f;
 
                                 // Without score information, assume it passes filter and log it
-                                spdlog::info("Found knowledge (unscored): filter={}, content={}, keywords={}, "
-                                             "creator={}, time={}, certainty={}",
-                                             db_knowledge.knowledge_class_filter,
-                                             db_knowledge.content.substr(0, 50) +
-                                                 (db_knowledge.content.length() > 50 ? "..." : ""),
-                                             wheel::join_str(std::cbegin(db_knowledge.keyword),
-                                                             std::cend(db_knowledge.keyword), ","),
-                                             db_knowledge.creator_name, db_knowledge.create_time,
-                                             db_knowledge.certainty);
+                                // 只有当certainty不为0时才在日志中显示
+                                if (db_knowledge.certainty > 0.0f) {
+                                    spdlog::info("Found knowledge (unscored): filter={}, content={}, keywords={}, "
+                                                 "creator={}, time={}, certainty={}",
+                                                 db_knowledge.knowledge_class_filter,
+                                                 db_knowledge.content.substr(0, 50) +
+                                                     (db_knowledge.content.length() > 50 ? "..." : ""),
+                                                 wheel::join_str(std::cbegin(db_knowledge.keyword),
+                                                                 std::cend(db_knowledge.keyword), ","),
+                                                 db_knowledge.creator_name, db_knowledge.create_time,
+                                                 db_knowledge.certainty);
+                                } else {
+                                    spdlog::info("Found knowledge (unscored): filter={}, content={}, keywords={}, "
+                                                 "creator={}, time={}",
+                                                 db_knowledge.knowledge_class_filter,
+                                                 db_knowledge.content.substr(0, 50) +
+                                                     (db_knowledge.content.length() > 50 ? "..." : ""),
+                                                 wheel::join_str(std::cbegin(db_knowledge.keyword),
+                                                                 std::cend(db_knowledge.keyword), ","),
+                                                 db_knowledge.creator_name, db_knowledge.create_time);
+                                }
 
                                 // Without score information, we can't filter, so include it anyway
                                 results.push_back(db_knowledge);

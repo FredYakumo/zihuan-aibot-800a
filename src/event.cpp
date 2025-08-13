@@ -6,8 +6,8 @@
 #include "constants.hpp"
 #include "database.h"
 #include "individual_message_storage.hpp"
-#include "neural_network/llm/llm.h"
 #include "msg_prop.h"
+#include "neural_network/llm/llm.h"
 #include "time_utils.h"
 #include "utils.h"
 #include <chrono>
@@ -118,12 +118,12 @@ ParseRunCmdRes message_preprocessing(bot_adapter::BotAdapter &adapter, std::shar
     // Processing empty messagem
     if ((msg_prop.plain_content == nullptr || ltrim(rtrim(*msg_prop.plain_content)).empty()) &&
         (msg_prop.ref_msg_content == nullptr || ltrim(rtrim(*msg_prop.ref_msg_content)).empty())) {
-            if (msg_prop.plain_content == nullptr) {
-                msg_prop.plain_content = std::make_shared<std::string>(EMPTY_MSG_TAG);
-            } else {
-                *msg_prop.plain_content = EMPTY_MSG_TAG;
-            }
+        if (msg_prop.plain_content == nullptr) {
+            msg_prop.plain_content = std::make_shared<std::string>(EMPTY_MSG_TAG);
+        } else {
+            *msg_prop.plain_content = EMPTY_MSG_TAG;
         }
+    }
 
     return ret;
 }
@@ -270,7 +270,7 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
     if (!process_res.skip_default_llm) {
         auto context =
             bot_cmd::CommandContext(adapter, event, "", process_res.is_deep_think, msg_prop, user_preference);
-        process_llm(context, std::nullopt, user_preference);
+        neural_network::llm::process_llm(context, std::nullopt, user_preference);
     }
 }
 
@@ -350,7 +350,7 @@ void on_friend_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_a
     if (!process_res.skip_default_llm) {
         auto context =
             bot_cmd::CommandContext(adapter, event, "", process_res.is_deep_think, msg_prop, user_preference);
-        process_llm(context, std::nullopt, user_preference);
+        neural_network::llm::process_llm(context, std::nullopt, user_preference);
     }
 }
 
