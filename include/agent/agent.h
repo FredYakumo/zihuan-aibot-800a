@@ -23,8 +23,7 @@ namespace agent {
     class LLMAgentBase {
       public:
         explicit LLMAgentBase(std::string model_name) : model_name(std::move(model_name)) {}
-        // Now inference receives all dynamic data via AgentInferenceParam (stateless agent        virtual std::optional<ChatMessage> inference(const AgentInferenceParam &param) = 0;
-
+        virtual std::optional<ChatMessage> inference(const AgentInferenceParam &param) = 0;
       protected:
         std::string model_name;
     };

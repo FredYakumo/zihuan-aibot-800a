@@ -269,7 +269,9 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
     if (!process_res.skip_default_llm) {
         auto context =
             bot_cmd::CommandContext(adapter, event, "", process_res.is_deep_think, msg_prop, user_preference);
-        neural_network::llm::process_llm(context, std::nullopt, user_preference);
+        if (g_simple_chat_action_agent) {
+            g_simple_chat_action_agent->process_llm(context, std::nullopt, user_preference);
+        }
     }
 }
 
@@ -349,7 +351,9 @@ void on_friend_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_a
     if (!process_res.skip_default_llm) {
         auto context =
             bot_cmd::CommandContext(adapter, event, "", process_res.is_deep_think, msg_prop, user_preference);
-        neural_network::llm::process_llm(context, std::nullopt, user_preference);
+        if (g_simple_chat_action_agent) {
+            g_simple_chat_action_agent->process_llm(context, std::nullopt, user_preference);
+        }
     }
 }
 

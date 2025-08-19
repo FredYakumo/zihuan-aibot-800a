@@ -12,6 +12,7 @@
 #include <chat_session.hpp>
 #include <set>
 #include "agent/agent.h"
+#include "agent/simple_chat_action_agent.h"
 #include "embedding_message_id_list.hpp"
 #include "individual_message_storage.hpp"
 #include "db_knowledge.hpp"
@@ -54,7 +55,8 @@ extern wheel::concurrent_unordered_map<qq_id_t, embedding_message_id_list> g_gro
 /// Bot send only
 extern wheel::concurrent_unordered_map<qq_id_t, embedding_message_id_list> g_bot_send_group_message_embedding_to_id_list_map;
 
-extern std::unique_ptr<agent::LLMAPIAgentBase> g_llm_chat_agent;
+extern std::shared_ptr<agent::LLMAPIAgentBase> g_llm_chat_agent;
+extern std::shared_ptr<agent::SimpleChatActionAgent> g_simple_chat_action_agent;
 
 
 #endif

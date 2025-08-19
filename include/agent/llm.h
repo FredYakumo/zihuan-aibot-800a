@@ -13,13 +13,9 @@
 
 namespace agent {
 
-        std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot_adapter::BotAdapter &adapter,
-                                      const bot_adapter::Sender &sender, bool is_deep_think);
-
-        void process_llm(const bot_cmd::CommandContext &context,
-                         const std::optional<std::string> &additional_system_prompt_option,
-                         const std::optional<database::UserPreference> &user_preference_option);
-
+    std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot_adapter::BotAdapter &adapter,
+                      const bot_adapter::Sender &sender, bool is_deep_think,
+                      const std::optional<std::string> additional_system_prompt_option = std::nullopt);
 
         /**
          * @brief Stores information needed for data fetching operations.

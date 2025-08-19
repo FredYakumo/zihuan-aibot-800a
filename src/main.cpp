@@ -1,4 +1,5 @@
 
+#include "agent/agent.h"
 #include "bot_adapter.h"
 #include "bot_cmd.h"
 #include "cli_handler.h"
@@ -103,10 +104,15 @@ int main(int argc, char *argv[]) {
 
     const auto config = Config::instance();
 
-    g_llm_chat_agent = std::make_unique()
+    g_llm_chat_agent = std::make_shared<agent::LLMAPIAgentBase>(
+        config.llm_model_name, fmt::format("{}:{}", config.llm_api_url, config.llm_api_port), config.llm_api_key);
 
     bot_adapter::BotAdapter adapter("ws://localhost:13378/all", CLIHandler::get_bot_id());
     adapter.update_bot_profile();
+
+    // 初始化简单聊天动作 Agent (供原 process_llm 调用)
+    g_simple_chat_action_agent = std::make_shared<agent::SimpleChatActionAgent>(
+        std::shared_ptr<bot_adapter::BotAdapter>(&adapter, [](bot_adapter::BotAdapter*){}), g_llm_chat_agent);
 
     register_event(adapter);
     adapter.start();

@@ -226,7 +226,9 @@ namespace bot_cmd {
                 //     bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
                 //         "PS: 紫幻现在自己会思考要不要去网上找数据啦, 你可以不用每次都用#联网.")));
             }
-            neural_network::llm::process_llm(context, net_search_str, context.user_preference_option);
+            if (g_simple_chat_action_agent) {
+                g_simple_chat_action_agent->process_llm(context, net_search_str, context.user_preference_option);
+            }
         }).detach();
 
         return bot_cmd::CommandRes{true, true};
@@ -275,7 +277,9 @@ namespace bot_cmd {
                         fmt::format("{}打开url: {}失败, 请重试.", context.adapter.get_bot_profile().name, search)}));
             } else {
                 *context.msg_prop.plain_content = replace_keyword_and_parentheses_content(search, "#url", content);
-                neural_network::llm::process_llm(context, std::nullopt, context.user_preference_option);
+                if (g_simple_chat_action_agent) {
+                    g_simple_chat_action_agent->process_llm(context, std::nullopt, context.user_preference_option);
+                }
             }
         }).detach();
 

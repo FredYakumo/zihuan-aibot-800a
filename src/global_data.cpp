@@ -21,3 +21,6 @@ IndividualMessageStorage g_person_message_storage;
 IndividualMessageStorage g_bot_send_group_message_storage;
 
 wheel::concurrent_unordered_map<qq_id_t, std::chrono::system_clock::time_point> g_last_chat_message_time_map;
+
+std::shared_ptr<agent::LLMAPIAgentBase> g_llm_chat_agent; // defined previously in main
+std::shared_ptr<agent::SimpleChatActionAgent> g_simple_chat_action_agent; // new global chat action agent
