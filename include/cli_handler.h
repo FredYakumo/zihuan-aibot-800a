@@ -26,7 +26,6 @@ public:
     // Determines the device to use (falls back to CPU if none specified) and logs the choice.
     // This centralizes the previous logging switch from main() so callers can simply:
     //   auto device = CLIHandler::determine_device(argc, argv);
-    // without duplicating logging logic.
     static neural_network::Device determine_device(int argc, char *argv[]);
 };
 
