@@ -7,7 +7,6 @@
 #include "database.h"
 #include "individual_message_storage.hpp"
 #include "msg_prop.h"
-#include "neural_network/llm/llm.h"
 #include "time_utils.h"
 #include "utils.h"
 #include <chrono>

@@ -7,6 +7,7 @@
 #include <cpr/cpr.h>
 #include <fmt/format.h>
 #include <general-wheel-cpp/string_utils.hpp>
+#include <general-wheel-cpp/linalg_boost/linalg_boost.hpp>
 #include <iterator>
 #include <string>
 
@@ -177,6 +178,9 @@ namespace vec_db {
 
         // Generate vector embeddings using the full processed query
         auto emb = neural_network::get_model_set().text_embedding_model->embed(processed_query);
+
+        // Calc mean pooling
+        auto emb_mean_pooling = wheel::linalg_boost::batch_mean_pooling(emb);
 
         // Execute hybrid search combining:
         // - Vector similarity for semantic matching (applied to all fields)

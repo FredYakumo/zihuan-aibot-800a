@@ -1,54 +1,33 @@
 
 #include "bot_adapter.h"
 #include "bot_cmd.h"
+#include "cli_handler.h"
 #include "config.h"
 #include "daily_rotating_file_sink.h"
 #include "database.h"
 #include "event.h"
+#include "global_data.h"
 #include "neural_network/model_set.h"
 #include "neural_network/nn.h"
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <memory>
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
-int main(int argc, char *argv[]) {
-    const auto log_level = std::getenv("LOG_LEVEL");
-
-    int rotation_hour = 0;
-    int rotation_minute = 0;
-
-    // Custom daily + size rotating file sink
-    // File rotation: aibot_800a_2025-07-21.txt (current) -> .1 (oldest) -> .2, .3... (newer) -> highest# (newest archived)
-    auto daily_size_sink = 
-        std::make_shared<spdlog::sinks::daily_rotating_file_sink_mt>("logs/aibot/aibot_800a", 
-                                                                     10 * 1024 * 1024, 
-                                                                     rotation_hour, rotation_minute);
-    
-    // Latest log file for current run (custom size-only rotation)
-    // File rotation: latest.txt (current) -> .1 (oldest) -> .2, .3... (newer) -> highest# (newest archived)
-    auto latest_file_sink = 
-        std::make_shared<spdlog::sinks::daily_rotating_file_sink_mt>("logs/aibot/latest", 
-                                                                     10 * 1024 * 1024, 
-                                                                     0, 0, false); // Disable daily rotation
-    
-    // Console output
-    auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-    
-    std::vector<spdlog::sink_ptr> sinks {console_sink, daily_size_sink, latest_file_sink};
-    auto logger = std::make_shared<spdlog::logger>("aibot_800a", sinks.begin(), sinks.end());
-    spdlog::set_default_logger(logger);
-    
-    
-    if (log_level != nullptr) {
+namespace {
+    // Configure spdlog global level from LOG_LEVEL env variable.
+    void configure_log_level_from_env() {
+        const char *log_level = std::getenv("LOG_LEVEL");
+        if (!log_level) {
+            return; // Keep default level
+        }
         try {
-            // Convert string to lowercase for case-insensitive comparison
             std::string level_str(log_level);
             std::transform(level_str.begin(), level_str.end(), level_str.begin(),
                            [](unsigned char c) { return std::tolower(c); });
 
-            // Map string values to spdlog levels
             if (level_str == "trace") {
                 spdlog::set_level(spdlog::level::trace);
             } else if (level_str == "debug") {
@@ -70,10 +49,37 @@ int main(int argc, char *argv[]) {
             spdlog::error("Failed to parse LOG_LEVEL: {}", e.what());
         }
     }
+} // namespace
+
+int main(int argc, char *argv[]) {
+
+    int rotation_hour = 0;
+    int rotation_minute = 0;
+
+    // Custom daily + size rotating file sink
+    // File rotation: aibot_800a_2025-07-21.txt (current) -> .1 (oldest) -> .2, .3... (newer) -> highest# (newest
+    // archived)
+    auto daily_size_sink = std::make_shared<spdlog::sinks::daily_rotating_file_sink_mt>(
+        "logs/aibot/aibot_800a", 10 * 1024 * 1024, rotation_hour, rotation_minute);
+
+    // Latest log file for current run (custom size-only rotation)
+    // File rotation: latest.txt (current) -> .1 (oldest) -> .2, .3... (newer) -> highest# (newest archived)
+    auto latest_file_sink = std::make_shared<spdlog::sinks::daily_rotating_file_sink_mt>(
+        "logs/aibot/latest", 10 * 1024 * 1024, 0, 0, false); // Disable daily rotation
+
+    // Console output
+    auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+
+    std::vector<spdlog::sink_ptr> sinks{console_sink, daily_size_sink, latest_file_sink};
+    auto logger = std::make_shared<spdlog::logger>("aibot_800a", sinks.begin(), sinks.end());
+    spdlog::set_default_logger(logger);
+
+    configure_log_level_from_env();
     spdlog::info("Set logging level to {}", spdlog::level::to_string_view(spdlog::get_level()));
 
     Config::init();
     bot_cmd::init_command_map();
+
     try {
 
         database::init_db_connection();
@@ -82,60 +88,24 @@ int main(int argc, char *argv[]) {
         spdlog::error("Init database connection error: {}", e.what());
     }
 
-    if (argc > 1) {
-        if (strcmp(argv[1], "init_message_table") == 0) {
-            database::get_global_db_connection().create_message_record_table();
-            spdlog::info("Init message record table successed.");
-            return 0;
-        } else if (strcmp(argv[1], "init_tools_call_record_table") == 0) {
-            database::get_global_db_connection().create_tools_call_record_table();
-            spdlog::info("Init tools call record table successed.");
-            return 0;
-        } else if (strcmp(argv[1], "init_user_preference_table") == 0) {
-            database::get_global_db_connection().create_user_preference_table();
-            spdlog::info("Init user preference table successed.");
-            return 0;
-        } else if (strcmp(argv[1], "init_user_protait_table") == 0) {
-            database::get_global_db_connection().create_user_protait_table();
-            spdlog::info("Init user protait table successed.");
-            return 0;
-        } else if (strcmp(argv[1], "init_all_tables") == 0) {
-            database::get_global_db_connection().create_message_record_table();
-            database::get_global_db_connection().create_tools_call_record_table();
-            database::get_global_db_connection().create_user_preference_table();
-            database::get_global_db_connection().create_user_protait_table();
-            spdlog::info("Init all tables successed.");
-            return 0;
-        }
-    }
+    if (CLIHandler::handle_table_init(argc, argv))
+        return 0;
 
 #ifdef __USE_ONNX_RUNTIME__
     neural_network::init_onnx_runtime();
 #endif
 
-    neural_network::Device device = neural_network::Device::CPU;
-    if (argc > 1) {
-        if (strcmp(argv[1], "--use-coreml") == 0) {
-            device = neural_network::Device::CoreML;
-            spdlog::info("Using Apple CoreML for neural network inference.");
-        } else if (strcmp(argv[1], "--use-mps") == 0) {
-            device = neural_network::Device::MPS;
-            spdlog::info("Using Apple Metal Performance Shaders for neural network inference.");
-        }else if (strcmp(argv[1], "--use-cuda") == 0) {
-            device = neural_network::Device::CUDA;
-            spdlog::info("Using CUDA for neural network inference.");
-        } else if (strcmp(argv[1], "--use-tensorrt") == 0) {
-            device = neural_network::Device::TensorRT;
-            spdlog::info("Using TensorRT for neural network inference.");
-        } else if (strcmp(argv[1], "--use-cpu") == 0) {
-            device = neural_network::Device::CPU;
-            spdlog::info("Using CPU for neural network inference.");
-        }
-    }
+    CLIHandler::process_args(argc, argv);
+
+    neural_network::Device device = CLIHandler::determine_device(argc, argv);
 
     neural_network::init_model_set(device);
 
-    bot_adapter::BotAdapter adapter("ws://localhost:13378/all", Config::instance().bot_id);
+    const auto config = Config::instance();
+
+    g_llm_chat_agent = std::make_unique()
+
+    bot_adapter::BotAdapter adapter("ws://localhost:13378/all", CLIHandler::get_bot_id());
     adapter.update_bot_profile();
 
     register_event(adapter);

@@ -120,6 +120,9 @@ void Config::init() {
     load_yaml_config(node, "llm_model_name", config.llm_model_name);
     load_env_config_str("AIBOT_LLM_MODEL_NAME", config.llm_model_name);
 
+    load_yaml_config(node, "llm_api_key", config.llm_api_key);
+    load_env_config_str("AIBOT_LLM_API_KEY", config.llm_api_key);
+
     load_yaml_config(node, "search_api_url", config.search_api_url);
     load_env_config_str("AIBOT_SEARCH_API_URL", config.search_api_url);
 
@@ -150,9 +153,7 @@ void Config::init() {
     load_yaml_config(node, "rank_model_path", config.rank_model_path);
     load_env_config_str("AIBOT_RANK_MODEL_PATH", config.rank_model_path);
 
-    // 数值类型配置
-    load_yaml_config(node, "bot_id", config.bot_id);
-    load_env_config_num<uint64_t>("AIBOT_BOT_ID", config.bot_id);
+    // bot_id is now provided exclusively via CLI '-l <bot_id>' and is not read from YAML or env.
 
     load_yaml_config(node, "llm_api_port", config.llm_api_port);
     load_env_config_num("AIBOT_LLM_API_PORT", config.llm_api_port);

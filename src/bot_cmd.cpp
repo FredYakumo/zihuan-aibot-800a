@@ -5,7 +5,6 @@
 #include "database.h"
 #include "global_data.h"
 #include "msg_prop.h"
-#include "neural_network/llm/llm.h"
 #include "rag.h"
 #include "utils.h"
 #include "vec_db/weaviate.h"

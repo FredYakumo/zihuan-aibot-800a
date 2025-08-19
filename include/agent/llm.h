@@ -2,6 +2,7 @@
 #define LLM_H
 #include "adapter_model.h"
 #include "bot_cmd.h"
+#include "chat_session.hpp"
 #include "constant_types.hpp"
 #include "msg_prop.h"
 #include "user_protait.h"
@@ -10,8 +11,7 @@
 #include <string>
 #include <vector>
 
-namespace neural_network {
-    namespace llm {
+namespace agent {
 
         std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot_adapter::BotAdapter &adapter,
                                       const bot_adapter::Sender &sender, bool is_deep_think);
@@ -19,6 +19,7 @@ namespace neural_network {
         void process_llm(const bot_cmd::CommandContext &context,
                          const std::optional<std::string> &additional_system_prompt_option,
                          const std::optional<database::UserPreference> &user_preference_option);
+
 
         /**
          * @brief Stores information needed for data fetching operations.
@@ -104,7 +105,6 @@ namespace neural_network {
          */
         std::optional<nlohmann::json> fetch_model_info();
 
-    } // namespace llm
-} // namespace neural_network
+} // namespace agent
 
 #endif

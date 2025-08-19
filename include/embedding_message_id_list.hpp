@@ -3,6 +3,7 @@
 #include "neural_network/model_set.h"
 #include "neural_network/nn.h"
 #include <cstdint>
+#include <linalg_boost/linalg_boost.hpp>
 #include <shared_mutex>
 #include <algorithm>
 #include <spdlog/spdlog.h>
@@ -44,8 +45,9 @@ public:
             return;
         }
         auto emb = neural_network::get_model_set().text_embedding_model->embed(content);
+        auto pooled = wheel::linalg_boost::mean_pooling(emb);
         // std::unique_lock lock(mutex);
-        embedding_mat.push_back(emb);
+        embedding_mat.push_back(pooled);
         message_id_list.push_back(message_id);
     }
 private:

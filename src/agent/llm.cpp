@@ -1,4 +1,19 @@
-#include "neural_network/llm/llm.h"
+#include "agent/llm.h"
+#include <chrono>
+#include <cstdint>
+#include <deque>
+#include <iterator>
+#include <optional>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
+
+#include <cpr/cpr.h>
+#include <general-wheel-cpp/markdown_utils.h>
+#include <general-wheel-cpp/string_utils.hpp>
+#include <nlohmann/json.hpp>
+
 #include "adapter_message.h"
 #include "adapter_model.h"
 #include "bot_adapter.h"
@@ -16,22 +31,6 @@
 #include "user_protait.h"
 #include "utils.h"
 #include "vec_db/weaviate.h"
-#include <chrono>
-#include <cpr/cpr.h>
-#include <cstdint>
-#include <deque>
-#include <general-wheel-cpp/markdown_utils.h>
-#include <general-wheel-cpp/string_utils.hpp>
-#include <iterator>
-#include <nlohmann/json.hpp>
-#include <optional>
-#include <string>
-#include <strings.h>
-#include <unordered_map>
-#include <unordered_set>
-#include <utility>
-
-#include "llm_function_tools.hpp"
 
 const Config &config = Config::instance();
 
@@ -46,8 +45,7 @@ inline std::string get_permission_chs(const std::string_view perm) {
     return "普通群友";
 }
 
-namespace neural_network {
-    namespace llm {
+namespace agent {
 
         std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot_adapter::BotAdapter &adapter,
                                       const bot_adapter::Sender &sender, bool is_deep_think,
@@ -95,47 +93,7 @@ namespace neural_network {
             std::optional<std::vector<ToolCall>> function_calls_opt;
         };
 
-        std::optional<ChatMessage> get_llm_response(const nlohmann::json &msg_json, bool is_deep_think = false,
-                                                    const nlohmann::json &tools = DEFAULT_TOOLS) {
-            nlohmann::json body = {{"model", config.llm_model_name},
-                                   {"messages", msg_json},
-                                   {"stream", false},
-                                   {"tools", tools},
-                                   {"is_deep_think", is_deep_think},
-                                   {"temperature", is_deep_think ? 0.0 : 1.3}};
-            const auto json_str = body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
-            spdlog::info("llm body: {}", json_str);
-            cpr::Response response =
-                cpr::Post(cpr::Url{fmt::format("{}:{}/{}", config.llm_api_url, config.llm_api_port, LLM_API_SUFFIX)},
-                          cpr::Body{json_str}, cpr::Header{{"Content-Type", "application/json"}});
-            spdlog::info("llm response: {}, status code: {}", response.error.message, response.status_code);
-
-            try {
-                spdlog::info("LLM response: {}", response.text);
-                auto json = nlohmann::json::parse(response.text);
-                auto &message = json["choices"][0]["message"];
-                std::string result = std::string(ltrim(message["content"].get<std::string_view>()));
-                std::string role = get_optional(message, "role").value_or(ROLE_ASSISTANT);
-                remove_text_between_markers(result, "<think>", "</think>");
-                ChatMessage ret{role, result};
-                if (const auto &tool_calls = get_optional(message, "tool_calls"); tool_calls.has_value()) {
-                    spdlog::info("LLM response TOOL CALLS request");
-                    std::vector<ToolCall> function_calls;
-                    for (const nlohmann::json &tool_call : *tool_calls) {
-                        if (auto tc = try_get_chat_completeion_from_messag_tool_call(tool_call); tc.has_value())
-                            function_calls.emplace_back(*tc);
-                        else
-                            spdlog::error("解析tool call失败, 原始json为: {}", tool_call.dump());
-                    }
-                    ret.tool_calls = std::move(function_calls);
-                }
-                return ret;
-
-            } catch (const std::exception &e) {
-                spdlog::error("get_llm_response(): JSON 解析失败, {}", e.what());
-            }
-            return std::nullopt;
-        }
+        // get_llm_api_response removed; logic moved into LLMAPIAgentBase::inference
 
         void insert_tool_call_record_async(const std::string &sender_name, qq_id_t sender_id,
                                            const nlohmann::json &msg_json, const std::string &func_name,
@@ -252,7 +210,7 @@ namespace neural_network {
             add_to_msg_json(msg_json, user_chat_msg);
 
             std::vector<ChatMessage> one_chat_session;
-            if (auto llm_res = get_llm_response(msg_json, context.is_deep_think); llm_res.has_value()) {
+            if (auto llm_res = get_llm_api_response(msg_json, context.is_deep_think); llm_res.has_value()) {
                 one_chat_session.push_back(std::move(*llm_res));
             } else {
                 spdlog::warn("LLM did not response any chat message...");
@@ -600,7 +558,7 @@ namespace neural_network {
                     //                             std::make_move_iterator(std::end(append_tool_calls)));
                 }
 
-                if (auto llm_res = get_llm_response(msg_json, context.is_deep_think); llm_res.has_value()) {
+                if (auto llm_res = get_llm_api_response(msg_json, context.is_deep_think); llm_res.has_value()) {
                     one_chat_session.push_back(std::move(*llm_res));
                 } else {
                     spdlog::warn("LLM did not response any chat message...");
@@ -682,7 +640,7 @@ namespace neural_network {
                         database::get_global_db_connection().insert_message(
                             message_id, replay_content,
                             bot_adapter::GroupSender(
-                                config.bot_id, context.adapter.get_bot_profile().name, std::nullopt,
+                                CLIHandler::get_bot_id(), context.adapter.get_bot_profile().name, std::nullopt,
                                 to_string(context.adapter.get_group(group_sender->get().group.id)
                                               .group_info.bot_in_group_permission),
                                 std::nullopt, std::chrono::system_clock::now(), group_sender->get().group),
@@ -691,7 +649,7 @@ namespace neural_network {
                     } else {
                         database::get_global_db_connection().insert_message(
                             message_id, replay_content,
-                            bot_adapter::Sender(config.bot_id, context.adapter.get_bot_profile().name, std::nullopt),
+                            bot_adapter::Sender(CLIHandler::get_bot_id(), context.adapter.get_bot_profile().name, std::nullopt),
                             std::chrono::system_clock::now(), std::set<uint64_t>{context.event->sender_ptr->id});
                     }
                 },
@@ -842,9 +800,13 @@ namespace neural_network {
                 {"model", config.llm_model_name}, {"messages", msg_json}, {"stream", false}, {"temperature", 0.0}};
             const auto json_str = body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
             spdlog::info("llm body: {}", json_str);
+            cpr::Header headers{{"Content-Type", "application/json"}};
+            if (!config.llm_api_key.empty()) {
+                headers["Authorization"] = fmt::format("{}", config.llm_api_key);
+            }
             cpr::Response response =
                 cpr::Post(cpr::Url{fmt::format("{}:{}/{}", config.llm_api_url, config.llm_api_port, LLM_API_SUFFIX)},
-                          cpr::Body{json_str}, cpr::Header{{"Content-Type", "application/json"}});
+                          cpr::Body{json_str}, headers);
 
             try {
                 spdlog::info(response.text);
@@ -934,9 +896,13 @@ namespace neural_network {
                 {"model", config.llm_model_name}, {"messages", msg_json}, {"stream", false}, {"temperature", 0.0}};
             const auto json_str = body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
             spdlog::info("llm body: {}", json_str);
+            cpr::Header headers{{"Content-Type", "application/json"}};
+            if (!config.llm_api_key.empty()) {
+                headers["Authorization"] = fmt::format("{}", config.llm_api_key);
+            }
             cpr::Response response =
                 cpr::Post(cpr::Url{fmt::format("{}:{}/{}", config.llm_api_url, config.llm_api_port, LLM_API_SUFFIX)},
-                          cpr::Body{json_str}, cpr::Header{{"Content-Type", "application/json"}});
+                          cpr::Body{json_str}, headers);
 
             try {
                 spdlog::info("生成用户画像: {}", response.text);
@@ -983,9 +949,13 @@ namespace neural_network {
         std::optional<nlohmann::json> fetch_model_info() {
             spdlog::info("Fetch model info");
             std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
+            cpr::Header headers{{"Content-Type", "application/json"}};
+            if (!config.llm_api_key.empty()) {
+                headers["Authorization"] = fmt::format("{}", config.llm_api_key);
+            }
             auto response = cpr::Get(
                 cpr::Url{fmt::format("{}:{}/{}", config.llm_api_url, config.llm_api_port, LLM_MODEL_INFO_SUFFIX)},
-                cpr::Header{{"Content-Type", "application/json"}});
+                headers);
             std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
             if (response.status_code != 200) {
@@ -1006,5 +976,4 @@ namespace neural_network {
             return std::nullopt;
         }
 
-    } // namespace llm
-} // namespace neural_network
+} // namespace agent

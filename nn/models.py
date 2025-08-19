@@ -268,7 +268,7 @@ class LTPModel(nn.Module):
 
             self.ltp_pipeline = LTP(model_name)
             if torch.cuda.is_available() and device.type == "cuda":
-                self.ltp_pipeline.to("cuda")
+                self.ltp_pipeline.to("cuda")  # type: ignore
             self.use_ltp_pipeline = True
             logger.info(f"LTP Model loaded with LTP library: {model_name}")
             logger.info(f"Supported tasks: {self.tasks}")
@@ -326,7 +326,7 @@ class LTPProcessor:
             from ltp import LTP
 
             self.ltp_pipeline = LTP(model_name)
-            self.ltp_pipeline.to(device)
+            self.ltp_pipeline.to(device)  # type: ignore
             self.use_pipeline = True
             logger.info("LTP pipeline loaded successfully.")
 
@@ -378,12 +378,12 @@ class LTPProcessor:
             # Use LTP pipeline if available
             results = self.ltp_pipeline.pipeline(texts, tasks=tasks)
             return {
-                "cws": results.cws if hasattr(results, "cws") else None,
-                "pos": results.pos if hasattr(results, "pos") else None,
-                "ner": results.ner if hasattr(results, "ner") else None,
-                "srl": results.srl if hasattr(results, "srl") else None,
-                "dep": results.dep if hasattr(results, "dep") else None,
-                "sdp": results.sdp if hasattr(results, "sdp") else None,
+                "cws": results.cws if hasattr(results, "cws") else None,  # type: ignore
+                "pos": results.pos if hasattr(results, "pos") else None,  # type: ignore
+                "ner": results.ner if hasattr(results, "ner") else None,  # type: ignore
+                "srl": results.srl if hasattr(results, "srl") else None,  # type: ignore
+                "dep": results.dep if hasattr(results, "dep") else None,  # type: ignore
+                "sdp": results.sdp if hasattr(results, "sdp") else None,  # type: ignore
             }
         else:
             # Fallback to basic tokenization
@@ -393,7 +393,9 @@ class LTPProcessor:
                 truncation=True,
                 max_length=LTP_MAX_INPUT_LENGTH,
                 return_tensors="pt",
-            ).to(self.device)
+            ).to(  # type: ignore
+                self.device
+            )  # pyright: ignore[reportOptionalCall]
 
             with torch.no_grad():
                 hidden_states = self.model(

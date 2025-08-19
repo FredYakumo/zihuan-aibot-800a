@@ -3,10 +3,11 @@
 
 #include "constant_types.hpp"
 #include "constants.hpp"
+#include "general-wheel-cpp/linalg_boost/linalg_boost.hpp"
 #include "get_optional.hpp"
 #include "neural_network/model_set.h"
 #include "neural_network/nn.h"
-#include "neural_network/text_model/text_embedding_with_mean_pooling_model.h"
+#include "neural_network/text_model/text_embedding_model.h"
 #include "neural_network/text_model/tokenizer_wrapper.h"
 #include <chrono>
 #include <general-wheel-cpp/collection/concurrent_vector.hpp>
@@ -439,6 +440,7 @@ namespace bot_adapter {
             auto start_time = std::chrono::high_resolution_clock::now();
 
             auto embedding = neural_network::get_model_set().text_embedding_model->embed(member_name);
+            const auto mean_pooled_emb = wheel::linalg_boost::mean_pooling(embedding);
 
             auto end_time = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
@@ -446,7 +448,7 @@ namespace bot_adapter {
 
             contain_member_ids.insert(member_id);
             member_ids.push_back(member_id);
-            member_name_embedding_matrix.push_back(embedding);
+            member_name_embedding_matrix.push_back(mean_pooled_emb);
         }
 
         /**
@@ -494,6 +496,7 @@ namespace bot_adapter {
             auto start_time = std::chrono::high_resolution_clock::now();
 
             auto embeddings = neural_network::get_model_set().text_embedding_model->embed(new_member_names);
+            auto mean_pooled_emb = wheel::linalg_boost::batch_channel_mean_pooling(embeddings);
 
             auto end_time = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
@@ -506,7 +509,7 @@ namespace bot_adapter {
                 const qq_id_t member_id = new_member_ids[i];
                 contain_member_ids.insert(member_id);
                 this->member_ids.push_back(member_id);
-                member_name_embedding_matrix.push_back(embeddings[i]);
+                member_name_embedding_matrix.push_back(mean_pooled_emb[i]);
             }
         }
 
@@ -524,9 +527,10 @@ namespace bot_adapter {
             spdlog::info("[GroupMemberNameEmbeddngMatrix] Computing similarity for query: {}", query);
             auto start_time = std::chrono::high_resolution_clock::now();
 
-            const neural_network::emb_vec_t query_embedding = neural_network::get_model_set().text_embedding_model->embed(query);
-            auto cosine_similarity = neural_network::get_model_set().cosine_similarity_model->inference(
-                query_embedding, member_name_embedding_matrix);
+            const auto query_embedding = neural_network::get_model_set().text_embedding_model->embed(query);
+            const auto mean_pooled_emb = wheel::linalg_boost::batch_feature_mean_pooling(query_embedding);
+            auto cosine_similarity = wheel::linalg_boost::batch_cosine_similarity(member_name_embedding_matrix, mean_pooled_emb);
+
 
             auto end_time = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);

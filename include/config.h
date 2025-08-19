@@ -15,10 +15,15 @@ struct Config {
     std::string llm_api_url;
     uint32_t llm_api_port;
 
-    /// Use large language model name.
-    /// In 紫幻(zihuan), we use `DeepSeekR1`
+    /// The natural language text generator model name
+    /// In 紫幻(zihuan), we use `DeepSeekR1` for natural language generation
     std::string llm_model_name;
+
+    std::string llm_api_key;
+
     
+
+
     /// Use this extra system prompt when set.
     std::optional<std::string> custom_system_prompt_option;
 

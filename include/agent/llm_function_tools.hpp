@@ -18,6 +18,13 @@ inline nlohmann::json make_object_params(const std::vector<std::pair<std::string
     return {{"type", "object"}, {"properties", props}, {"required", required}};
 }
 
+constexpr const char *PARAMETER_TYPE_NUMBER = "number";
+constexpr const char *PARAMETER_TYPE_STRING = "string";
+constexpr const char *PARAMETER_TYPE_BOOLEAN = "boolean";
+constexpr const char *PARAMETER_TYPE_OBJECT = "object";
+constexpr const char *PARAMETER_TYPE_NULL = "null";
+constexpr const char *PARAMETER_TYPE_ARRAY = "array";
+
 // Define the tools
 const nlohmann::json DEFAULT_TOOLS = nlohmann::json::array(
 
@@ -28,11 +35,11 @@ const nlohmann::json DEFAULT_TOOLS = nlohmann::json::array(
          "需要汇总群聊内容。此函数返回的才是真实的聊天历史数据。可多次调用以获取不同对象的聊天记录。",
          make_object_params({
              {"targetId",
-              {{"type", "number"},
+              {{"type", PARAMETER_TYPE_NUMBER},
                {"description", "目标用户的QQ号(数字ID)。默认为null表示查询群内最近的聊天记录。当用户提及'我的聊天记录'"
                                "时，应填入用户自己的QQ号。有明确数字ID时优先使用此参数。"}}},
              {"targetName",
-              {{"type", "string"},
+              {{"type", PARAMETER_TYPE_STRING},
                {"description", "目标用户的名称。默认为null表示查询群内最近的聊天记录。当用户提及特定名称（如'"
                                "查看名贵种猫的发言'）时使用。仅当没有明确的targetId时才使用此参数。"}}},
          })),
@@ -46,9 +53,9 @@ const nlohmann::json DEFAULT_TOOLS = nlohmann::json::array(
          "search_info",
          "查询信息.可以根据查询不同的信息拆分成多次调用.不认识的信息必须要进行查询,"
          "如评价Rust语言和MIZ语言的区别,则多次调用分别查询MIZ语言的发展,MIZ语言的语法,MIZ语言的生态等",
-         make_object_params({{"query", {{"type", "string"}, {"description", "查询内容的关键字"}}},
+         make_object_params({{"query", {{"type", PARAMETER_TYPE_STRING}, {"description", "查询内容的关键字"}}},
                              {"includeDate",
-                              {{"type", "boolean"},
+                              {{"type", PARAMETER_TYPE_BOOLEAN},
                                {"description", "是否包含日期.只有需要查询时效性的信息时才需要为true,如最近发生了什么,"
                                                "微软新出了什么操作系统,小米最近股价,原神的最新版本..."}}}},
                             {"query"})),
@@ -76,7 +83,7 @@ const nlohmann::json DEFAULT_TOOLS = nlohmann::json::array(
      // query group tool
      make_tool_function("query_group", "如果用户的消息中涉及查看群的资料,调用此函数",
                         make_object_params({{"item",
-                                             {{"type", "string"},
+                                             {{"type", PARAMETER_TYPE_STRING},
                                               {"description", "查询内容,仅支持OWNER(群主),ADMIN(管理员),"
                                                               "NOTICE(群公告).除此以外则是OTHER"}}}})),
      // make_tool_function("get_group_member_list", "查询群成员列表.")
@@ -84,6 +91,7 @@ const nlohmann::json DEFAULT_TOOLS = nlohmann::json::array(
      // Fetch URL content tool
      make_tool_function(
          "fetch_url_content", "你可以使用这个函数来查看网页链接里的内容",
-         make_object_params({{"urls", {{"type", "array"}, {"description", "网页链接列表,每个元素为url字符串"}}}},
-                            {"url"})),
+         make_object_params(
+             {{"urls", {{"type", PARAMETER_TYPE_ARRAY}, {"description", "网页链接列表,每个元素为url字符串"}}}},
+             {"url"})),
      make_tool_function("get_function_list", "获取紫幻可用功能,函数,function calls,指令列表.", {})});
