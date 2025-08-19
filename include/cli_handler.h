@@ -2,6 +2,7 @@
 #define CLI_HANDLER_H
 
 #include <optional>
+#include <cstdint>
 
 namespace neural_network { enum class Device; }
 
@@ -27,6 +28,15 @@ public:
     // This centralizes the previous logging switch from main() so callers can simply:
     //   auto device = CLIHandler::determine_device(argc, argv);
     static neural_network::Device determine_device(int argc, char *argv[]);
+
+    // Parse bot id from CLI (-l <bot_id>), returns std::nullopt if not provided or invalid.
+    static std::optional<uint64_t> parse_bot_id(int argc, char *argv[]);
+
+    // Process CLI arguments (e.g. bot id). Call early after Config::init().
+    static void process_args(int argc, char *argv[]);
+
+    // Retrieve bot id parsed from CLI (-l <bot_id>). Returns 0 if not provided.
+    static uint64_t get_bot_id();
 };
 
 #endif // CLI_HANDLER_H

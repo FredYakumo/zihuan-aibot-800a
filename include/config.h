@@ -48,7 +48,6 @@ struct Config {
     /// Bot won't reply user which QQ号/ID in this set
     std::unordered_set<std::string> banned_id_set;
 
-    uint64_t bot_id;
 
     /// Url of search API
     std::string search_api_url;

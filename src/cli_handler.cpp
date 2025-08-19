@@ -2,6 +2,7 @@
 #include "database.h"
 #include "neural_network/nn.h"
 #include <cstring>
+#include <cstdlib>
 #include <spdlog/spdlog.h>
 
 bool CLIHandler::handle_table_init(int argc, char *argv[]) {
@@ -76,3 +77,38 @@ neural_network::Device CLIHandler::determine_device(int argc, char *argv[]) {
     }
     return device;
 }
+
+namespace {
+    uint64_t s_bot_id = 0;
+}
+
+std::optional<uint64_t> CLIHandler::parse_bot_id(int argc, char *argv[]) {
+    for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "-l") == 0 && i + 1 < argc) {
+            char *end = nullptr;
+            const auto *val = argv[i + 1];
+            if (*val == '\0') return std::nullopt;
+            errno = 0;
+            unsigned long long parsed = std::strtoull(val, &end, 10);
+            if (errno != 0 || end == val || *end != '\0') {
+                spdlog::error("Invalid bot id: {}", val);
+                return std::nullopt;
+            }
+            return static_cast<uint64_t>(parsed);
+        }
+    }
+    return std::nullopt;
+}
+
+void CLIHandler::process_args(int argc, char *argv[]) {
+    if (auto bot_id_opt = parse_bot_id(argc, argv)) {
+        s_bot_id = *bot_id_opt;
+        spdlog::info("Bot id set from CLI: {}", s_bot_id);
+    } else if (s_bot_id == 0) {
+        spdlog::warn("No bot id specified via -l <bot_id>; current value is 0. Some features may fail.");
+    } else {
+        spdlog::info("Bot id retained from previous runtime value: {}", s_bot_id);
+    }
+}
+
+uint64_t CLIHandler::get_bot_id() { return s_bot_id; }
