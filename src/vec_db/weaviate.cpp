@@ -6,8 +6,8 @@
 #include <chrono>
 #include <cpr/cpr.h>
 #include <fmt/format.h>
-#include <general-wheel-cpp/string_utils.hpp>
 #include <general-wheel-cpp/linalg_boost/linalg_boost.hpp>
+#include <general-wheel-cpp/string_utils.hpp>
 #include <iterator>
 #include <string>
 
@@ -179,8 +179,7 @@ namespace vec_db {
         // Generate vector embeddings using the full processed query
         auto emb = neural_network::get_model_set().text_embedding_model->embed(processed_query);
 
-        // Calc mean pooling
-        auto emb_mean_pooling = wheel::linalg_boost::batch_mean_pooling(emb);
+        auto emb_pooled = wheel::linalg_boost::mean_pooling(emb);
 
         // Execute hybrid search combining:
         // - Vector similarity for semantic matching (applied to all fields)
@@ -190,7 +189,7 @@ namespace vec_db {
         cpr::Response response =
             cpr::Post(cpr::Url{fmt::format("http://{}:{}/v1/graphql", config.vec_db_url, config.vec_db_port)},
                       cpr::Body{
-                          nlohmann::json{{"query", graphql_query("AIBot_knowledge", emb, keyword_query,
+                          nlohmann::json{{"query", graphql_query("AIBot_knowledge", emb_pooled, keyword_query,
                                                                  certainty_threshold, top_k)}}
                               .dump(),
                       },

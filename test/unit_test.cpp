@@ -11,6 +11,7 @@
 #include <string>
 #include <fstream>
 #include <cstdio>
+#include "neural_network/text_model/lac/lac.h"
 
 namespace {
 // Mean pool token-level embedding matrix to a sentence embedding
@@ -767,7 +768,7 @@ TEST(LibTorchAccuracy, TextEmbeddingBatchVsIndividualConsistency) {
     // Compute embeddings in batch
     spdlog::info("Computing batch embeddings...");
     auto start_batch = std::chrono::high_resolution_clock::now();
-    auto batch_embeddings = model_set.text_embedding_model->embed(batch_text);
+    auto batch_embeddings = wheel::linalg_boost::mean_pooling(model_set.text_embedding_model->embed(batch_text));
     auto end_batch = std::chrono::high_resolution_clock::now();
     auto batch_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_batch - start_batch).count();
 
