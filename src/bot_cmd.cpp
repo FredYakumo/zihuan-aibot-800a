@@ -15,6 +15,7 @@
 #include <optional>
 #include <sys/stat.h>
 #include <utility>
+#include "agent/llm_function_tools.hpp"
 
 namespace bot_cmd {
     using namespace wheel;
@@ -227,7 +228,7 @@ namespace bot_cmd {
                 //         "PS: 紫幻现在自己会思考要不要去网上找数据啦, 你可以不用每次都用#联网.")));
             }
             if (g_simple_chat_action_agent) {
-                g_simple_chat_action_agent->process_llm(context, net_search_str, context.user_preference_option);
+                g_simple_chat_action_agent->process_llm(context, net_search_str, context.user_preference_option, DEFAULT_TOOLS);
             }
         }).detach();
 

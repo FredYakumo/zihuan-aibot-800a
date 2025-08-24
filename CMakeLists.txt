@@ -66,6 +66,7 @@ endif()
 
 # Collect source files
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/ SRC_FILES)
+aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/agent AGENT_SRC_FILES)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network NN_SRC_FILES)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/text_model NN_TEXT_MODEL_SRC_FILES)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/text_model/lac NN_TEXT_MODEL_LAC_SRC_FILES)
@@ -82,6 +83,7 @@ aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/vec_db VEC_DB_SRC_FILES)
 
 set(BIN_SOURCES
     ${SRC_FILES}
+    ${AGENT_SRC_FILES}
     ${NN_SRC_FILES}
     ${NN_TEXT_MODEL_SRC_FILES}
     ${NN_TEXT_MODEL_LAC_SRC_FILES}
@@ -95,6 +97,9 @@ set(BIN_SOURCES
 # Print all source files (for debugging)
 foreach(file IN LISTS SRC_FILES)
     message(STATUS "Source file: ${file}")
+endforeach()
+foreach(file IN LISTS AGENT_SRC_FILES)
+    message(STATUS "Agent Source file: ${file}")
 endforeach()
 foreach(file IN LISTS NN_SRC_FILES)
     message(STATUS "NN Source file: ${file}")
@@ -156,10 +161,18 @@ add_executable(unit_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/text_model/tokenizer_wrapper.cpp
     # Include LAC sources to satisfy tests referencing lac:: symbols
     ${NN_TEXT_MODEL_LAC_SRC_FILES}
+    # Include agent sources
+    ${AGENT_SRC_FILES}
     ${CMAKE_CURRENT_SOURCE_DIR}/src/vec_db/weaviate.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/utils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/global_data.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/database.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/msg_prop.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/cli_handler.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/bot_adapter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/rag.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/bot_cmd.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/config.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/external/easywsclient/easywsclient.cpp
 )
 
@@ -246,7 +259,7 @@ if(paddle_inference_path)
 endif()
 
 if(LINUX)
-    target_link_libraries(unit_test PRIVATE cpr::cpr gtest gtest_main fmt::fmt yaml-cpp::yaml-cpp Boost::filesystem tokenizers_cpp ncnn)
+    target_link_libraries(unit_test PRIVATE cpr::cpr gtest gtest_main fmt::fmt yaml-cpp::yaml-cpp Boost::filesystem tokenizers_cpp ncnn general-wheel-cpp::general-wheel-cpp)
     if(NOT use_libtorch)
         target_link_libraries(unit_test PRIVATE onnxruntime::onnxruntime)
     endif()
@@ -262,7 +275,7 @@ if(LINUX)
     endif()
     target_link_libraries(unit_test PRIVATE /usr/local/lib64/libmysqlcppconnx.so)
 else()
-    target_link_libraries(unit_test PRIVATE cpr::cpr GTest::GTest GTest::Main fmt::fmt yaml-cpp::yaml-cpp Boost::filesystem tokenizers_cpp ncnn)
+    target_link_libraries(unit_test PRIVATE cpr::cpr GTest::GTest GTest::Main fmt::fmt yaml-cpp::yaml-cpp Boost::filesystem tokenizers_cpp ncnn general-wheel-cpp::general-wheel-cpp)
     if(NOT use_libtorch)
         target_link_libraries(unit_test PRIVATE onnxruntime::onnxruntime)
     endif()

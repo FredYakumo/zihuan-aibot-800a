@@ -68,7 +68,8 @@ namespace agent {
 
     void SimpleChatActionAgent::process_llm(const bot_cmd::CommandContext &context,
                                             const std::optional<std::string> &additional_system_prompt_option,
-                                            const std::optional<database::UserPreference> &user_preference_option) {
+                                            const std::optional<database::UserPreference> &user_preference_option,
+                                            const std::optional<nlohmann::json> &function_tools_opt) {
         spdlog::info("[SimpleChatActionAgent] 开始处理LLM信息");
 
         if (!try_to_replay_person(context.event->sender_ptr->id)) {
@@ -140,8 +141,9 @@ namespace agent {
 
         spdlog::info("作为用户输入给llm的content: {}", llm_content);
 
-        auto llm_thread = std::thread([this, context, llm_content, system_prompt, user_preference_option] {
-            on_llm_thread(context, llm_content, system_prompt, user_preference_option);
+        auto llm_thread = std::thread([this, context, llm_content, system_prompt, user_preference_option,
+                                         function_tools_opt] {
+            on_llm_thread(context, llm_content, system_prompt, user_preference_option, function_tools_opt);
         });
 
         llm_thread.detach();
@@ -183,47 +185,9 @@ namespace agent {
         }
     }
 
-    void SimpleChatActionAgent::on_llm_thread(const bot_cmd::CommandContext &context, const std::string &llm_content,
-                                              const std::string &system_prompt,
-                                              const std::optional<database::UserPreference> &user_preference_option) {
-        spdlog::debug("Event type: {}, Sender json: {}", context.event->get_typename(),
-                      context.event->sender_ptr->to_json().dump());
-
-        spdlog::info("Start llm thread.");
-        set_thread_name("AIBot LLM process");
-        if (context.is_deep_think) {
-            spdlog::info("开始深度思考");
-        }
-        const auto bot_profile = context.adapter.get_bot_profile();
-
-        if (context.is_deep_think) {
-            context.adapter.send_replay_msg(
-                *context.event->sender_ptr,
-                bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage{"正在思思考中..."},
-                                                     bot_adapter::ImageMessage{Config::instance().think_image_url}),
-                false);
-        }
-
-        auto msg_json = get_msg_json(context.event->sender_ptr->id, context.event->sender_ptr->name, system_prompt);
-
-        auto user_chat_msg = ChatMessage(ROLE_USER, llm_content);
-        add_to_msg_json(msg_json, user_chat_msg);
-
-        std::vector<ChatMessage> one_chat_session;
-        AgentInferenceParam inference_param;
-        inference_param.think_mode = context.is_deep_think;
-        inference_param.messages_json = msg_json;
-        if (auto llm_res = g_llm_chat_agent->inference(inference_param); llm_res.has_value()) {
-            one_chat_session.push_back(std::move(*llm_res));
-        } else {
-            spdlog::warn("LLM did not response any chat message...");
-            context.adapter.send_replay_msg(*context.event->sender_ptr,
-                                            bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("?")));
-            release_processing_replay_person(context.event->sender_ptr->id);
-            return;
-        }
-
-        // process function call
+    void SimpleChatActionAgent::process_tool_calls(const bot_cmd::CommandContext &context, nlohmann::json &msg_json,
+                                                   std::vector<ChatMessage> &one_chat_session,
+                                                   const std::optional<nlohmann::json> &function_tools_opt) {
         // loop check if have function call
         while (one_chat_session.rbegin()->tool_calls) {
             const auto &llm_res = *one_chat_session.rbegin();
@@ -556,6 +520,7 @@ namespace agent {
             AgentInferenceParam inference_param;
             inference_param.think_mode = context.is_deep_think;
             inference_param.messages_json = msg_json;
+            inference_param.function_tools_opt = function_tools_opt;
             if (auto llm_res = bind_output_llm_agent->inference(inference_param); llm_res.has_value()) {
                 one_chat_session.push_back(std::move(*llm_res));
             } else {
@@ -567,6 +532,51 @@ namespace agent {
                 return;
             }
         }
+    }
+
+    void SimpleChatActionAgent::on_llm_thread(const bot_cmd::CommandContext &context, const std::string &llm_content,
+                                              const std::string &system_prompt,
+                                              const std::optional<database::UserPreference> &user_preference_option,
+                                              const std::optional<nlohmann::json> &function_tools_opt) {
+        spdlog::debug("Event type: {}, Sender json: {}", context.event->get_typename(),
+                      context.event->sender_ptr->to_json().dump());
+
+        spdlog::info("Start llm thread.");
+        set_thread_name("AIBot LLM process");
+        if (context.is_deep_think) {
+            spdlog::info("开始深度思考");
+        }
+        const auto bot_profile = context.adapter.get_bot_profile();
+
+        if (context.is_deep_think) {
+            context.adapter.send_replay_msg(
+                *context.event->sender_ptr,
+                bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage{"正在思思考中..."},
+                                                     bot_adapter::ImageMessage{Config::instance().think_image_url}),
+                false);
+        }
+
+        auto msg_json = get_msg_json(context.event->sender_ptr->id, context.event->sender_ptr->name, system_prompt);
+
+        auto user_chat_msg = ChatMessage(ROLE_USER, llm_content);
+        add_to_msg_json(msg_json, user_chat_msg);
+
+        std::vector<ChatMessage> one_chat_session;
+        AgentInferenceParam inference_param;
+        inference_param.think_mode = context.is_deep_think;
+        inference_param.messages_json = msg_json;
+        inference_param.function_tools_opt = function_tools_opt;
+        if (auto llm_res = g_llm_chat_agent->inference(inference_param); llm_res.has_value()) {
+            one_chat_session.push_back(std::move(*llm_res));
+        } else {
+            spdlog::warn("LLM did not response any chat message...");
+            context.adapter.send_replay_msg(*context.event->sender_ptr,
+                                            bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("?")));
+            release_processing_replay_person(context.event->sender_ptr->id);
+            return;
+        }
+
+        process_tool_calls(context, msg_json, one_chat_session, function_tools_opt);
 
         std::string replay_content = one_chat_session.rbegin()->content;
 

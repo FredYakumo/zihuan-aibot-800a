@@ -22,6 +22,7 @@
 #include <string_view>
 #include <thread>
 #include <utility>
+#include "agent/llm_function_tools.hpp"
 
 using namespace wheel;
 
@@ -270,7 +271,7 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
         auto context =
             bot_cmd::CommandContext(adapter, event, "", process_res.is_deep_think, msg_prop, user_preference);
         if (g_simple_chat_action_agent) {
-            g_simple_chat_action_agent->process_llm(context, std::nullopt, user_preference);
+            g_simple_chat_action_agent->process_llm(context, std::nullopt, user_preference, DEFAULT_TOOLS);
         }
     }
 }
@@ -352,7 +353,7 @@ void on_friend_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_a
         auto context =
             bot_cmd::CommandContext(adapter, event, "", process_res.is_deep_think, msg_prop, user_preference);
         if (g_simple_chat_action_agent) {
-            g_simple_chat_action_agent->process_llm(context, std::nullopt, user_preference);
+            g_simple_chat_action_agent->process_llm(context, std::nullopt, user_preference, DEFAULT_TOOLS);
         }
     }
 }
