@@ -3,7 +3,7 @@
 #include "neural_network/model_set.h"
 #include "neural_network/nn.h"
 #include <cstdint>
-#include <linalg_boost/linalg_boost.hpp>
+#include <general-wheel-cpp/linalg_boost/linalg_boost.hpp>
 #include <shared_mutex>
 #include <algorithm>
 #include <spdlog/spdlog.h>

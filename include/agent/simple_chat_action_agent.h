@@ -15,7 +15,6 @@ namespace agent {
                               std::shared_ptr<LLMAgentBase> bind_output_llm_agent)
             : adapter(std::move(adapter)), bind_output_llm_agent(std::move(bind_output_llm_agent)) {}
 
-        // 处理聊天 (原 process_llm 逻辑)
         void process_llm(const bot_cmd::CommandContext &context,
                          const std::optional<std::string> &additional_system_prompt_option,
                          const std::optional<database::UserPreference> &user_preference_option);

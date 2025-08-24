@@ -10,7 +10,7 @@
 #include "time_utils.h"
 #include "utils.h"
 #include <chrono>
-#include <collection/concurrent_hashset.hpp>
+#include <general-wheel-cpp/collection/concurrent_hashset.hpp>
 #include <cpr/cpr.h>
 #include <fmt/format.h>
 #include <functional>
