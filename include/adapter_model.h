@@ -534,7 +534,7 @@ namespace bot_adapter {
             }
 
             const auto query_embedding = neural_network::get_model_set().text_embedding_model->embed(query);
-            
+
             // use the same pooling strategy as member embeddings (token-wise mean to hidden_size)
             const auto mean_pooled_emb = wheel::linalg_boost::mean_pooling(query_embedding);
 
@@ -555,17 +555,17 @@ namespace bot_adapter {
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
             spdlog::info("[GroupMemberNameEmbeddngMatrix] Similarity computation took {} ms", duration.count());
 
-            // 创建带索引的相似度向量，用于排序
+            // Pair each similarity score with its corresponding member ID index
             std::vector<std::pair<float, size_t>> similarity_with_index;
             for (size_t i = 0; i < cosine_similarity.size(); ++i) {
                 similarity_with_index.push_back({cosine_similarity[i], i});
             }
 
-            // 按相似度降序排序
+
             std::sort(similarity_with_index.begin(), similarity_with_index.end(),
                       [](const auto &a, const auto &b) { return a.first > b.first; });
 
-            // 输出前5个最相似的结果
+            
             size_t top_k = std::min(size_t(5), cosine_similarity.size());
             for (size_t i = 0; i < top_k; ++i) {
                 auto sim = similarity_with_index[i].first;
