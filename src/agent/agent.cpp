@@ -24,9 +24,21 @@ namespace agent {
         const auto json_str = body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
         spdlog::info("llm body: {}", json_str);
 
+        // Build target URL. If a base URL (host:port) was passed in, append the endpoint suffix.
         std::string target_url;
         if (!api_url.empty()) {
-            target_url = api_url; // Expect full endpoint
+            target_url = api_url;
+            // Heuristic: if caller provided only base without endpoint path, append suffix.
+            // We append when the url does not already contain a known completions endpoint keyword.
+            const bool has_completions = (target_url.find("chat/completions") != std::string::npos) ||
+                                         (target_url.find("/completions") != std::string::npos) ||
+                                         (target_url.find("/responses") != std::string::npos);
+            if (!has_completions) {
+                if (!target_url.empty() && target_url.back() == '/')
+                    target_url += LLM_API_SUFFIX;
+                else
+                    target_url += std::string("/") + LLM_API_SUFFIX;
+            }
         } else {
             const auto &cfg = Config::instance();
             target_url = fmt::format("{}:{}/{}", cfg.llm_api_url, cfg.llm_api_port, LLM_API_SUFFIX);
@@ -42,15 +54,45 @@ namespace agent {
         cpr::Response response = cpr::Post(cpr::Url{target_url}, cpr::Body{json_str}, header);
         spdlog::info("llm response: {}, status code: {}", response.error.message, response.status_code);
 
+        // Short-circuit on HTTP error
+        if (response.status_code != 200) {
+            spdlog::error("LLM API request failed. status: {}, url: {}, response: {}", response.status_code,
+                          target_url, response.text);
+            return std::nullopt;
+        }
+
         try {
             spdlog::info("LLM response: {}", response.text);
             auto json = nlohmann::json::parse(response.text);
-            auto &message = json["choices"][0]["message"];
-            std::string result = std::string(wheel::ltrim(message["content"].get<std::string_view>()));
-            std::string role = get_optional(message, "role").value_or(ROLE_ASSISTANT);
+            // choices
+            auto choices_opt = get_optional<nlohmann::json>(json, "choices");
+            if (!choices_opt || !choices_opt->is_array() || choices_opt->empty()) {
+                spdlog::error("LLM response missing choices: {}", response.text);
+                return std::nullopt;
+            }
+            const nlohmann::json &first_choice = (*choices_opt)[0];
+            // message (fallback to delta if provider uses that field)
+            auto message_opt = get_optional<nlohmann::json>(first_choice, "message");
+            if (!message_opt) {
+                message_opt = get_optional<nlohmann::json>(first_choice, "delta");
+            }
+            if (!message_opt) {
+                spdlog::error("LLM response missing 'message' (or 'delta') field: {}", first_choice.dump());
+                return std::nullopt;
+            }
+            const nlohmann::json &message = *message_opt;
+
+            // content may be null when the assistant only returns tool_calls
+            std::string result;
+            if (auto content_opt = get_optional<std::string>(message, "content"); content_opt.has_value()) {
+                result = std::string(wheel::ltrim(std::string_view(*content_opt)));
+            } else {
+                result = ""; // keep empty and rely on tool_calls if present
+            }
+            std::string role = get_optional<std::string>(message, "role").value_or(ROLE_ASSISTANT);
             wheel::remove_text_between_markers(result, "<think>", "</think>");
             ChatMessage ret{role, result};
-            if (const auto &tool_calls = get_optional(message, "tool_calls"); tool_calls.has_value()) {
+            if (auto tool_calls = get_optional<nlohmann::json>(message, "tool_calls"); tool_calls.has_value()) {
                 spdlog::info("LLM response TOOL CALLS request");
                 std::vector<ToolCall> function_calls;
                 for (const nlohmann::json &tool_call : *tool_calls) {

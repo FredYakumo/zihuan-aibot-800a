@@ -348,11 +348,10 @@ namespace neural_network {
 
             // Add token embeddings matrices to result
             for (size_t i = 0; i < current_batch_size; ++i) {
-                const size_t original_seq_len = original_seq_lengths[i];
                 emb_mat_t current_emb_mat;
-                current_emb_mat.reserve(original_seq_len);
+                current_emb_mat.reserve(max_seq_len); // Reserve space for padded length
 
-                for (size_t j = 0; j < original_seq_len; ++j) {
+                for (size_t j = 0; j < max_seq_len; ++j) { // Iterate up to padded length
                     emb_vec_t token_embedding;
                     token_embedding.reserve(hidden_size);
                     const float *token_data = &embeddings_accessor[i][j][0];

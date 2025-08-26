@@ -527,9 +527,28 @@ namespace bot_adapter {
             spdlog::info("[GroupMemberNameEmbeddngMatrix] Computing similarity for query: {}", query);
             auto start_time = std::chrono::high_resolution_clock::now();
 
+            // Fast path: no members yet
+            if (member_name_embedding_matrix.empty()) {
+                spdlog::debug("[GroupMemberNameEmbeddngMatrix] No member embeddings available, returning empty result");
+                return {};
+            }
+
             const auto query_embedding = neural_network::get_model_set().text_embedding_model->embed(query);
-            const auto mean_pooled_emb = wheel::linalg_boost::batch_feature_mean_pooling(query_embedding);
-            auto cosine_similarity = wheel::linalg_boost::batch_cosine_similarity(member_name_embedding_matrix, mean_pooled_emb);
+            
+            // use the same pooling strategy as member embeddings (token-wise mean to hidden_size)
+            const auto mean_pooled_emb = wheel::linalg_boost::mean_pooling(query_embedding);
+
+            // Validate dimension consistency before similarity
+            if (!member_name_embedding_matrix.empty() &&
+                member_name_embedding_matrix.front().size() != mean_pooled_emb.size()) {
+                spdlog::error(
+                    "[GroupMemberNameEmbeddngMatrix] Embedding dim mismatch: member_dim={}, query_dim={}",
+                    member_name_embedding_matrix.front().size(), mean_pooled_emb.size());
+                return {};
+            }
+
+            auto cosine_similarity =
+                wheel::linalg_boost::batch_cosine_similarity(member_name_embedding_matrix, mean_pooled_emb);
 
 
             auto end_time = std::chrono::high_resolution_clock::now();
