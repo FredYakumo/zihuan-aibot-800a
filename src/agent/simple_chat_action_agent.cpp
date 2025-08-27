@@ -162,17 +162,17 @@ namespace agent {
                 spdlog::info("Tool calls: {}()", func_calls.name, func_calls.arguments);
                 std::optional<ChatMessage> tool_call_msg = std::nullopt;
                 if (func_calls.name == "search_info") {
-                    tool_call_msg = handle_search_info(context, func_calls);
+                    tool_call_msg = tool_impl::search_info(context, func_calls);
                 } else if (func_calls.name == "fetch_url_content") {
-                    tool_call_msg = handle_fetch_url_content(context, func_calls, llm_res);
+                    tool_call_msg = tool_impl::fetch_url_content(context, func_calls, llm_res);
                 } else if (func_calls.name == "view_model_info") {
-                    tool_call_msg = handle_view_model_info(func_calls);
+                    tool_call_msg = tool_impl::view_model_info(func_calls);
                 } else if (func_calls.name == "view_chat_history") {
-                    tool_call_msg = handle_view_chat_history(context, func_calls);
+                    tool_call_msg = tool_impl::view_chat_history(context, func_calls);
                 } else if (func_calls.name == "query_group") {
-                    tool_call_msg = handle_query_group(context, func_calls);
+                    tool_call_msg = tool_impl::query_group(context, func_calls);
                 } else if (func_calls.name == "get_function_list") {
-                    tool_call_msg = handle_get_function_list(func_calls);
+                    tool_call_msg = tool_impl::get_function_list(func_calls);
                 } else {
                     spdlog::error("Function {} is not impl.", func_calls.name);
                     tool_call_msg = ChatMessage(ROLE_TOOL,
@@ -215,35 +215,7 @@ namespace agent {
         }
     }
 
-    ChatMessage SimpleChatActionAgent::handle_search_info(const bot_cmd::CommandContext &context,
-                                                          const ToolCall &tool_call) {
-        return tool_impl::search_info(context, tool_call);
-    }
-
-    ChatMessage SimpleChatActionAgent::handle_fetch_url_content(const bot_cmd::CommandContext &context,
-                                                                const ToolCall &tool_call,
-                                                                const ChatMessage &llm_res) {
-        return tool_impl::fetch_url_content(context, tool_call, llm_res);
-    }
-
-
-    ChatMessage SimpleChatActionAgent::handle_view_model_info(const ToolCall &tool_call) {
-        return tool_impl::view_model_info(tool_call);
-    }
-
-    ChatMessage SimpleChatActionAgent::handle_view_chat_history(const bot_cmd::CommandContext &context,
-                                                                const ToolCall &tool_call) {
-        return tool_impl::view_chat_history(context, tool_call);
-    }
-
-    ChatMessage SimpleChatActionAgent::handle_query_group(const bot_cmd::CommandContext &context,
-                                                          const ToolCall &tool_call) {
-        return tool_impl::query_group(context, tool_call);
-    }
-
-    ChatMessage SimpleChatActionAgent::handle_get_function_list(const ToolCall &tool_call) {
-        return tool_impl::get_function_list(tool_call);
-    }
+    
 
     void SimpleChatActionAgent::on_llm_thread(const bot_cmd::CommandContext &context, const std::string &llm_content,
                                               const std::string &system_prompt,

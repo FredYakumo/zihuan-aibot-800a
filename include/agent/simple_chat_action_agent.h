@@ -31,14 +31,6 @@ class SimpleChatActionAgent {
                               std::vector<ChatMessage> &one_chat_session,
                               const std::optional<nlohmann::json> &function_tools_opt);
 
-    ChatMessage handle_search_info(const bot_cmd::CommandContext &context, const ToolCall &tool_call);
-    ChatMessage handle_fetch_url_content(const bot_cmd::CommandContext &context, const ToolCall &tool_call,
-                                         const ChatMessage &llm_res);
-    ChatMessage handle_view_model_info(const ToolCall &tool_call);
-    ChatMessage handle_view_chat_history(const bot_cmd::CommandContext &context, const ToolCall &tool_call);
-    ChatMessage handle_query_group(const bot_cmd::CommandContext &context, const ToolCall &tool_call);
-    ChatMessage handle_get_function_list(const ToolCall &tool_call);
-
     std::shared_ptr<bot_adapter::BotAdapter> adapter;
     std::shared_ptr<LLMAgentBase> bind_output_llm_agent;
 };
