@@ -3,6 +3,10 @@ cmake_policy(SET CMP0167 NEW)
 set(CMAKE_CXX_STANDARD 23)
 project(ZiHuanAIBot LANGUAGES CXX)
 
+if(APPLE)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "15.5")
+endif()
+
 # Set default build type to Debug (if not specified via command line)
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)

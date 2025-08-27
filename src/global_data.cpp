@@ -6,6 +6,9 @@
 
 using namespace wheel;
 
+// Bot start time (defined here; declared in global_data.h)
+std::chrono::system_clock::time_point g_bot_start_time{};
+
 concurrent_unordered_map<qq_id_t, ChatSession> g_chat_session_map;
 
 concurrent_unordered_map<qq_id_t, std::set<std::string>> g_chat_session_knowledge_list_map;
