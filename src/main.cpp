@@ -115,6 +115,10 @@ int main(int argc, char *argv[]) {
         std::shared_ptr<bot_adapter::BotAdapter>(&adapter, [](bot_adapter::BotAdapter*){}), g_llm_chat_agent);
 
     register_event(adapter);
+
+    spdlog::info("Initialized completed, starting bot now.");
+    g_bot_start_time = std::chrono::system_clock::now();
+
     adapter.start();
     return 0;
 }
