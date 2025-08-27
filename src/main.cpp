@@ -81,6 +81,11 @@ int main(int argc, char *argv[]) {
     Config::init();
     bot_cmd::init_command_map();
 
+    // Check for version flag early
+    if (CLIHandler::handle_version_request(argc, argv)) {
+        return 0;
+    }
+
     try {
 
         database::init_db_connection();

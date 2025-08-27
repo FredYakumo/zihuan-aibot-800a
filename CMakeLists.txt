@@ -92,9 +92,10 @@ set(BIN_SOURCES
     ${PLUGIN_SOURCE_PATH}
     ${CMAKE_CURRENT_SOURCE_DIR}/external/easywsclient/easywsclient.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/database.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/constants.cpp
 )
 
-# Print all source files (for debugging)
+# print all source files (for debugging)
 foreach(file IN LISTS SRC_FILES)
     message(STATUS "Source file: ${file}")
 endforeach()
@@ -173,6 +174,7 @@ add_executable(unit_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/rag.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/bot_cmd.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/config.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/constants.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/external/easywsclient/easywsclient.cpp
 )
 
@@ -308,24 +310,52 @@ add_test(NAME unit_test COMMAND unit_test)
 #     set_target_properties(${MIRAICP_TARGET_NAME} PROPERTIES INSTALL_NAME_DIR "@rpath")
 # endif()
 
-# Set spdlog log level based on build type
+# set spdlog log level based on build type
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_definitions(-DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_WARN)
 else()
     add_definitions(-DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG)
 endif()
 
-# Add custom macro definitions
+# get git commit hash for BUILD_VERSION
+set(BUILD_VERSION "unknown" CACHE STRING "Version string for the build")
+
+# try to get git commit hash if not specified manually
+if(BUILD_VERSION STREQUAL "unknown")
+    find_package(Git QUIET)
+    if(GIT_FOUND)
+        execute_process(
+            COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            OUTPUT_VARIABLE GIT_COMMIT_HASH
+            ERROR_QUIET
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+        if(GIT_COMMIT_HASH)
+            set(BUILD_VERSION "${GIT_COMMIT_HASH}")
+            message(STATUS "Using git commit hash for BUILD_VERSION: ${BUILD_VERSION}")
+        endif()
+    endif()
+endif()
+
+# add definition for BUILD_VERSION
+add_definitions(-DBUILD_VERSION="${BUILD_VERSION}")
+
+add_definitions(-DREPOS_ADDR="https://github.com/FredYakumo/zihuan-aibot-800a")
+
+# add custom macro definitions
 add_definitions(-DAIBOT_VERSION_800A)
 
-# Platform-based macro definitions
+# platform-based macro definitions
 if(APPLE)
     add_definitions(-DPLATFORM_MACOS)
 elseif(LINUX)
     add_definitions(-DPLATFORM_LINUX)
+elseif(WIN32)
+    add_definitions(-DPLATFORM_WINDOWS)
 endif()
 
-# Build type-based macro definitions
+# build type-based macro definitions
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_definitions(-DDEBUG_BUILD)
 else()

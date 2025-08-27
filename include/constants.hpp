@@ -25,4 +25,20 @@ constexpr const char *UNKNOWN_VALUE = "<未知>";
 
 constexpr size_t MAX_OUTPUT_LENGTH = 500;
 
+// BUILD_VERSION is defined by CMake via -DBUILD_VERSION
+#ifndef BUILD_VERSION
+#define BUILD_VERSION "unknown"
+#endif
+
+// DREPOS_ADDR is defined by CMake via -DREPOS_ADDR
+#ifndef DREPOS_ADDR
+#define DREPOS_ADDR "https://github.com/FredYakumo/zihuan-aibot-800a"
+#endif
+
+// Declare BUILD_VERSION_STRING as a constant string
+extern const char* const BUILD_VERSION_STRING;
+
+// Declare DREPOS_ADDR_STRING as a constant string
+extern const char* const DREPOS_ADDR_STRING;
+
 #endif

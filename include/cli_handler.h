@@ -37,6 +37,10 @@ public:
 
     // Retrieve bot id parsed from CLI (-l <bot_id>). Returns 0 if not provided.
     static uint64_t get_bot_id();
+
+    // Handles version flag (--version/-v) and prints version info.
+    // Returns true if version was requested and program should exit.
+    static bool handle_version_request(int argc, char *argv[]);
 };
 
 #endif // CLI_HANDLER_H

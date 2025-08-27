@@ -1,8 +1,10 @@
 #include "cli_handler.h"
+#include "constants.hpp"
 #include "database.h"
 #include "neural_network/nn.h"
 #include <cstring>
 #include <cstdlib>
+#include <iostream>
 #include <spdlog/spdlog.h>
 
 bool CLIHandler::handle_table_init(int argc, char *argv[]) {
@@ -112,3 +114,64 @@ void CLIHandler::process_args(int argc, char *argv[]) {
 }
 
 uint64_t CLIHandler::get_bot_id() { return s_bot_id; }
+
+bool CLIHandler::handle_version_request(int argc, char *argv[]) {
+    for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "--version") == 0 || std::strcmp(argv[i], "-v") == 0) {
+            std::cout << "ZiHuanAIBot version: " << BUILD_VERSION_STRING << std::endl;
+            std::cout << "Repository: " << DREPOS_ADDR_STRING << std::endl;
+            
+            // Platform information
+            std::cout << "Platform: ";
+#ifdef PLATFORM_MACOS
+            std::cout << "macOS";
+#elif defined(PLATFORM_LINUX)
+            std::cout << "Linux";
+#elif defined(PLATFORM_WINDOWS)
+            std::cout << "Windows";
+#else
+            std::cout << "Unknown";
+#endif
+            std::cout << std::endl;
+            
+            // Build type
+            std::cout << "Build Type: ";
+#ifdef DEBUG_BUILD
+            std::cout << "Debug";
+#else
+            std::cout << "Release";
+#endif
+            std::cout << std::endl;
+            
+            // AI inference backend
+            std::cout << "AI Backend: ";
+#ifdef __USE_LIBTORCH__
+            std::cout << "LibTorch";
+#else
+            std::cout << "ONNX Runtime";
+#endif
+            std::cout << std::endl;
+            
+            // Custom macros
+            std::cout << "Features: ";
+            bool first = true;
+#ifdef AIBOT_VERSION_800A
+            if (!first) std::cout << ", ";
+            std::cout << "AIBot 800A";
+            first = false;
+#endif
+#ifdef __USE_PADDLE_INFERENCE__
+            if (!first) std::cout << ", ";
+            std::cout << "Paddle Inference";
+            first = false;
+#endif
+            if (first) {
+                std::cout << "None";
+            }
+            std::cout << std::endl;
+            
+            return true;
+        }
+    }
+    return false;
+}
