@@ -405,4 +405,9 @@ namespace bot_cmd {
                                             "请输入设置。用法: #设置(参数1=值1;参数2=值2;...)")));
         return bot_cmd::CommandRes{true, true};
     }
+
+    bot_cmd::CommandRes get_bot_status(bot_cmd::CommandContext context) {
+        
+        return bot_cmd::CommandRes{true, true};
+    }
 } // namespace bot_cmd

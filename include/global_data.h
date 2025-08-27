@@ -21,6 +21,35 @@
 constexpr size_t USER_SESSION_MSG_LIMIT = 60000;
 constexpr size_t MAX_KNOWLEDGE_LENGTH = 4096;
 
+extern std::chrono::system_clock::time_point g_bot_start_time;
+
+inline std::string get_bot_start_time_str() {
+    std::time_t start_time = std::chrono::system_clock::to_time_t(g_bot_start_time);
+    char buf[32];
+    std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", std::localtime(&start_time));
+    return std::string(buf);
+}
+
+inline std::string get_bot_run_duration_str() {
+    using namespace std::chrono;
+    auto now = system_clock::now();
+    auto duration = duration_cast<seconds>(now - g_bot_start_time).count();
+
+    int days = static_cast<int>(duration / (24 * 3600));
+    duration %= (24 * 3600);
+    int hours = static_cast<int>(duration / 3600);
+    duration %= 3600;
+    int minutes = static_cast<int>(duration / 60);
+    int seconds = static_cast<int>(duration % 60);
+
+    std::string result = "已运行";
+    if (days > 0) result += std::to_string(days) + "天";
+    if (hours > 0) result += std::to_string(hours) + "小时";
+    if (minutes > 0) result += std::to_string(minutes) + "分钟";
+    result += std::to_string(seconds) + "秒";
+    return result;
+}
+
 /// 用户/user chat session map
 /// key = user QQ号
 extern wheel::concurrent_unordered_map<qq_id_t, ChatSession> g_chat_session_map;
