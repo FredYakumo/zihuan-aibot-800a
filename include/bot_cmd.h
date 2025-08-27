@@ -137,6 +137,8 @@ namespace bot_cmd {
             std::make_pair("#设置", bot_cmd::CommandProperty{false, true, bot_cmd::set_user_preference_command}));
         keyword_command_map.push_back(
             std::make_pair("#状态", bot_cmd::CommandProperty{false, false, bot_cmd::get_bot_status}));
+        keyword_command_map.push_back(
+            std::make_pair("#status", bot_cmd::CommandProperty{false, false, bot_cmd::get_bot_status}));
     }
 
     inline std::string get_available_commands() {
