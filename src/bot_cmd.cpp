@@ -407,6 +407,67 @@ namespace bot_cmd {
     }
 
     bot_cmd::CommandRes get_bot_status(bot_cmd::CommandContext context) {
+        std::stringstream status_msg;
+        
+        // Version information
+        status_msg << "ZiHuanAIBot 版本: " << BUILD_VERSION_STRING << "\n";
+        status_msg << "仓库: " << DREPOS_ADDR_STRING << "\n";
+        
+        // Platform information
+        status_msg << "平台: ";
+#ifdef PLATFORM_MACOS
+        status_msg << "macOS";
+#elif defined(PLATFORM_LINUX)
+        status_msg << "Linux";
+#elif defined(PLATFORM_WINDOWS)
+        status_msg << "Windows";
+#else
+        status_msg << "Unknown";
+#endif
+        status_msg << "\n";
+        
+        // Build type
+        status_msg << "构建类型: ";
+#ifdef DEBUG_BUILD
+        status_msg << "Debug";
+#else
+        status_msg << "Release";
+#endif
+        status_msg << "\n";
+        
+        // AI inference backend
+        status_msg << "AI 后端: ";
+#ifdef __USE_LIBTORCH__
+        status_msg << "LibTorch";
+#else
+        status_msg << "ONNX Runtime";
+#endif
+        status_msg << "\n";
+        
+        // Custom macros
+        status_msg << "特性: ";
+        bool first = true;
+#ifdef AIBOT_VERSION_800A
+        if (!first) status_msg << ", ";
+        status_msg << "AIBot 800A";
+        first = false;
+#endif
+#ifdef __USE_PADDLE_INFERENCE__
+        if (!first) status_msg << ", ";
+        status_msg << "Paddle Inference";
+        first = false;
+#endif
+        if (first) {
+            status_msg << "None";
+        }
+        status_msg << "\n";
+        
+        // Start time and run duration
+        status_msg << "启动时间: " << get_bot_start_time_str() << "\n";
+        status_msg << get_bot_run_duration_str() << "\n";
+        
+        context.adapter.send_replay_msg(*context.event->sender_ptr,
+                                        bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(status_msg.str())));
         
         return bot_cmd::CommandRes{true, true};
     }
