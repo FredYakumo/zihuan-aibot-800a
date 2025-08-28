@@ -1,16 +1,16 @@
 ﻿#include "agent/simple_chat_action_agent.h"
 #include "agent/llm.h" // for gen_common_prompt
-#include "event.h" // try_to_replay_person/release_processing_replay_person
+#include "event.h"     // try_to_replay_person/release_processing_replay_person
 #include "global_data.h"
 #include "rag.h"
-#include "utils.h"
 #include "tool_impl/common.hpp"
-#include "tool_impl/search_info.hpp"
 #include "tool_impl/fetch_url_content.hpp"
-#include "tool_impl/view_model_info.hpp"
-#include "tool_impl/view_chat_history.hpp"
-#include "tool_impl/query_group.hpp"
 #include "tool_impl/get_function_list.hpp"
+#include "tool_impl/query_group.hpp"
+#include "tool_impl/search_info.hpp"
+#include "tool_impl/view_chat_history.hpp"
+#include "tool_impl/view_model_info.hpp"
+#include "utils.h"
 #include <fmt/format.h>
 #include <general-wheel-cpp/string_utils.hpp>
 #include <spdlog/spdlog.h>
@@ -138,10 +138,10 @@ namespace agent {
 
         spdlog::info("作为用户输入给llm的content: {}", llm_content);
 
-        auto llm_thread = std::thread([this, context, llm_content, system_prompt, user_preference_option,
-                                         function_tools_opt] {
-            on_llm_thread(context, llm_content, system_prompt, user_preference_option, function_tools_opt);
-        });
+        auto llm_thread =
+            std::thread([this, context, llm_content, system_prompt, user_preference_option, function_tools_opt] {
+                on_llm_thread(context, llm_content, system_prompt, user_preference_option, function_tools_opt);
+            });
 
         llm_thread.detach();
     }
@@ -151,6 +151,9 @@ namespace agent {
     void SimpleChatActionAgent::process_tool_calls(const bot_cmd::CommandContext &context, nlohmann::json &msg_json,
                                                    std::vector<ChatMessage> &one_chat_session,
                                                    const std::optional<nlohmann::json> &function_tools_opt) {
+
+        std::vector<bot_adapter::ForwardMessageNode> first_replay;
+
         // loop check if have function call
         while (one_chat_session.rbegin()->tool_calls) {
             const auto &llm_res = *one_chat_session.rbegin();
@@ -162,7 +165,7 @@ namespace agent {
                 spdlog::info("Tool calls: {}()", func_calls.name, func_calls.arguments);
                 std::optional<ChatMessage> tool_call_msg = std::nullopt;
                 if (func_calls.name == "search_info") {
-                    tool_call_msg = tool_impl::search_info(context, func_calls);
+                    tool_call_msg = tool_impl::search_info(context, func_calls, first_replay);
                 } else if (func_calls.name == "fetch_url_content") {
                     tool_call_msg = tool_impl::fetch_url_content(context, func_calls, llm_res);
                 } else if (func_calls.name == "view_model_info") {
@@ -213,9 +216,13 @@ namespace agent {
                 return;
             }
         }
-    }
 
-    
+        if (!first_replay.empty()) {
+            context.adapter.send_replay_msg(*context.event->sender_ptr,
+                                            bot_adapter::make_message_chain_list(bot_adapter::ForwardMessage(
+                                                first_replay, bot_adapter::DisplayNode(std::string("联网搜索结果")))));
+        }
+    }
 
     void SimpleChatActionAgent::on_llm_thread(const bot_cmd::CommandContext &context, const std::string &llm_content,
                                               const std::string &system_prompt,
@@ -224,9 +231,9 @@ namespace agent {
         set_thread_name(fmt::format("llm thread for {}", context.event->sender_ptr->id).c_str());
         spdlog::info("llm thread for {} started", context.event->sender_ptr->id);
 
-        auto session = g_chat_session_map.get_or_create_value(context.event->sender_ptr->id, [name = context.event->sender_ptr->name]() mutable {
-            return ChatSession(std::move(name));
-        });
+        auto session = g_chat_session_map.get_or_create_value(
+            context.event->sender_ptr->id,
+            [name = context.event->sender_ptr->name]() mutable { return ChatSession(std::move(name)); });
 
         session->message_list.emplace_back(ROLE_USER, llm_content);
         auto msg_json = msg_list_to_json(session->message_list, system_prompt);
