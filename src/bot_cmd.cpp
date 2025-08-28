@@ -2,6 +2,7 @@
 #include "adapter_message.h"
 #include "adapter_model.h"
 #include "bot_adapter.h"
+#include "config.h"
 #include "database.h"
 #include "global_data.h"
 #include "msg_prop.h"
@@ -443,6 +444,8 @@ namespace bot_cmd {
         status_msg << "ONNX Runtime";
 #endif
         status_msg << "\n";
+
+        status_msg << "自然语言输出大模型: " << Config::instance().llm_model_name << "\n";
         
         // Custom macros
         status_msg << "特性: ";
