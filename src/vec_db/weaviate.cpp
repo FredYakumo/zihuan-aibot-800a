@@ -125,7 +125,7 @@ namespace vec_db {
                     hybrid: {{
                         vector: [{}],
                         query: "{}",
-                        alpha: 0.9,
+                        alpha: 0.6,
                         properties: ["keyword"]
                     }})",
             "AIBot_knowledge",
@@ -310,7 +310,7 @@ namespace vec_db {
                                 // 如果certainty为0但有hybrid_score，则使用hybrid_score作为certainty的替代
                                 if (certainty <= 0.0f && hybrid_score > 0.0f) {
                                     db_knowledge.certainty = hybrid_score;
-                                    spdlog::info("Using hybrid_score {} as certainty because certainty is {}", hybrid_score, certainty);
+                                    // spdlog::info("Using hybrid_score {} as certainty because certainty is {}", hybrid_score, certainty);
                                 }
 
                                 // Only add results that meet the score threshold
