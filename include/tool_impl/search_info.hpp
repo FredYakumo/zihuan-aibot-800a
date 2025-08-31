@@ -3,11 +3,13 @@
 
 #include "bot_adapter.h"
 #include "chat_session.hpp"
+#include "db_knowledge.hpp"
 #include "get_optional.hpp"
 #include "rag.h"
 #include "vec_db/weaviate.h"
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
+#include <general-wheel-cpp/collection/collection_utils.hpp>
 
 namespace tool_impl {
 
@@ -29,7 +31,7 @@ namespace tool_impl {
                 content += fmt::format("{}\n", knowledge.content);
 
             // extractly match knowledge, skip network search
-            if (!knowledge_list.empty() && knowledge_list[0].certainty >= 0.87f) {
+            if (wheel::find_any_match<DBKnowledge>(knowledge_list, [](const auto &knowledge) { return knowledge.certainty >= 0.87f; })) {
                 return ChatMessage(ROLE_TOOL, content, tool_call.id);
             }
         }
