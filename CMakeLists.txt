@@ -338,6 +338,24 @@ if(BUILD_VERSION STREQUAL "unknown")
         if(GIT_COMMIT_HASH)
             set(BUILD_VERSION "${GIT_COMMIT_HASH}")
             message(STATUS "Using git commit hash for BUILD_VERSION: ${BUILD_VERSION}")
+            
+            # Get the commit message for the current hash
+            execute_process(
+                COMMAND ${GIT_EXECUTABLE} log -1 --pretty=%B ${GIT_COMMIT_HASH}
+                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                OUTPUT_VARIABLE GIT_COMMIT_MESSAGE
+                ERROR_QUIET
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+            )
+            if(GIT_COMMIT_MESSAGE)
+                message(STATUS "Got commit message: ${GIT_COMMIT_MESSAGE}")
+                # Escape quotes to avoid issues in C-string literals
+                string(REPLACE "\"" "\\\"" GIT_COMMIT_MESSAGE "${GIT_COMMIT_MESSAGE}")
+            else()
+                set(GIT_COMMIT_MESSAGE "No commit message available")
+            endif()
+            # Define the commit message
+            add_definitions(-DCOMMIT_MESSAGE="${GIT_COMMIT_MESSAGE}")
         endif()
     endif()
 endif()

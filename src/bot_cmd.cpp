@@ -1,6 +1,7 @@
 #include "bot_cmd.h"
 #include "adapter_message.h"
 #include "adapter_model.h"
+#include "agent/llm_function_tools.hpp"
 #include "bot_adapter.h"
 #include "config.h"
 #include "database.h"
@@ -16,7 +17,6 @@
 #include <optional>
 #include <sys/stat.h>
 #include <utility>
-#include "agent/llm_function_tools.hpp"
 
 namespace bot_cmd {
     using namespace wheel;
@@ -229,7 +229,8 @@ namespace bot_cmd {
                 //         "PS: 紫幻现在自己会思考要不要去网上找数据啦, 你可以不用每次都用#联网.")));
             }
             if (g_simple_chat_action_agent) {
-                g_simple_chat_action_agent->process_llm(context, net_search_str, context.user_preference_option, DEFAULT_TOOLS);
+                g_simple_chat_action_agent->process_llm(context, net_search_str, context.user_preference_option,
+                                                        DEFAULT_TOOLS);
             }
         }).detach();
 
@@ -409,11 +410,11 @@ namespace bot_cmd {
 
     bot_cmd::CommandRes get_bot_status(bot_cmd::CommandContext context) {
         std::stringstream status_msg;
-        
+
         // Version information
-        status_msg << "ZiHuanAIBot 版本: " << BUILD_VERSION_STRING << "\n";
+        status_msg << "ZiHuanAIBot 版本: " << BUILD_VERSION_STRING << "(" << COMMIT_MESSAGE_STRING << ")\n";
         status_msg << "仓库: " << DREPOS_ADDR_STRING << "\n";
-        
+
         // Platform information
         status_msg << "平台: ";
 #ifdef PLATFORM_MACOS
@@ -426,7 +427,7 @@ namespace bot_cmd {
         status_msg << "Unknown";
 #endif
         status_msg << "\n";
-        
+
         // Build type
         status_msg << "构建类型: ";
 #ifdef DEBUG_BUILD
@@ -435,7 +436,7 @@ namespace bot_cmd {
         status_msg << "Release";
 #endif
         status_msg << "\n";
-        
+
         // AI inference backend
         status_msg << "AI 后端: ";
 #ifdef __USE_LIBTORCH__
@@ -446,17 +447,19 @@ namespace bot_cmd {
         status_msg << "\n";
 
         status_msg << "自然语言输出大模型: " << Config::instance().llm_model_name << "\n";
-        
+
         // Custom macros
         status_msg << "特性: ";
         bool first = true;
 #ifdef AIBOT_VERSION_800A
-        if (!first) status_msg << ", ";
+        if (!first)
+            status_msg << ", ";
         status_msg << "AIBot 800A";
         first = false;
 #endif
 #ifdef __USE_PADDLE_INFERENCE__
-        if (!first) status_msg << ", ";
+        if (!first)
+            status_msg << ", ";
         status_msg << "Paddle Inference";
         first = false;
 #endif
@@ -464,14 +467,15 @@ namespace bot_cmd {
             status_msg << "None";
         }
         status_msg << "\n";
-        
+
         // Start time and run duration
         status_msg << "启动时间: " << get_bot_start_time_str() << "\n";
         status_msg << get_bot_run_duration_str() << "\n";
-        
-        context.adapter.send_replay_msg(*context.event->sender_ptr,
-                                        bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(status_msg.str())));
-        
+
+        context.adapter.send_replay_msg(
+            *context.event->sender_ptr,
+            bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(status_msg.str())));
+
         return bot_cmd::CommandRes{true, true};
     }
 } // namespace bot_cmd
