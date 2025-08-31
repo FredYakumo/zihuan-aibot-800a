@@ -125,7 +125,7 @@ namespace vec_db {
                     hybrid: {{
                         vector: [{}],
                         query: "{}",
-                        alpha: 0.75,
+                        alpha: 0.9,
                         properties: ["keyword"]
                     }})",
             "AIBot_knowledge",
