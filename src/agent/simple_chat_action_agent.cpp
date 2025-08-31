@@ -209,6 +209,10 @@ namespace agent {
                 one_chat_session.push_back(std::move(*llm_res_new));
             } else {
                 spdlog::warn("LLM did not response any chat message...");
+                // Clear the user's chat session and knowledge when LLM doesn't respond
+                g_chat_session_map.erase(context.event->sender_ptr->id);
+                g_chat_session_knowledge_list_map.erase(context.event->sender_ptr->id);
+                spdlog::info("Cleared context and knowledge for user {} due to LLM failure", context.event->sender_ptr->id);
                 context.adapter.send_replay_msg(*context.event->sender_ptr, bot_adapter::make_message_chain_list(
                                                                                 bot_adapter::PlainTextMessage("?")));
                 release_processing_replay_person(context.event->sender_ptr->id);
@@ -250,6 +254,10 @@ namespace agent {
             one_chat_session.push_back(std::move(*llm_res));
         } else {
             spdlog::warn("LLM did not response any chat message...");
+            // Clear the user's chat session and knowledge when LLM doesn't respond
+            g_chat_session_map.erase(context.event->sender_ptr->id);
+            g_chat_session_knowledge_list_map.erase(context.event->sender_ptr->id);
+            spdlog::info("Cleared context and knowledge for user {} due to LLM failure", context.event->sender_ptr->id);
             context.adapter.send_replay_msg(*context.event->sender_ptr,
                                             bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage("?")));
             release_processing_replay_person(context.event->sender_ptr->id);
