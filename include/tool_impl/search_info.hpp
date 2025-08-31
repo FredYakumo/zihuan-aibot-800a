@@ -29,7 +29,7 @@ namespace tool_impl {
                 content += fmt::format("{}\n", knowledge.content);
 
             // extractly match knowledge, skip network search
-            if (knowledge_list[0].certainty >= 0.87f) {
+            if (!knowledge_list.empty() && knowledge_list[0].certainty >= 0.87f) {
                 return ChatMessage(ROLE_TOOL, content, tool_call.id);
             }
         }
