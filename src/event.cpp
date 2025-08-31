@@ -190,9 +190,9 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
         spdlog::info("检查自动新对话设置: 用户ID={}, 群ID={}, 设置值={}秒", event->sender_ptr->id,
                      event->get_group_sender().group.id, user_preference->auto_new_chat_session_sec.value());
 
-        auto last_chat_time = g_last_chat_message_time_map.find(event->get_group_sender().id);
+        auto last_chat_time = g_last_chat_message_time_map.find(event->sender_ptr->id);
         bool has_last_message = last_chat_time.has_value();
-        spdlog::info("获取个人历史消息: 用户ID={}, 是否有历史消息={}", event->get_group_sender().group.id,
+        spdlog::info("获取个人历史消息: 用户ID={}, 是否有历史消息={}", event->sender_ptr->id,
                      has_last_message);
 
         if (has_last_message) {
