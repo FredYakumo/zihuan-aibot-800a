@@ -15,20 +15,27 @@ namespace tool_impl {
                                    std::vector<bot_adapter::ForwardMessageNode> &out_first_replay_list) {
         const auto arguments = nlohmann::json::parse(tool_call.arguments);
         const std::optional<std::string> &query = get_optional(arguments, "query");
-        bool include_date = get_optional(arguments, "includeDate").value_or(false);
-        spdlog::info("Function call id {}: search_info(query={}, include_date={})", tool_call.id,
-                     query.value_or(EMPTY_JSON_STR_VALUE), include_date);
+        std::string category = get_optional(arguments, "category").value_or("general");
+        spdlog::info("Function call id {}: search_info(query={}, category={})", tool_call.id,
+                     query.value_or(EMPTY_JSON_STR_VALUE), category);
         if (!query.has_value() || query->empty())
-            spdlog::warn("Function call id {}: search_info(query={}, include_date={}), query is null", tool_call.id,
-                         query.value_or(EMPTY_JSON_STR_VALUE), include_date);
+            spdlog::warn("Function call id {}: search_info(query={}, category={}), query is null", tool_call.id,
+                         query.value_or(EMPTY_JSON_STR_VALUE), category);
 
         std::string content;
         const auto knowledge_list = vec_db::query_knowledge_from_vec_db(*query, 0.7f);
-        for (const auto &knowledge : knowledge_list)
-            content += fmt::format("{}\n", knowledge.content);
+        if (!knowledge_list.empty()) {
+            for (const auto &knowledge : knowledge_list)
+                content += fmt::format("{}\n", knowledge.content);
 
-        const auto net_search_list =
-            rag::net_search_content(include_date ? fmt::format("{} {}", get_current_time_formatted(), *query) : *query);
+            // extractly match knowledge, skip network search
+            if (knowledge_list[0].certainty >= 0.87f) {
+                return ChatMessage(ROLE_TOOL, content, tool_call.id);
+            }
+        }
+
+
+        const auto net_search_list = rag::net_search_content(*query);
         out_first_replay_list.emplace_back(
             context.adapter.get_bot_profile().id, std::chrono::system_clock::now(),
             context.adapter.get_bot_profile().name,

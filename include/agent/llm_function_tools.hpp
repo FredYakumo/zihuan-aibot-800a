@@ -54,10 +54,9 @@ const nlohmann::json DEFAULT_TOOLS = nlohmann::json::array(
          "查询信息.可以根据查询不同的信息拆分成多次调用.不认识的信息必须要进行查询,"
          "如评价Rust语言和MIZ语言的区别,则多次调用分别查询MIZ语言的发展,MIZ语言的语法,MIZ语言的生态等",
          make_object_params({{"query", {{"type", PARAMETER_TYPE_STRING}, {"description", "查询内容的关键字"}}},
-                             {"includeDate",
-                              {{"type", PARAMETER_TYPE_BOOLEAN},
-                               {"description", "是否包含日期.只有需要查询时效性的信息时才需要为true,如最近发生了什么,"
-                                               "微软新出了什么操作系统,小米最近股价,原神的最新版本..."}}}},
+                             {"category",
+                              {{"type", PARAMETER_TYPE_STRING},
+                               {"description", "搜索类别,用于过滤向量数据库中的知识.常见类别包括'general'(通用知识),'tech'(技术相关),'news'(新闻资讯),'education'(教育相关)等.若不确定类别,可留空以进行全类别搜索."}}}},
                             {"query"})),
 
      // Interact tool
