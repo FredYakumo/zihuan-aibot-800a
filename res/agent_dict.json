@@ -1,0 +1,69 @@
+{
+    "references": {
+        "self_references": [
+            "你的",
+            "你们的",
+            "紫幻的",
+            "紫幻",
+            "自己的",
+            "本机器人",
+            "您的"
+        ],
+        "general_llm_references": [
+            "大模型的",
+            "大模型",
+            "大语言模型",
+            "语言模型",
+            "AI模型",
+            "人工智能",
+            "AI的",
+            "LLM"
+        ],
+        "specific_llm_references": [
+            "ChatGPT",
+            "GPT",
+            "Claude",
+            "文心一言",
+            "星火",
+            "通义千问",
+            "讯飞星火",
+            "Gemini",
+            "Llama",
+            "Mistral",
+            "OpenAI",
+            "Anthropic",
+            "百度",
+            "阿里",
+            "腾讯",
+            "智谱"
+        ],
+        "system_prompt_terms": [
+            "系统提示词",
+            "system prompt",
+            "系统指令",
+            "prompt template",
+            "预设提示",
+            "指令模板",
+            "预设指令",
+            "系统预设",
+            "角色设定",
+            "人设指令",
+            "模型指令",
+            "模型提示词",
+            "prompt engineering",
+            "system instruction"
+        ],
+        "request_indicators": [
+            "告诉",
+            "是什么",
+            "查看",
+            "知道",
+            "获取",
+            "看看",
+            "给我",
+            "说说",
+            "展示",
+            "输出"
+        ]
+    }
+}

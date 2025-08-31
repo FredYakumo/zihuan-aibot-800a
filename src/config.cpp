@@ -101,6 +101,38 @@ void load_optional_config(const YAML::Node &node, const std::string &yaml_key, c
     }
 }
 
+
+void load_vector_config(const YAML::Node &node, const std::string &yaml_key, const std::string &env_var,
+                      std::vector<std::string> &target_vector) {
+
+    if (node[yaml_key] && node[yaml_key].IsSequence()) {
+
+        target_vector.clear();
+        
+        for (const auto &item : node[yaml_key]) {
+            std::string item_str = item.as<std::string>();
+            target_vector.push_back(item_str);
+            spdlog::info("{}: {}", yaml_key, item_str);
+        }
+    }
+
+    if (auto val = get_var_from_env(env_var)) {
+
+        target_vector.clear();
+        for (auto &&e : SplitString(*val, ',')) {
+            std::string trimmed{ltrim(rtrim(e))};
+            target_vector.push_back(trimmed);
+            spdlog::info("[ENV] Parsed {}: {}", env_var, trimmed);
+        }
+    }
+    
+
+    if (target_vector.empty() && yaml_key == "agent_dict_alt_paths") {
+        target_vector = {"res/agent_dict.json", "../res/agent_dict.json", "../../res/agent_dict.json"};
+        spdlog::info("Using default values for {}", yaml_key);
+    }
+}
+
 // 主配置初始化函数
 void Config::init() {
     auto &config = Config::instance();
@@ -176,4 +208,6 @@ void Config::init() {
     load_optional_config(node, "custom_deep_think_system_prompt", "AIBOT_CUSTOM_DEEP_THINK_SYSTEM_PROMPT",
                          config.custom_deep_think_system_prompt_option);
     
+    // 加载向量类型配置
+    load_vector_config(node, "agent_dict_alt_paths", "AIBOT_AGENT_DICT_ALT_PATHS", config.agent_dict_alt_paths);
 }
