@@ -278,6 +278,8 @@ namespace agent {
                                      std::make_move_iterator(one_chat_session.end()));
 
         release_processing_replay_person(context.event->sender_ptr->id);
+        g_last_chat_message_time_map.insert_or_assign(context.event->sender_ptr->id,
+                                                          std::chrono::system_clock::now());
         spdlog::info("llm thread for {} finished", context.event->sender_ptr->id);
     }
 
