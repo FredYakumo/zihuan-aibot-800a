@@ -3,6 +3,7 @@
 #include "event.h"     // try_to_replay_person/release_processing_replay_person
 #include "global_data.h"
 #include "rag.h"
+#include "think_image_manager.h"
 #include "tool_impl/common.hpp"
 #include "tool_impl/fetch_url_content.hpp"
 #include "tool_impl/get_function_list.hpp"
@@ -212,7 +213,8 @@ namespace agent {
                 // Clear the user's chat session and knowledge when LLM doesn't respond
                 g_chat_session_map.erase(context.event->sender_ptr->id);
                 g_chat_session_knowledge_list_map.erase(context.event->sender_ptr->id);
-                spdlog::info("Cleared context and knowledge for user {} due to LLM failure", context.event->sender_ptr->id);
+                spdlog::info("Cleared context and knowledge for user {} due to LLM failure",
+                             context.event->sender_ptr->id);
                 context.adapter.send_replay_msg(*context.event->sender_ptr, bot_adapter::make_message_chain_list(
                                                                                 bot_adapter::PlainTextMessage("?")));
                 release_processing_replay_person(context.event->sender_ptr->id);
@@ -235,6 +237,32 @@ namespace agent {
         set_thread_name(fmt::format("llm thread for {}", context.event->sender_ptr->id).c_str());
         spdlog::info("llm thread for {} started", context.event->sender_ptr->id);
 
+        if (context.is_deep_think) {
+            // get a random thinking image from the ThinkImageManager
+            std::string image_path = bot_adapter::ThinkImageManager::instance().get_random_image_path();
+            
+            // If image_path is empty, only send text without image
+            if (image_path.empty()) {
+                context.adapter.send_replay_msg(
+                    *context.event->sender_ptr,
+                    bot_adapter::make_message_chain_list(
+                        bot_adapter::PlainTextMessage{"正在思思考中..."}),
+                    false);
+            } else {
+                // Check if the image is a URL or a local file path
+                bool is_url = (image_path.find("http://") == 0 || image_path.find("https://") == 0);
+                
+                context.adapter.send_replay_msg(
+                    *context.event->sender_ptr,
+                    bot_adapter::make_message_chain_list(
+                        bot_adapter::PlainTextMessage{"正在思思考中..."},
+                        is_url ? static_cast<std::shared_ptr<bot_adapter::MessageBase>>(
+                                    std::make_shared<bot_adapter::ImageMessage>(image_path))
+                               : static_cast<std::shared_ptr<bot_adapter::MessageBase>>(
+                                    std::make_shared<bot_adapter::LocalImageMessage>(image_path))),
+                    false);
+            }
+        }
         auto session = g_chat_session_map.get_or_create_value(
             context.event->sender_ptr->id,
             [name = context.event->sender_ptr->name]() mutable { return ChatSession(std::move(name)); });
@@ -278,8 +306,7 @@ namespace agent {
                                      std::make_move_iterator(one_chat_session.end()));
 
         release_processing_replay_person(context.event->sender_ptr->id);
-        g_last_chat_message_time_map.insert_or_assign(context.event->sender_ptr->id,
-                                                          std::chrono::system_clock::now());
+        g_last_chat_message_time_map.insert_or_assign(context.event->sender_ptr->id, std::chrono::system_clock::now());
         spdlog::info("llm thread for {} finished", context.event->sender_ptr->id);
     }
 

@@ -1,4 +1,5 @@
 #include "config.h"
+#include "think_image_manager.h"
 #include "utils.h"
 #include <boost/filesystem.hpp>
 #include <cstdlib>
@@ -172,6 +173,9 @@ void Config::init() {
 
     load_yaml_config(node, "think_image_url", config.think_image_url);
     load_env_config_str("AIBOT_THINK_IMAGE_URL", config.think_image_url);
+    
+    load_yaml_config(node, "think_pictures_dir", config.think_pictures_dir);
+    load_env_config_str("AIBOT_THINK_PICTURES_DIR", config.think_pictures_dir);
 
     load_yaml_config(node, "temp_res_path", config.temp_res_path);
     load_env_config_str("AIBOT_TEMP_RES_PATH", config.temp_res_path);
@@ -207,4 +211,10 @@ void Config::init() {
     load_optional_config(node, "custom_system_prompt", "AIBOT_CUSTOM_SYSTEM_PROMPT", config.custom_system_prompt_option);
     load_optional_config(node, "custom_deep_think_system_prompt", "AIBOT_CUSTOM_DEEP_THINK_SYSTEM_PROMPT",
                          config.custom_deep_think_system_prompt_option);
+                         
+    // Initialize think image manager if directory is set
+    if (!config.think_pictures_dir.empty()) {
+        spdlog::info("Initializing think image manager with directory: {}", config.think_pictures_dir);
+        bot_adapter::ThinkImageManager::instance().initialize();
+    }
 }

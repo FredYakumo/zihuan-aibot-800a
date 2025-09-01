@@ -21,9 +21,9 @@ struct Config {
 
     std::string llm_api_key;
 
+    /// Directory path containing thinking images to display while the bot is thinking
+    std::string think_pictures_dir;
     
-
-
     /// Use this extra system prompt when set.
     std::optional<std::string> custom_system_prompt_option;
 
