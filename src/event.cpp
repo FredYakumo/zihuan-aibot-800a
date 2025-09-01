@@ -355,8 +355,6 @@ void on_friend_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_a
         if (g_simple_chat_action_agent) {
             g_simple_chat_action_agent->process_llm(context, std::nullopt, user_preference, DEFAULT_TOOLS);
         }
-        g_last_chat_message_time_map.insert_or_assign(context.event->sender_ptr->id,
-                                                          std::chrono::system_clock::now());
     }
 }
 
