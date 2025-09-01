@@ -74,6 +74,7 @@ aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/agent AGENT_SRC_FILES)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network NN_SRC_FILES)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/text_model NN_TEXT_MODEL_SRC_FILES)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/text_model/lac NN_TEXT_MODEL_LAC_SRC_FILES)
+aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/nlp NN_NLP_SRC_FILES)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/llm NN_LLM_SRC_FILES)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/vec_db VEC_DB_SRC_FILES)
 
@@ -91,6 +92,7 @@ set(BIN_SOURCES
     ${NN_SRC_FILES}
     ${NN_TEXT_MODEL_SRC_FILES}
     ${NN_TEXT_MODEL_LAC_SRC_FILES}
+    ${NN_NLP_SRC_FILES}
     ${NN_LLM_SRC_FILES}
     ${VEC_DB_SRC_FILES}
     ${PLUGIN_SOURCE_PATH}
@@ -166,6 +168,8 @@ add_executable(unit_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/neural_network/text_model/tokenizer_wrapper.cpp
     # Include LAC sources to satisfy tests referencing lac:: symbols
     ${NN_TEXT_MODEL_LAC_SRC_FILES}
+    # Include NLP sources (Dependency Parser, etc.) required by action_agent and model_set
+    ${NN_NLP_SRC_FILES}
     # Include agent sources
     ${AGENT_SRC_FILES}
     ${CMAKE_CURRENT_SOURCE_DIR}/src/vec_db/weaviate.cpp

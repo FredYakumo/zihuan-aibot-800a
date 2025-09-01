@@ -75,9 +75,6 @@ struct Config {
     std::string seg_model_path;
     /// Path to rank model
     std::string rank_model_path;
-    
-    /// Alternative paths for agent dictionary
-    std::vector<std::string> agent_dict_alt_paths;
 
     inline static Config &instance() {
         static Config config;

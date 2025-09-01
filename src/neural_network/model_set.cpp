@@ -40,6 +40,7 @@ namespace neural_network {
         duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
         spdlog::info("Loading LAC model from {} successfully in {} ms", lac_model_path, duration.count());
 #endif
+
     }
 
     std::unique_ptr<ModelSet> model_set = nullptr;

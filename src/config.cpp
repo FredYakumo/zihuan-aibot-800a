@@ -207,7 +207,4 @@ void Config::init() {
     load_optional_config(node, "custom_system_prompt", "AIBOT_CUSTOM_SYSTEM_PROMPT", config.custom_system_prompt_option);
     load_optional_config(node, "custom_deep_think_system_prompt", "AIBOT_CUSTOM_DEEP_THINK_SYSTEM_PROMPT",
                          config.custom_deep_think_system_prompt_option);
-    
-    // 加载向量类型配置
-    load_vector_config(node, "agent_dict_alt_paths", "AIBOT_AGENT_DICT_ALT_PATHS", config.agent_dict_alt_paths);
 }
