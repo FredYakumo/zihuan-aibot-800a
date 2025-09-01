@@ -240,27 +240,22 @@ namespace agent {
         if (context.is_deep_think) {
             // get a random thinking image from the ThinkImageManager
             std::string image_path = bot_adapter::ThinkImageManager::instance().get_random_image_path();
-            
-            // If image_path is empty, only send text without image
+
+            // if image_path is empty, only send text without image
             if (image_path.empty()) {
                 context.adapter.send_replay_msg(
                     *context.event->sender_ptr,
-                    bot_adapter::make_message_chain_list(
-                        bot_adapter::PlainTextMessage{"正在思思考中..."}),
-                    false);
+                    bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage{"正在思思考中..."}), false);
             } else {
-                // Check if the image is a URL or a local file path
+                // check if the image is a URL or a local file path
                 bool is_url = (image_path.find("http://") == 0 || image_path.find("https://") == 0);
-                
-                context.adapter.send_replay_msg(
-                    *context.event->sender_ptr,
-                    bot_adapter::make_message_chain_list(
-                        bot_adapter::PlainTextMessage{"正在思思考中..."},
-                        is_url ? static_cast<std::shared_ptr<bot_adapter::MessageBase>>(
-                                    std::make_shared<bot_adapter::ImageMessage>(image_path))
-                               : static_cast<std::shared_ptr<bot_adapter::MessageBase>>(
-                                    std::make_shared<bot_adapter::LocalImageMessage>(image_path))),
-                    false);
+                auto chain = bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage{"正在思思考中..."});
+                if (is_url) {
+                    chain.push_back(std::make_shared<bot_adapter::ImageMessage>(image_path));
+                } else {
+                    chain.push_back(std::make_shared<bot_adapter::LocalImageMessage>(image_path));
+                }
+                context.adapter.send_replay_msg(*context.event->sender_ptr, chain, false);
             }
         }
         auto session = g_chat_session_map.get_or_create_value(
