@@ -33,52 +33,6 @@ def get_device() -> torch.device:
     return device
 
 
-class CosineSimilarityModel(nn.Module):
-    def forward(self, a: torch.Tensor, B: torch.Tensor):
-        assert a.dim() == 2 and a.shape[0] == 1, "a must be a [1, D] vector"
-        assert B.dim() == 2, "B must be a [N, D] matrix"
-
-        # avoid div 0
-        eps = 1e-8
-
-        a_norm = a.norm(dim=1, keepdim=True)  # [1,1]
-
-        B_norm = B.norm(dim=1, keepdim=True)  # [N,1]
-        B_norm = torch.max(B_norm, torch.tensor(eps))
-
-        # a_norm = torch.sqrt(torch.sum(a ** 2, dim=1, keepdim=True))   # shape: [1, 1]
-        # B_norm = torch.sqrt(torch.sum(B ** 2, dim=1, keepdim=True))   # shape: [N, 1]
-        # 避免除以 0
-        B_norm = B_norm.clamp(min=eps)
-
-        dot_product = torch.matmul(a, B.t())  # [1,N]
-
-        similarity = dot_product / (a_norm * B_norm.t())
-
-        # [N]
-        return similarity.squeeze(0)
-
-
-class ReplyIntentClassifierModel(nn.Module):
-    """Neural network model for classification."""
-
-    def __init__(self, input_dim):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, 512),
-            nn.ReLU(),
-            nn.Dropout(0.2),
-            nn.Linear(512, 128),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(128, 1),
-            nn.Sigmoid(),
-        )
-
-    def forward(self, x):
-        return self.net(x).squeeze()
-
-
 class TextEmbeddingModel(nn.Module):
     def __init__(
         self,
