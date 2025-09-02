@@ -33,8 +33,8 @@ MIN_TEXT_LENGTH = 1  # For duplicating short texts
 
 
 BATCH_SIZE = 8
-EPOCHS = 20
-LEARNING_RATE = 1e-3
+EPOCHS = 50
+LEARNING_RATE = 1e-4
 GRAD_CLIP_NORM = 1.0  # maximum norm for gradient clipping
 PREDICTION_THRESHOLD = 0.5  # Threshold for binary prediction in evaluation
 

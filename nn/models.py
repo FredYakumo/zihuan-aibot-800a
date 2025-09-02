@@ -173,8 +173,8 @@ class MultiLabelClassifierBaseline(nn.Module):
         embedding_dim=TEXT_EMBEDDING_OUTPUT_LENGTH,
         num_classes=41,
         max_seq_length=CHAT_TEXT_CLASSIFIER_MAX_INPUT_LENGTH,
-        dropout_rate=0.3,
-        hidden_dim=512,
+        dropout_rate=0.2,
+        hidden_dim=768,
     ):
         super().__init__()
 
@@ -185,8 +185,9 @@ class MultiLabelClassifierBaseline(nn.Module):
         # Simple feed-forward network
         self.dropout = nn.Dropout(dropout_rate)
         self.fc1 = nn.Linear(embedding_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, num_classes)
-        
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim // 2)
+        self.fc3 = nn.Linear(hidden_dim // 2, num_classes)
+
         # Initialize weights
         self._init_weights()
 
@@ -214,8 +215,10 @@ class MultiLabelClassifierBaseline(nn.Module):
         
         hidden = F.relu(self.fc1(x))
         hidden = self.dropout(hidden)
-        logits = self.fc2(hidden)
-        
+        hidden = F.relu(self.fc2(hidden))
+        hidden = self.dropout(hidden)
+        logits = self.fc3(hidden)
+
         # Apply sigmoid for multi-label classification
         return torch.sigmoid(logits)
 

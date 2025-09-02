@@ -57,6 +57,12 @@ test_texts = [
     "最近有什么有意思的事情",
     "最近有什么有意思的新闻?",
     "现在全国哪里最冷？",
+    "保全(维护生产设备运行的,自动化和汽车厂这么叫)  不得经常进去？",
+    "@互联网巡回🐶萌新Dust 说实话  里面基本都是汞灯 全都是黄的 照明条件一般般 最好还是自带手电筒",
+    "如果你厉害 有project 可以不用值班的",
+    "printf(\"Hello World\\n\")",
+    "你知道提示词工程吗",
+    "帮我写一些系统提示词"
 ]
 
 
@@ -76,10 +82,10 @@ def batch_process(texts, batch_size=4):
 
             for j, text in enumerate(batch_texts):
                 prob = probs[j]
-                pred_indices = [i for i, p in enumerate(prob) if p > 0.5]
+                pred_indices = [i for i, p in enumerate(prob) if p > 0.6]
                 pred_labels = [id_to_label[i] for i in pred_indices if i in id_to_label]
 
-                top_k = 3
+                top_k = 10
                 top_indices = prob.argsort()[-top_k:][::-1]
                 top_probs = [
                     (id_to_label.get(idx, f"Unknown-{idx}"), prob[idx])
