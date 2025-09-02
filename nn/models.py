@@ -153,22 +153,6 @@ class TextEmbedder:
         return embeddings
 
 
-def load_reply_intent_classifier_model(model_path):
-    """Load the trained model"""
-    # Get device
-    device = get_device()
-
-    # Load model config to determine input dimension
-    config = AutoConfig.from_pretrained(TEXT_EMBEDDING_DEFAULT_MODEL_NAME)
-    input_dim = config.hidden_size
-
-    # Initialize model with the input dimension
-    model = ReplyIntentClassifierModel(input_dim)
-    model.load_state_dict(torch.load(model_path, map_location=device))
-    model.eval()
-    return model
-
-
 class MultiLabelClassifier(nn.Module):
     """
     An RNN-based multi-label classifier.
@@ -194,7 +178,7 @@ class MultiLabelClassifier(nn.Module):
         self.max_seq_len = max_seq_len
         self.hidden_size = hidden_size
 
-        # Bidirectional LSTM layers
+        # bidirectional LSTM
         self.lstm = nn.LSTM(
             input_size=embedding_dim,
             hidden_size=hidden_size,
@@ -204,7 +188,7 @@ class MultiLabelClassifier(nn.Module):
             batch_first=True,
         )
 
-        # Classification head
+        # classification head
         self.classifier = nn.Sequential(
             nn.Linear(hidden_size * 2, hidden_size),  # * 2 for bidirectional
             nn.LayerNorm(hidden_size),
@@ -239,11 +223,9 @@ class MultiLabelClassifier(nn.Module):
 
             lengths = mask.sum(dim=1).cpu()
 
-
             packed_x = nn.utils.rnn.pack_padded_sequence(
                 x, lengths, batch_first=True, enforce_sorted=False
             )
-
 
             packed_output, (hidden, _) = self.lstm(packed_x)
 
@@ -263,10 +245,7 @@ class MultiLabelClassifier(nn.Module):
             # get the last hidden states from both directions
             last_hidden = torch.cat([hidden[-2], hidden[-1]], dim=1)
 
-
         logits = self.classifier(last_hidden)
-
-        return logits
 
         return logits
 

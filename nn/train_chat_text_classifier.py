@@ -31,11 +31,11 @@ TEST_SIZE = 0.2
 RANDOM_SEED = 42
 MIN_TEXT_LENGTH = 1  # For duplicating short texts
 
-# Model and training
+
 BATCH_SIZE = 4
-EPOCHS = 20
+EPOCHS = 10
 LEARNING_RATE = 2e-5
-GRAD_CLIP_NORM = 1.0  # Maximum norm for gradient clipping
+GRAD_CLIP_NORM = 1.0  # maximum norm for gradient clipping
 PREDICTION_THRESHOLD = 0.5  # Threshold for binary prediction in evaluation
 
 # File paths for saving models and metrics
