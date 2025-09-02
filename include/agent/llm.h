@@ -1,8 +1,8 @@
-#ifndef LLM_H
-#define LLM_H
+#pragma once
+
+
+#include "bot_adapter.h"
 #include "adapter_model.h"
-#include "bot_cmd.h"
-#include "chat_session.hpp"
 #include "constant_types.hpp"
 #include "msg_prop.h"
 #include "user_protait.h"
@@ -15,6 +15,7 @@ namespace agent {
 
     std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot_adapter::BotAdapter &adapter,
                       const bot_adapter::Sender &sender, bool is_deep_think,
+                      std::string_view action_description,
                       const std::optional<std::string> additional_system_prompt_option = std::nullopt);
 
         /**
@@ -102,5 +103,3 @@ namespace agent {
         std::optional<nlohmann::json> fetch_model_info();
 
 } // namespace agent
-
-#endif
