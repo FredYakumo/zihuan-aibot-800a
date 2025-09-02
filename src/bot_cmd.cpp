@@ -1,10 +1,11 @@
 #include "bot_cmd.h"
 #include "adapter_message.h"
 #include "adapter_model.h"
+#include "agent/llm_function_tools.hpp"
 #include "bot_adapter.h"
+#include "config.h"
 #include "database.h"
 #include "global_data.h"
-#include "llm.h"
 #include "msg_prop.h"
 #include "rag.h"
 #include "utils.h"
@@ -55,21 +56,17 @@ namespace bot_cmd {
         for (const auto &e : query_msg) {
             // Format keywords as comma-separated string
             std::string keywords_str = wheel::join_str(std::cbegin(e.keyword), std::cend(e.keyword), ", ");
-            res.append(fmt::format(
-                "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                "\n📝 内容: {}"
-                "\n🏷️ 关键词: [{}]"
-                "\n📂 分类: {}"
-                "\n👤 创建者: {}"
-                "\n📅 时间: {}"
-                "\n📊 置信度: {:.4f}"
-                "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", 
-                e.content, 
-                keywords_str, 
-                e.knowledge_class_filter.empty() ? "未分类" : e.knowledge_class_filter,
-                e.creator_name, 
-                e.create_time, 
-                e.certainty));
+            res.append(fmt::format("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                                   "\n📝 内容: {}"
+                                   "\n🏷️ 关键词: [{}]"
+                                   "\n📂 分类: {}"
+                                   "\n👤 创建者: {}"
+                                   "\n📅 时间: {}"
+                                   "\n📊 置信度: {:.4f}"
+                                   "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+                                   e.content, keywords_str,
+                                   e.knowledge_class_filter.empty() ? "未分类" : e.knowledge_class_filter,
+                                   e.creator_name, e.create_time, e.certainty));
         }
         context.adapter.send_long_plain_text_reply(*context.event->sender_ptr, res);
         return CommandRes{true};
@@ -161,19 +158,15 @@ namespace bot_cmd {
                 std::string keywords_str = wheel::join_str(std::cbegin(k.keyword), std::cend(k.keyword), ", ");
                 wait_add_list_str.append(
                     fmt::format("\n━━━ 条目 {} ━━━"
-                               "\n📝 内容: {}"
-                               "\n🏷️ 关键词: [{}]"
-                               "\n📂 分类: {}"
-                               "\n👤 创建者: {}"
-                               "\n📅 时间: {}"
-                               "\n📊 置信度: {:.4f}",
-                               index, 
-                               k.content,
-                               keywords_str, 
-                               k.knowledge_class_filter.empty() ? "未分类" : k.knowledge_class_filter,
-                               k.creator_name, 
-                               k.create_time, 
-                               k.certainty));
+                                "\n📝 内容: {}"
+                                "\n🏷️ 关键词: [{}]"
+                                "\n📂 分类: {}"
+                                "\n👤 创建者: {}"
+                                "\n📅 时间: {}"
+                                "\n📊 置信度: {:.4f}",
+                                index, k.content, keywords_str,
+                                k.knowledge_class_filter.empty() ? "未分类" : k.knowledge_class_filter, k.creator_name,
+                                k.create_time, k.certainty));
             }
         }
         auto size = g_wait_add_knowledge_list.size();
@@ -235,7 +228,10 @@ namespace bot_cmd {
                 //     bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
                 //         "PS: 紫幻现在自己会思考要不要去网上找数据啦, 你可以不用每次都用#联网.")));
             }
-            process_llm(context, net_search_str, context.user_preference_option);
+            if (g_simple_chat_action_agent) {
+                g_simple_chat_action_agent->process_llm(context, net_search_str, context.user_preference_option,
+                                                        DEFAULT_TOOLS);
+            }
         }).detach();
 
         return bot_cmd::CommandRes{true, true};
@@ -284,7 +280,9 @@ namespace bot_cmd {
                         fmt::format("{}打开url: {}失败, 请重试.", context.adapter.get_bot_profile().name, search)}));
             } else {
                 *context.msg_prop.plain_content = replace_keyword_and_parentheses_content(search, "#url", content);
-                process_llm(context, std::nullopt, context.user_preference_option);
+                if (g_simple_chat_action_agent) {
+                    g_simple_chat_action_agent->process_llm(context, std::nullopt, context.user_preference_option);
+                }
             }
         }).detach();
 
@@ -407,6 +405,77 @@ namespace bot_cmd {
         context.adapter.send_replay_msg(*context.event->sender_ptr,
                                         bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(
                                             "请输入设置。用法: #设置(参数1=值1;参数2=值2;...)")));
+        return bot_cmd::CommandRes{true, true};
+    }
+
+    bot_cmd::CommandRes get_bot_status(bot_cmd::CommandContext context) {
+        std::stringstream status_msg;
+
+        // Version information
+        status_msg << "ZiHuanAIBot 版本: " << BUILD_VERSION_STRING << "(" << COMMIT_MESSAGE_STRING << ")\n";
+        status_msg << "仓库: " << DREPOS_ADDR_STRING << "\n";
+
+        // Platform information
+        status_msg << "平台: ";
+#ifdef PLATFORM_MACOS
+        status_msg << "macOS";
+#elif defined(PLATFORM_LINUX)
+        status_msg << "Linux";
+#elif defined(PLATFORM_WINDOWS)
+        status_msg << "Windows";
+#else
+        status_msg << "Unknown";
+#endif
+        status_msg << "\n";
+
+        // Build type
+        status_msg << "构建类型: ";
+#ifdef DEBUG_BUILD
+        status_msg << "Debug";
+#else
+        status_msg << "Release";
+#endif
+        status_msg << "\n";
+
+        // AI inference backend
+        status_msg << "AI 后端: ";
+#ifdef __USE_LIBTORCH__
+        status_msg << "LibTorch";
+#else
+        status_msg << "ONNX Runtime";
+#endif
+        status_msg << "\n";
+
+        status_msg << "自然语言输出大模型: " << Config::instance().llm_model_name << "\n";
+
+        // Custom macros
+        status_msg << "特性: ";
+        bool first = true;
+#ifdef AIBOT_VERSION_800A
+        if (!first)
+            status_msg << ", ";
+        status_msg << "AIBot 800A";
+        first = false;
+#endif
+#ifdef __USE_PADDLE_INFERENCE__
+        if (!first)
+            status_msg << ", ";
+        status_msg << "Paddle Inference";
+        first = false;
+#endif
+        if (first) {
+            status_msg << "None";
+        }
+        status_msg << "\n";
+
+        // Start time and run duration
+        status_msg << "启动时间: " << get_bot_start_time_str() << "\n";
+        status_msg << get_bot_run_duration_str() << "\n";
+
+        context.adapter.send_replay_msg(
+            *context.event->sender_ptr,
+            bot_adapter::make_message_chain_list(bot_adapter::PlainTextMessage(status_msg.str())));
+
         return bot_cmd::CommandRes{true, true};
     }
 } // namespace bot_cmd

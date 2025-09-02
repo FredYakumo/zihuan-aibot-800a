@@ -12,7 +12,7 @@ namespace bot_cmd {
     /**
      * @brief Describe a bot command run context.
      * This class should be construct at command running phase
-     * 
+     *
      */
     struct CommandContext {
         bot_adapter::BotAdapter &adapter;
@@ -23,14 +23,15 @@ namespace bot_cmd {
         std::optional<database::UserPreference> user_preference_option;
 
         CommandContext(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_adapter::MessageEvent> e,
-                       std::string_view param, bool is_deep_think, MessageProperties msg_prop, std::optional<database::UserPreference> user_preference_option)
-            : adapter(adapter), event(e), param(param), is_deep_think(is_deep_think),
-              msg_prop(msg_prop), user_preference_option(user_preference_option) {}
+                       std::string_view param, bool is_deep_think, MessageProperties msg_prop,
+                       std::optional<database::UserPreference> user_preference_option)
+            : adapter(adapter), event(e), param(param), is_deep_think(is_deep_think), msg_prop(msg_prop),
+              user_preference_option(user_preference_option) {}
     };
 
     /**
      * @brief Describe a bot command run result.
-     * 
+     *
      */
     struct CommandRes {
         /// The command wants to break following cmd process in run loop.
@@ -69,6 +70,7 @@ namespace bot_cmd {
     CommandRes checkin_knowledge_command(CommandContext context);
     CommandRes query_memory_command(CommandContext context);
     CommandRes query_add_knowledge_list_command(CommandContext context);
+    CommandRes get_bot_status(CommandContext context);
 
     /**
      * @brief Handles a network search command based on the provided context.
@@ -133,6 +135,10 @@ namespace bot_cmd {
             std::make_pair("#查看设置", bot_cmd::CommandProperty{false, false, bot_cmd::get_user_preference_command}));
         keyword_command_map.push_back(
             std::make_pair("#设置", bot_cmd::CommandProperty{false, true, bot_cmd::set_user_preference_command}));
+        keyword_command_map.push_back(
+            std::make_pair("#状态", bot_cmd::CommandProperty{false, false, bot_cmd::get_bot_status}));
+        keyword_command_map.push_back(
+            std::make_pair("#status", bot_cmd::CommandProperty{false, false, bot_cmd::get_bot_status}));
     }
 
     inline std::string get_available_commands() {
@@ -140,7 +146,7 @@ namespace bot_cmd {
         for (const auto &pair : keyword_command_map) {
             commands.push_back(pair.first);
         }
-        
+
         std::string result;
         for (size_t i = 0; i < commands.size(); ++i) {
             result += commands[i];

@@ -10,3 +10,17 @@ config.yaml
 .VSCodeCounter/**
 **/.DS_Store
 .cache/
+exported_model/**
+train_data/**
+.github/
+.trae/
+uv.lock
+
+simplified_model.onnx
+step_metrics.csv
+train_data.txt
+training_curves.png
+training_metrics.csv
+best_model_state.bin
+epoch_metrics.csv
+training_metrics.png

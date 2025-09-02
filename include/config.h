@@ -15,9 +15,14 @@ struct Config {
     std::string llm_api_url;
     uint32_t llm_api_port;
 
-    /// Use large language model name.
-    /// In 紫幻(zihuan), we use `DeepSeekR1`
+    /// The natural language text generator model name
+    /// In 紫幻(zihuan), we use `DeepSeekR1` for natural language generation
     std::string llm_model_name;
+
+    std::string llm_api_key;
+
+    /// Directory path containing thinking images to display while the bot is thinking
+    std::string think_pictures_dir;
     
     /// Use this extra system prompt when set.
     std::optional<std::string> custom_system_prompt_option;
@@ -48,7 +53,6 @@ struct Config {
     /// Bot won't reply user which QQ号/ID in this set
     std::unordered_set<std::string> banned_id_set;
 
-    uint64_t bot_id;
 
     /// Url of search API
     std::string search_api_url;

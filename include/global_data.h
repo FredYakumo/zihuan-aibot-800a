@@ -7,9 +7,12 @@
 #include <general-wheel-cpp/collection/concurrent_vector.hpp>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <nlohmann/json.hpp>
 #include <chat_session.hpp>
 #include <set>
+#include "agent/agent.h"
+#include "agent/simple_chat_action_agent.h"
 #include "embedding_message_id_list.hpp"
 #include "individual_message_storage.hpp"
 #include "db_knowledge.hpp"
@@ -17,6 +20,35 @@
 
 constexpr size_t USER_SESSION_MSG_LIMIT = 60000;
 constexpr size_t MAX_KNOWLEDGE_LENGTH = 4096;
+
+extern std::chrono::system_clock::time_point g_bot_start_time;
+
+inline std::string get_bot_start_time_str() {
+    std::time_t start_time = std::chrono::system_clock::to_time_t(g_bot_start_time);
+    char buf[32];
+    std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", std::localtime(&start_time));
+    return std::string(buf);
+}
+
+inline std::string get_bot_run_duration_str() {
+    using namespace std::chrono;
+    auto now = system_clock::now();
+    auto duration = duration_cast<seconds>(now - g_bot_start_time).count();
+
+    int days = static_cast<int>(duration / (24 * 3600));
+    duration %= (24 * 3600);
+    int hours = static_cast<int>(duration / 3600);
+    duration %= 3600;
+    int minutes = static_cast<int>(duration / 60);
+    int seconds = static_cast<int>(duration % 60);
+
+    std::string result = "已运行";
+    if (days > 0) result += std::to_string(days) + "天";
+    if (hours > 0) result += std::to_string(hours) + "小时";
+    if (minutes > 0) result += std::to_string(minutes) + "分钟";
+    result += std::to_string(seconds) + "秒";
+    return result;
+}
 
 /// 用户/user chat session map
 /// key = user QQ号
@@ -51,6 +83,9 @@ extern wheel::concurrent_unordered_map<qq_id_t, embedding_message_id_list> g_gro
 /// key = group id/群号
 /// Bot send only
 extern wheel::concurrent_unordered_map<qq_id_t, embedding_message_id_list> g_bot_send_group_message_embedding_to_id_list_map;
+
+extern std::shared_ptr<agent::LLMAPIAgentBase> g_llm_chat_agent;
+extern std::shared_ptr<agent::SimpleChatActionAgent> g_simple_chat_action_agent;
 
 
 #endif

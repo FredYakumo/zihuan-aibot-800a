@@ -3,10 +3,11 @@
 
 #include "constant_types.hpp"
 #include "constants.hpp"
+#include "general-wheel-cpp/linalg_boost/linalg_boost.hpp"
 #include "get_optional.hpp"
 #include "neural_network/model_set.h"
 #include "neural_network/nn.h"
-#include "neural_network/text_model/text_embedding_with_mean_pooling_model.h"
+#include "neural_network/text_model/text_embedding_model.h"
 #include "neural_network/text_model/tokenizer_wrapper.h"
 #include <chrono>
 #include <general-wheel-cpp/collection/concurrent_vector.hpp>
@@ -439,6 +440,7 @@ namespace bot_adapter {
             auto start_time = std::chrono::high_resolution_clock::now();
 
             auto embedding = neural_network::get_model_set().text_embedding_model->embed(member_name);
+            const auto mean_pooled_emb = wheel::linalg_boost::mean_pooling(embedding);
 
             auto end_time = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
@@ -446,7 +448,7 @@ namespace bot_adapter {
 
             contain_member_ids.insert(member_id);
             member_ids.push_back(member_id);
-            member_name_embedding_matrix.push_back(embedding);
+            member_name_embedding_matrix.push_back(mean_pooled_emb);
         }
 
         /**
@@ -494,6 +496,7 @@ namespace bot_adapter {
             auto start_time = std::chrono::high_resolution_clock::now();
 
             auto embeddings = neural_network::get_model_set().text_embedding_model->embed(new_member_names);
+            auto mean_pooled_emb = wheel::linalg_boost::batch_channel_mean_pooling(embeddings);
 
             auto end_time = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
@@ -506,7 +509,7 @@ namespace bot_adapter {
                 const qq_id_t member_id = new_member_ids[i];
                 contain_member_ids.insert(member_id);
                 this->member_ids.push_back(member_id);
-                member_name_embedding_matrix.push_back(embeddings[i]);
+                member_name_embedding_matrix.push_back(mean_pooled_emb[i]);
             }
         }
 
@@ -524,25 +527,45 @@ namespace bot_adapter {
             spdlog::info("[GroupMemberNameEmbeddngMatrix] Computing similarity for query: {}", query);
             auto start_time = std::chrono::high_resolution_clock::now();
 
-            const neural_network::emb_vec_t query_embedding = neural_network::get_model_set().text_embedding_model->embed(query);
-            auto cosine_similarity = neural_network::get_model_set().cosine_similarity_model->inference(
-                query_embedding, member_name_embedding_matrix);
+            // Fast path: no members yet
+            if (member_name_embedding_matrix.empty()) {
+                spdlog::debug("[GroupMemberNameEmbeddngMatrix] No member embeddings available, returning empty result");
+                return {};
+            }
+
+            const auto query_embedding = neural_network::get_model_set().text_embedding_model->embed(query);
+
+            // use the same pooling strategy as member embeddings (token-wise mean to hidden_size)
+            const auto mean_pooled_emb = wheel::linalg_boost::mean_pooling(query_embedding);
+
+            // Validate dimension consistency before similarity
+            if (!member_name_embedding_matrix.empty() &&
+                member_name_embedding_matrix.front().size() != mean_pooled_emb.size()) {
+                spdlog::error(
+                    "[GroupMemberNameEmbeddngMatrix] Embedding dim mismatch: member_dim={}, query_dim={}",
+                    member_name_embedding_matrix.front().size(), mean_pooled_emb.size());
+                return {};
+            }
+
+            auto cosine_similarity =
+                wheel::linalg_boost::batch_cosine_similarity(member_name_embedding_matrix, mean_pooled_emb);
+
 
             auto end_time = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
             spdlog::info("[GroupMemberNameEmbeddngMatrix] Similarity computation took {} ms", duration.count());
 
-            // 创建带索引的相似度向量，用于排序
+            // Pair each similarity score with its corresponding member ID index
             std::vector<std::pair<float, size_t>> similarity_with_index;
             for (size_t i = 0; i < cosine_similarity.size(); ++i) {
                 similarity_with_index.push_back({cosine_similarity[i], i});
             }
 
-            // 按相似度降序排序
+
             std::sort(similarity_with_index.begin(), similarity_with_index.end(),
                       [](const auto &a, const auto &b) { return a.first > b.first; });
 
-            // 输出前5个最相似的结果
+            
             size_t top_k = std::min(size_t(5), cosine_similarity.size());
             for (size_t i = 0; i < top_k; ++i) {
                 auto sim = similarity_with_index[i].first;

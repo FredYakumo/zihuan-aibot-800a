@@ -1,4 +1,5 @@
 #include "config.h"
+#include "think_image_manager.h"
 #include "utils.h"
 #include <boost/filesystem.hpp>
 #include <cstdlib>
@@ -101,6 +102,38 @@ void load_optional_config(const YAML::Node &node, const std::string &yaml_key, c
     }
 }
 
+
+void load_vector_config(const YAML::Node &node, const std::string &yaml_key, const std::string &env_var,
+                      std::vector<std::string> &target_vector) {
+
+    if (node[yaml_key] && node[yaml_key].IsSequence()) {
+
+        target_vector.clear();
+        
+        for (const auto &item : node[yaml_key]) {
+            std::string item_str = item.as<std::string>();
+            target_vector.push_back(item_str);
+            spdlog::info("{}: {}", yaml_key, item_str);
+        }
+    }
+
+    if (auto val = get_var_from_env(env_var)) {
+
+        target_vector.clear();
+        for (auto &&e : SplitString(*val, ',')) {
+            std::string trimmed{ltrim(rtrim(e))};
+            target_vector.push_back(trimmed);
+            spdlog::info("[ENV] Parsed {}: {}", env_var, trimmed);
+        }
+    }
+    
+
+    if (target_vector.empty() && yaml_key == "agent_dict_alt_paths") {
+        target_vector = {"res/agent_dict.json", "../res/agent_dict.json", "../../res/agent_dict.json"};
+        spdlog::info("Using default values for {}", yaml_key);
+    }
+}
+
 // 主配置初始化函数
 void Config::init() {
     auto &config = Config::instance();
@@ -120,6 +153,9 @@ void Config::init() {
     load_yaml_config(node, "llm_model_name", config.llm_model_name);
     load_env_config_str("AIBOT_LLM_MODEL_NAME", config.llm_model_name);
 
+    load_yaml_config(node, "llm_api_key", config.llm_api_key);
+    load_env_config_str("AIBOT_LLM_API_KEY", config.llm_api_key);
+
     load_yaml_config(node, "search_api_url", config.search_api_url);
     load_env_config_str("AIBOT_SEARCH_API_URL", config.search_api_url);
 
@@ -137,6 +173,9 @@ void Config::init() {
 
     load_yaml_config(node, "think_image_url", config.think_image_url);
     load_env_config_str("AIBOT_THINK_IMAGE_URL", config.think_image_url);
+    
+    load_yaml_config(node, "think_pictures_dir", config.think_pictures_dir);
+    load_env_config_str("AIBOT_THINK_PICTURES_DIR", config.think_pictures_dir);
 
     load_yaml_config(node, "temp_res_path", config.temp_res_path);
     load_env_config_str("AIBOT_TEMP_RES_PATH", config.temp_res_path);
@@ -150,9 +189,7 @@ void Config::init() {
     load_yaml_config(node, "rank_model_path", config.rank_model_path);
     load_env_config_str("AIBOT_RANK_MODEL_PATH", config.rank_model_path);
 
-    // 数值类型配置
-    load_yaml_config(node, "bot_id", config.bot_id);
-    load_env_config_num<uint64_t>("AIBOT_BOT_ID", config.bot_id);
+    // bot_id is now provided exclusively via CLI '-l <bot_id>' and is not read from YAML or env.
 
     load_yaml_config(node, "llm_api_port", config.llm_api_port);
     load_env_config_num("AIBOT_LLM_API_PORT", config.llm_api_port);
@@ -174,5 +211,10 @@ void Config::init() {
     load_optional_config(node, "custom_system_prompt", "AIBOT_CUSTOM_SYSTEM_PROMPT", config.custom_system_prompt_option);
     load_optional_config(node, "custom_deep_think_system_prompt", "AIBOT_CUSTOM_DEEP_THINK_SYSTEM_PROMPT",
                          config.custom_deep_think_system_prompt_option);
-    
+                         
+    // Initialize think image manager if directory is set
+    if (!config.think_pictures_dir.empty()) {
+        spdlog::info("Initializing think image manager with directory: {}", config.think_pictures_dir);
+        bot_adapter::ThinkImageManager::instance().initialize();
+    }
 }

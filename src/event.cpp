@@ -6,12 +6,11 @@
 #include "constants.hpp"
 #include "database.h"
 #include "individual_message_storage.hpp"
-#include "llm.h"
 #include "msg_prop.h"
 #include "time_utils.h"
 #include "utils.h"
 #include <chrono>
-#include <collection/concurrent_hashset.hpp>
+#include <general-wheel-cpp/collection/concurrent_hashset.hpp>
 #include <cpr/cpr.h>
 #include <fmt/format.h>
 #include <functional>
@@ -23,6 +22,7 @@
 #include <string_view>
 #include <thread>
 #include <utility>
+#include "agent/llm_function_tools.hpp"
 
 using namespace wheel;
 
@@ -118,12 +118,12 @@ ParseRunCmdRes message_preprocessing(bot_adapter::BotAdapter &adapter, std::shar
     // Processing empty messagem
     if ((msg_prop.plain_content == nullptr || ltrim(rtrim(*msg_prop.plain_content)).empty()) &&
         (msg_prop.ref_msg_content == nullptr || ltrim(rtrim(*msg_prop.ref_msg_content)).empty())) {
-            if (msg_prop.plain_content == nullptr) {
-                msg_prop.plain_content = std::make_shared<std::string>(EMPTY_MSG_TAG);
-            } else {
-                *msg_prop.plain_content = EMPTY_MSG_TAG;
-            }
+        if (msg_prop.plain_content == nullptr) {
+            msg_prop.plain_content = std::make_shared<std::string>(EMPTY_MSG_TAG);
+        } else {
+            *msg_prop.plain_content = EMPTY_MSG_TAG;
         }
+    }
 
     return ret;
 }
@@ -190,9 +190,9 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
         spdlog::info("检查自动新对话设置: 用户ID={}, 群ID={}, 设置值={}秒", event->sender_ptr->id,
                      event->get_group_sender().group.id, user_preference->auto_new_chat_session_sec.value());
 
-        auto last_chat_time = g_last_chat_message_time_map.find(event->get_group_sender().id);
+        auto last_chat_time = g_last_chat_message_time_map.find(event->sender_ptr->id);
         bool has_last_message = last_chat_time.has_value();
-        spdlog::info("获取个人历史消息: 用户ID={}, 是否有历史消息={}", event->get_group_sender().group.id,
+        spdlog::info("获取个人历史消息: 用户ID={}, 是否有历史消息={}", event->sender_ptr->id,
                      has_last_message);
 
         if (has_last_message) {
@@ -270,7 +270,9 @@ void on_group_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_ad
     if (!process_res.skip_default_llm) {
         auto context =
             bot_cmd::CommandContext(adapter, event, "", process_res.is_deep_think, msg_prop, user_preference);
-        process_llm(context, std::nullopt, user_preference);
+        if (g_simple_chat_action_agent) {
+            g_simple_chat_action_agent->process_llm(context, std::nullopt, user_preference, DEFAULT_TOOLS);
+        }
     }
 }
 
@@ -350,7 +352,9 @@ void on_friend_msg_event(bot_adapter::BotAdapter &adapter, std::shared_ptr<bot_a
     if (!process_res.skip_default_llm) {
         auto context =
             bot_cmd::CommandContext(adapter, event, "", process_res.is_deep_think, msg_prop, user_preference);
-        process_llm(context, std::nullopt, user_preference);
+        if (g_simple_chat_action_agent) {
+            g_simple_chat_action_agent->process_llm(context, std::nullopt, user_preference, DEFAULT_TOOLS);
+        }
     }
 }
 

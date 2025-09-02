@@ -7,10 +7,12 @@
  * @see https://github.com/baidu/lac/blob/master/c%2B%2B/include/lac.h
  */
 #include "neural_network/nn.h"
+
+#ifdef __USE_PADDLE_INFERENCE__
 #include <paddle_inference_api.h>
 #include <unordered_map>
 
-namespace lac {
+namespace neural_network::lac {
     /**
      * Encoding type settings for the LAC model
      */
@@ -91,24 +93,7 @@ namespace lac {
         int parse_targets(const std::vector<std::string> &tag_ids, const std::vector<std::string> &words,
                           std::vector<OutputItem> &result);
 
-        /**
-         * @brief Convert neural_network::Device to paddle::PaddlePlace
-         * @param device Neural network device type
-         * @return Corresponding PaddlePlace for the device
-         */
-        paddle::PaddlePlace convert_to_paddle_place(neural_network::Device device) const {
-            switch (device) {
-            case neural_network::Device::CUDA:
-            case neural_network::Device::TensorRT:
-            case neural_network::Device::MPS:
-                return paddle::PaddlePlace::kGPU;
-
-            case neural_network::Device::CPU:
-            case neural_network::Device::CoreML:
-            default:
-                return paddle::PaddlePlace::kCPU;
-            }
-        }
+    // No device place conversion needed with paddle_infer zero-copy handles
 
         // Encoding type (must match the encoding of dictionary files)
         CODE_TYPE m_code_type;
@@ -127,14 +112,15 @@ namespace lac {
         std::shared_ptr<std::unordered_map<std::string, int64_t>> m_word2id_dict;  // Maps words to vocabulary IDs
         int64_t m_oov_id;                                                          // Out-of-vocabulary ID
 
-        // Paddle inference structures
-        neural_network::Device m_device;                         // Neural network device type
-        std::unique_ptr<paddle::PaddlePredictor> m_predictor;    // Model predictor
-        std::unique_ptr<paddle::ZeroCopyTensor> m_input_tensor;  // Input tensor
-        std::unique_ptr<paddle::ZeroCopyTensor> m_output_tensor; // Output tensor
+    // Paddle inference structures
+    neural_network::Device m_device;                            // Neural network device type
+    std::shared_ptr<paddle_infer::Predictor> m_predictor;       // Model predictor (shared_ptr to match API)
+    std::unique_ptr<paddle_infer::Tensor> m_input_tensor;       // Input tensor handle
+    std::unique_ptr<paddle_infer::Tensor> m_output_tensor;      // Output tensor handle
 
         // Custom dictionary for manual intervention
         std::shared_ptr<Customization> m_custom;
     };
 
 } // namespace lac
+#endif // __USE_PADDLE_INFERENCE__

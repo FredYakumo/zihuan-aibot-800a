@@ -3,6 +3,7 @@
 #include "neural_network/model_set.h"
 #include "neural_network/nn.h"
 #include <cstdint>
+#include <general-wheel-cpp/linalg_boost/linalg_boost.hpp>
 #include <shared_mutex>
 #include <algorithm>
 #include <spdlog/spdlog.h>
@@ -15,8 +16,9 @@ public:
             return ret;
         }
         auto target_emb = neural_network::get_model_set().text_embedding_model->embed(query);
+        auto mean_pooled = wheel::linalg_boost::mean_pooling(target_emb);
         // std::shared_lock lock(mutex);
-        auto sim = neural_network::get_model_set().cosine_similarity_model->inference(target_emb, embedding_mat);
+        auto sim = wheel::linalg_boost::batch_cosine_similarity(embedding_mat, mean_pooled);
         std::vector<std::pair<float, uint64_t>> sim_pairs;
         for (int i = 0; i < sim.size(); ++i) {
             if (sim[i] > threshold) {
@@ -44,8 +46,9 @@ public:
             return;
         }
         auto emb = neural_network::get_model_set().text_embedding_model->embed(content);
+        auto pooled = wheel::linalg_boost::mean_pooling(emb);
         // std::unique_lock lock(mutex);
-        embedding_mat.push_back(emb);
+        embedding_mat.push_back(pooled);
         message_id_list.push_back(message_id);
     }
 private:

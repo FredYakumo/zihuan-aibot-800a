@@ -16,6 +16,7 @@ TEXT_EMBEDDING_DEFAULT_MODEL_NAME = "BAAI/bge-m3"
 LTP_MODEL_NAME = "LTP/base"
 TEXT_EMBEDDING_INPUT_LENGTH = 8192
 TEXT_EMBEDDING_OUTPUT_LENGTH = 1024
+CHAT_TEXT_CLASSIFIER_MAX_INPUT_LENGTH = 1024
 LTP_MAX_INPUT_LENGTH = 512
 
 
@@ -152,92 +153,100 @@ class TextEmbedder:
         return embeddings
 
 
-def load_reply_intent_classifier_model(model_path):
-    """Load the trained model"""
-    embedder = TextEmbedder()
-    model = ReplyIntentClassifierModel(embedder.model.config.hidden_size)
-    device = get_device()
-    model.load_state_dict(torch.load(model_path, map_location=device))
-    model.eval()
-    return model, embedder
-
-
 class MultiLabelClassifier(nn.Module):
     """
-    A multi-label classifier using a pre-trained transformer model and CNN layers.
+    An RNN-based multi-label classifier.
 
-    This model first generates text embeddings using a pre-trained transformer model.
-    Then, it passes these embeddings through multiple parallel 1D convolutional layers
-    with different kernel sizes. The output of each convolutional layer is passed
-    through a max-pooling layer. Finally, the pooled features are concatenated,
-    passed through a dropout layer, and a fully connected layer to produce the
-    final logits for each label. This architecture is inspired by TextCNN.
+    This model takes embeddings as input [seq_len, embedding_size=1024] and processes them
+    through a bidirectional LSTM to produce logits for multi-label classification.
+    The RNN architecture allows the model to capture sequential relationships
+    and long-range dependencies in the input sequence.
     """
 
     def __init__(
         self,
-        embedding_model,
-        num_labels,
-        num_filters=128,
-        filter_sizes=[3, 4, 5],
-        dropout=0.2,
+        embedding_dim=1024,
+        num_classes=10,
+        hidden_size=512,
+        num_layers=2,
+        dropout=0.1,
+        max_seq_len=128,
     ):
-        """
-        @param embedding_model The pre-trained transformer model.
-        @param num_labels The number of labels for classification.
-        @param num_filters The number of filters for each convolutional layer.
-        @param filter_sizes A list of kernel sizes for the convolutional layers.
-        @param dropout The dropout rate for the final layer.
-        """
-        super(MultiLabelClassifier, self).__init__()
-        self.embedding_model = embedding_model
-        bert_hidden_size = self.embedding_model.config.hidden_size
+        super().__init__()
+        self.embedding_dim = embedding_dim
+        self.num_classes = num_classes
+        self.max_seq_len = max_seq_len
+        self.hidden_size = hidden_size
 
-        self.convs = nn.ModuleList(
-            [
-                nn.Conv1d(
-                    in_channels=bert_hidden_size,
-                    out_channels=num_filters,
-                    kernel_size=k,
-                )
-                for k in filter_sizes
-            ]
+        # bidirectional LSTM
+        self.lstm = nn.LSTM(
+            input_size=embedding_dim,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            dropout=dropout if num_layers > 1 else 0,
+            bidirectional=True,
+            batch_first=True,
         )
 
-        self.fc = nn.Linear(len(filter_sizes) * num_filters, num_labels)
-        self.dropout = nn.Dropout(dropout)
-
-    def forward(self, input_ids, attention_mask):
-        """
-        @param input_ids The input token ids.
-        @param attention_mask The attention mask.
-        @return Logits for each label.
-        """
-        # Get embeddings from the transformer model
-        # outputs.last_hidden_state shape: (batch_size, sequence_length, embedding_dim)
-        outputs = self.embedding_model(
-            input_ids=input_ids, attention_mask=attention_mask
+        # classification head
+        self.classifier = nn.Sequential(
+            nn.Linear(hidden_size * 2, hidden_size),  # * 2 for bidirectional
+            nn.LayerNorm(hidden_size),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_size, num_classes),
         )
-        embedded = outputs.last_hidden_state
 
-        # Conv1d expects input of shape (batch_size, in_channels, sequence_length)
-        # We need to permute the dimensions of the embeddings
-        embedded = embedded.permute(0, 2, 1)
+    def forward(self, x, mask=None):
+        """
+        Forward pass for the RNN-based classifier.
 
-        # Apply convolution and pooling
-        # conved is a list of tensors of shape (batch_size, num_filters, new_sequence_length)
-        conved = [F.relu(conv(embedded)) for conv in self.convs]
+        Args:
+            x (torch.Tensor): Input tensor with shape [batch_size, seq_len, embedding_dim]
+            mask (torch.Tensor, optional): Attention mask for padding. Shape [batch_size, seq_len]
+                                         with 0 for padding positions and 1 for non-padding.
 
-        # Apply max-over-time pooling
-        # pooled is a list of tensors of shape (batch_size, num_filters)
-        pooled = [F.max_pool1d(conv, conv.shape[2]).squeeze(2) for conv in conved]
+        Returns:
+            torch.Tensor: Logits for each class with shape [batch_size, num_classes]
+        """
+        seq_len = x.size(1)
 
-        # Concatenate the pooled features from all filter sizes
-        # cat has shape (batch_size, num_filters * len(filter_sizes))
-        cat = self.dropout(torch.cat(pooled, dim=1))
+        # truncate sequence if longer than max_seq_len
+        if seq_len > self.max_seq_len:
+            x = x[:, : self.max_seq_len, :]
+            seq_len = self.max_seq_len
+            if mask is not None:
+                mask = mask[:, : self.max_seq_len]
 
-        # Pass through the final fully connected layer
-        logits = self.fc(cat)
+        # pack padded sequence for more efficient and correct RNN calculation
+        if mask is not None:
+
+            lengths = mask.sum(dim=1).cpu()
+
+            packed_x = nn.utils.rnn.pack_padded_sequence(
+                x, lengths, batch_first=True, enforce_sorted=False
+            )
+
+            packed_output, (hidden, _) = self.lstm(packed_x)
+
+            # unpack output
+            output, _ = nn.utils.rnn.pad_packed_sequence(
+                packed_output, batch_first=True
+            )
+
+            # get the last hidden states from both directions
+            # hidden shape: [num_layers * num_directions, batch, hidden_size]
+            last_hidden = torch.cat(
+                [hidden[-2], hidden[-1]], dim=1
+            )  # Take last layer, both directions
+        else:
+            # if no mask, process sequence normally
+            output, (hidden, _) = self.lstm(x)
+            # get the last hidden states from both directions
+            last_hidden = torch.cat([hidden[-2], hidden[-1]], dim=1)
+
+        logits = self.classifier(last_hidden)
+
         return logits
 
 
@@ -268,7 +277,7 @@ class LTPModel(nn.Module):
 
             self.ltp_pipeline = LTP(model_name)
             if torch.cuda.is_available() and device.type == "cuda":
-                self.ltp_pipeline.to("cuda")
+                self.ltp_pipeline.to("cuda")  # type: ignore
             self.use_ltp_pipeline = True
             logger.info(f"LTP Model loaded with LTP library: {model_name}")
             logger.info(f"Supported tasks: {self.tasks}")
@@ -326,7 +335,7 @@ class LTPProcessor:
             from ltp import LTP
 
             self.ltp_pipeline = LTP(model_name)
-            self.ltp_pipeline.to(device)
+            self.ltp_pipeline.to(device)  # type: ignore
             self.use_pipeline = True
             logger.info("LTP pipeline loaded successfully.")
 
@@ -378,12 +387,12 @@ class LTPProcessor:
             # Use LTP pipeline if available
             results = self.ltp_pipeline.pipeline(texts, tasks=tasks)
             return {
-                "cws": results.cws if hasattr(results, "cws") else None,
-                "pos": results.pos if hasattr(results, "pos") else None,
-                "ner": results.ner if hasattr(results, "ner") else None,
-                "srl": results.srl if hasattr(results, "srl") else None,
-                "dep": results.dep if hasattr(results, "dep") else None,
-                "sdp": results.sdp if hasattr(results, "sdp") else None,
+                "cws": results.cws if hasattr(results, "cws") else None,  # type: ignore
+                "pos": results.pos if hasattr(results, "pos") else None,  # type: ignore
+                "ner": results.ner if hasattr(results, "ner") else None,  # type: ignore
+                "srl": results.srl if hasattr(results, "srl") else None,  # type: ignore
+                "dep": results.dep if hasattr(results, "dep") else None,  # type: ignore
+                "sdp": results.sdp if hasattr(results, "sdp") else None,  # type: ignore
             }
         else:
             # Fallback to basic tokenization
@@ -393,7 +402,9 @@ class LTPProcessor:
                 truncation=True,
                 max_length=LTP_MAX_INPUT_LENGTH,
                 return_tensors="pt",
-            ).to(self.device)
+            ).to(  # type: ignore
+                self.device
+            )  # pyright: ignore[reportOptionalCall]
 
             with torch.no_grad():
                 hidden_states = self.model(
