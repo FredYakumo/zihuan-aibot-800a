@@ -26,6 +26,9 @@ namespace agent {
         virtual ~Brain() = default;
 
       private:
+        
+
+      
         std::shared_ptr<bot_adapter::BotAdapter> m_adapter;
         std::shared_ptr<LLMAgentBase> m_decision_llm;
     };
