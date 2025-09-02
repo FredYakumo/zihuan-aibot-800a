@@ -18,7 +18,7 @@ from nn.models import (
     CHAT_TEXT_CLASSIFIER_MAX_INPUT_LENGTH,
     TEXT_EMBEDDING_DEFAULT_MODEL_NAME,
     TEXT_EMBEDDING_OUTPUT_LENGTH,
-    MultiLabelClassifier,
+    MultiLabelClassifierBaseline,
     TextEmbedder,
     get_device,
 )
@@ -32,21 +32,15 @@ RANDOM_SEED = 42
 MIN_TEXT_LENGTH = 1  # For duplicating short texts
 
 
-BATCH_SIZE = 4
-EPOCHS = 10
-LEARNING_RATE = 2e-5
+BATCH_SIZE = 8
+EPOCHS = 20
+LEARNING_RATE = 1e-3
 GRAD_CLIP_NORM = 1.0  # maximum norm for gradient clipping
 PREDICTION_THRESHOLD = 0.5  # Threshold for binary prediction in evaluation
 
 # File paths for saving models and metrics
-BEST_MODEL_STATE_PATH = "best_model_state.bin"
-TEXT_EMBEDDING_PT_PATH = "text_embedding.pt"
-TEXT_EMBEDDING_ONNX_PATH = "text_embedding.onnx"
-MULTI_LABEL_CLASSIFIER_ONNX_PATH = "multi_label_classifier.onnx"
-TRAINING_METRICS_PLOT_PATH = "training_metrics.png"
-
-# ONNX export settings
-ONNX_OPSET_VERSION = 11
+BEST_MODEL_STATE_PATH = "chat_text_classifier_baseline.pt"
+TRAINING_METRICS_PLOT_PATH = "chat_text_classifier_baseline_training_metrics.png"
 
 
 # Data Preparation
@@ -106,26 +100,23 @@ print("\nProcessed training data example:")
 print(train_df.head())
 print(f"train set count: {len(csv_files)}, total sample count: {len(train_df)}")
 
-# --- Text Tokenization and Vectorization Model ---
-# Use the TextEmbedder class from models.py to load the text tokenization and vectorization model
-
-
+# --- Set up device ---
 device = get_device()
 print(f"\nCurrent device: {device}")
 
-text_embedder = TextEmbedder(device=device)
-tokenizer = text_embedder.tokenizer
+# --- Text Embedder for BGE-M3 ---
+# print(f"\nInitializing tokenizer with model: {TEXT_EMBEDDING_DEFAULT_MODEL_NAME}")
+# tokenizer = AutoTokenizer.from_pretrained(TEXT_EMBEDDING_DEFAULT_MODEL_NAME)
+
+text_embedder = TextEmbedder(device=device, mean_pooling=True)
 
 
 # --- Dataset and DataLoader ---
 class TextDataset(Dataset):
-    def __init__(self, texts, labels, tokenizer, max_len):
+    def __init__(self, texts, labels, max_len):
         self.texts = texts
         self.labels = labels
-        self.tokenizer = tokenizer
         self.max_len = max_len
-        # Create a TextEmbedder with mean_pooling=False to get token-level embeddings
-        self.text_embedder = TextEmbedder(device=device, mean_pooling=False)
 
     def __len__(self):
         return len(self.texts)
@@ -133,31 +124,10 @@ class TextDataset(Dataset):
     def __getitem__(self, item):
         text = str(self.texts[item])
         labels = torch.tensor(self.labels[item], dtype=torch.float32)
-
-        # ensure text is long enough to tokenize meaningfully
-        # if text is very short, duplicate it to create a longer sequence
-        if len(text) < MIN_TEXT_LENGTH:
-            text = text + " " + text  # Duplicate short texts
-
-        # generate token-level embeddings (not mean-pooled)
-        with torch.no_grad():
-            # Tokenize manually first to get tokens
-            tokens = self.tokenizer(
-                text,
-                padding="max_length",  # Use max_length to ensure consistent length
-                truncation=True,
-                max_length=self.max_len,
-                return_tensors="pt",
-            ).to(device)
-
-            embeddings = self.text_embedder.model(
-                tokens["input_ids"], tokens["attention_mask"]
-            )
-
+        
+        # Return token IDs and attention mask directly
         return {
             "text": text,
-            "embeddings": embeddings.squeeze(0),  # remove batch dimension
-            "attention_mask": tokens["attention_mask"].squeeze(0),
             "labels": labels,
         }
 
@@ -173,26 +143,15 @@ train_texts, val_texts, train_labels, val_labels = train_test_split(
 
 def collate_fn(batch):
     """
-    Custom collate function for handling sequences of different lengths
+    Collate function for handling token IDs and attention masks
     """
     texts = [item["text"] for item in batch]
-    embeddings = [item["embeddings"] for item in batch]
-    attention_masks = [item["attention_mask"] for item in batch]
     labels = [item["labels"] for item in batch]
 
-    # Stack embeddings into a tensor (they should all have the same first dimension)
-    embeddings = torch.stack(embeddings)
-
-    # Stack attention masks into a tensor
-    attention_masks = torch.stack(attention_masks)
-
-    # Stack labels into a tensor
     labels = torch.stack(labels)
 
     return {
         "text": texts,
-        "embeddings": embeddings,
-        "attention_mask": attention_masks,
         "labels": labels,
     }
 
@@ -200,15 +159,13 @@ def collate_fn(batch):
 train_dataset = TextDataset(
     texts=train_texts,
     labels=train_labels,
-    tokenizer=tokenizer,
-    max_len=CHAT_TEXT_CLASSIFIER_MAX_INPUT_LENGTH,
+    max_len=CHAT_TEXT_CLASSIFIER_MAX_INPUT_LENGTH
 )
 
 val_dataset = TextDataset(
     texts=val_texts,
     labels=val_labels,
-    tokenizer=tokenizer,
-    max_len=CHAT_TEXT_CLASSIFIER_MAX_INPUT_LENGTH,
+    max_len=CHAT_TEXT_CLASSIFIER_MAX_INPUT_LENGTH
 )
 
 train_dataloader = DataLoader(
@@ -220,19 +177,13 @@ val_dataloader = DataLoader(
 
 
 print(f"\nInitializing MultiLabelClassifier with {num_labels} classes")
-config = AutoConfig.from_pretrained(TEXT_EMBEDDING_DEFAULT_MODEL_NAME)
-# embedding_dim = config.hidden_size
-embedding_dim = TEXT_EMBEDDING_OUTPUT_LENGTH
 
-model = MultiLabelClassifier(
-    embedding_dim=embedding_dim,
-    num_classes=num_labels,
-    max_seq_len=CHAT_TEXT_CLASSIFIER_MAX_INPUT_LENGTH,
-)
+
+model = MultiLabelClassifierBaseline(num_classes=num_labels)
 model = model.to(device)
 
 optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
-loss_fn = nn.BCEWithLogitsLoss().to(device)
+loss_fn = nn.BCELoss().to(device)  # Using BCE Loss since sigmoid is already applied in the model
 
 
 # --- Training  ---
@@ -245,11 +196,12 @@ def train_epoch(model, data_loader, loss_fn, optimizer, device, epoch, epochs):
         data_loader, desc=f"Epoch {epoch}/{epochs} [Train]", leave=False
     )
     for d in progress_bar:
-        embeddings = d["embeddings"].to(device)
-        attention_mask = d["attention_mask"].to(device)
+        # Forward pass with token IDs and attention mask
+        embedding = text_embedder.embed(d["text"])
+        outputs = model(embedding)
+        
+        # Move labels to the same device as outputs
         labels = d["labels"].to(device)
-
-        outputs = model(embeddings, attention_mask)
         loss = loss_fn(outputs, labels)
 
         losses.append(loss.item())
@@ -273,16 +225,16 @@ def eval_model(model, data_loader, loss_fn, device):
     with torch.no_grad():
         progress_bar = tqdm(data_loader, desc="Evaluating", leave=False)
         for d in progress_bar:
-            embeddings = d["embeddings"].to(device)
-            attention_mask = d["attention_mask"].to(device)
+            embedding = text_embedder.embed(d["text"])
+            outputs = model(embedding)
+            # Move labels to the same device as outputs
             labels = d["labels"].to(device)
-
-            outputs = model(embeddings, attention_mask)
             loss = loss_fn(outputs, labels)
             losses.append(loss.item())
             progress_bar.set_postfix(loss=f"{loss.item():.4f}")
 
-            predictions = torch.sigmoid(outputs).cpu().numpy()
+            predictions = outputs.cpu().numpy()  # Sigmoid is now applied in the model
+            
             true_labels = labels.cpu().numpy()
 
             all_predictions.extend(predictions)
@@ -383,10 +335,6 @@ plt.show()
 # dummy_embeddings = torch.randn(
 #     1, CHAT_TEXT_CLASSIFIER_MAX_INPUT_LENGTH, embedding_dim
 # ).to(device)
-# # Create a dummy attention mask
-# dummy_attention_mask = torch.ones(
-#     1, CHAT_TEXT_CLASSIFIER_MAX_INPUT_LENGTH, dtype=torch.long
-# ).to(device)
 
 # onnx_model_path = MULTI_LABEL_CLASSIFIER_ONNX_PATH
 
@@ -397,17 +345,15 @@ plt.show()
 #     # It is usually recommended to export on the CPU for wider compatibility
 #     model.to("cpu")
 #     dummy_embeddings = dummy_embeddings.to("cpu")
-#     dummy_attention_mask = dummy_attention_mask.to("cpu")
 
 #     torch.onnx.export(
 #         model,
-#         (dummy_embeddings, dummy_attention_mask),  # Wrap in tuple with attention mask
+#         dummy_embeddings,  # Single input
 #         onnx_model_path,
-#         input_names=["embeddings", "attention_mask"],
+#         input_names=["embeddings"],
 #         output_names=["logits"],
 #         dynamic_axes={
 #             "embeddings": {0: "batch_size", 1: "sequence_length"},
-#             "attention_mask": {0: "batch_size", 1: "sequence_length"},
 #             "logits": {0: "batch_size"},
 #         },
 #         opset_version=ONNX_OPSET_VERSION,  # It is recommended to use a stable and widely supported opset version

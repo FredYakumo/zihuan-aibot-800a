@@ -91,7 +91,9 @@ class TextEmbeddingModel(nn.Module):
             device
         )  # This should be your Hugging Face model that accepts tokenized inputs.
         self.config = AutoConfig.from_pretrained(model_name)
-        print(f"Max position embedding: {self.config.max_position_embeddings}")
+        print(
+            f'TextEmbedding model "{model_name}" - max position embedding: {self.config.max_position_embeddings}'
+        )
         self.mean_pooling = mean_pooling
         self.device = device
 
@@ -153,101 +155,118 @@ class TextEmbedder:
         return embeddings
 
 
-class MultiLabelClassifier(nn.Module):
+class MultiLabelClassifierBaseline(nn.Module):
     """
-    An RNN-based multi-label classifier.
+    Architecture:
+        Input (1024-d embedding)
+        ↓
+        Dense Layer (512 units, activation=ReLU)
+        ↓
+        Dropout (0.1~0.3)
+        ↓
+        Dense Layer (num_labels, activation=Sigmoid/Softmax)
 
-    This model takes embeddings as input [seq_len, embedding_size=1024] and processes them
-    through a bidirectional LSTM to produce logits for multi-label classification.
-    The RNN architecture allows the model to capture sequential relationships
-    and long-range dependencies in the input sequence.
     """
 
     def __init__(
         self,
-        embedding_dim=1024,
-        num_classes=10,
-        hidden_size=512,
-        num_layers=2,
-        dropout=0.1,
-        max_seq_len=128,
+        embedding_dim=TEXT_EMBEDDING_OUTPUT_LENGTH,
+        num_classes=41,
+        max_seq_length=CHAT_TEXT_CLASSIFIER_MAX_INPUT_LENGTH,
+        dropout_rate=0.3,
+        hidden_dim=512,
     ):
         super().__init__()
+
         self.embedding_dim = embedding_dim
+        self.max_seq_length = max_seq_length
         self.num_classes = num_classes
-        self.max_seq_len = max_seq_len
-        self.hidden_size = hidden_size
+        
+        # Simple feed-forward network
+        self.dropout = nn.Dropout(dropout_rate)
+        self.fc1 = nn.Linear(embedding_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, num_classes)
+        
+        # Initialize weights
+        self._init_weights()
 
-        # bidirectional LSTM
-        self.lstm = nn.LSTM(
-            input_size=embedding_dim,
-            hidden_size=hidden_size,
-            num_layers=num_layers,
-            dropout=dropout if num_layers > 1 else 0,
-            bidirectional=True,
-            batch_first=True,
-        )
+    def _init_weights(self):
+        """Initialize weights using proper initialization techniques"""
+        
+        # Dense layers - Xavier initialization
+        nn.init.xavier_uniform_(self.fc1.weight)
+        nn.init.constant_(self.fc1.bias, 0.1)
+        nn.init.xavier_uniform_(self.fc2.weight)
+        nn.init.constant_(self.fc2.bias, 0.1)
 
-        # classification head
-        self.classifier = nn.Sequential(
-            nn.Linear(hidden_size * 2, hidden_size),  # * 2 for bidirectional
-            nn.LayerNorm(hidden_size),
-            nn.GELU(),
-            nn.Dropout(dropout),
-            nn.Linear(hidden_size, num_classes),
-        )
-
-    def forward(self, x, mask=None):
+    def forward(self, x):
         """
-        Forward pass for the RNN-based classifier.
+        Forward pass for the simple feed-forward classifier
 
         Args:
-            x (torch.Tensor): Input tensor with shape [batch_size, seq_len, embedding_dim]
-            mask (torch.Tensor, optional): Attention mask for padding. Shape [batch_size, seq_len]
-                                         with 0 for padding positions and 1 for non-padding.
+            input_ids: Token IDs with shape [batch_size, seq_len]
+            attention_mask: Attention mask with shape [batch_size, seq_len]
 
         Returns:
-            torch.Tensor: Logits for each class with shape [batch_size, num_classes]
+            Tensor with shape [batch_size, num_classes] containing class probabilities
         """
-        seq_len = x.size(1)
 
-        # truncate sequence if longer than max_seq_len
-        if seq_len > self.max_seq_len:
-            x = x[:, : self.max_seq_len, :]
-            seq_len = self.max_seq_len
-            if mask is not None:
-                mask = mask[:, : self.max_seq_len]
+        
+        hidden = F.relu(self.fc1(x))
+        hidden = self.dropout(hidden)
+        logits = self.fc2(hidden)
+        
+        # Apply sigmoid for multi-label classification
+        return torch.sigmoid(logits)
 
-        # pack padded sequence for more efficient and correct RNN calculation
-        if mask is not None:
+    @classmethod
+    def from_pretrained(cls, model_path, device=None):
+        """
+        Load a pretrained model from a saved checkpoint.
 
-            lengths = mask.sum(dim=1).cpu()
+        Args:
+            model_path: Path to the saved model
+            device: Device to load the model to (cpu, cuda, mps)
 
-            packed_x = nn.utils.rnn.pack_padded_sequence(
-                x, lengths, batch_first=True, enforce_sorted=False
+        Returns:
+            Loaded model instance
+        """
+        if device is None:
+            device = get_device()
+
+        # Load config and state dict
+        checkpoint = torch.load(model_path, map_location=device)
+
+        # Create model with saved hyperparameters
+        model = cls(
+            embedding_dim=checkpoint.get("embedding_dim", TEXT_EMBEDDING_OUTPUT_LENGTH),
+            num_classes=checkpoint.get("num_classes", 41),
+            max_seq_length=checkpoint.get(
+                "max_seq_length", CHAT_TEXT_CLASSIFIER_MAX_INPUT_LENGTH
+            ),
+            dropout_rate=checkpoint.get("dropout_rate", 0.2),
+            hidden_dim=checkpoint.get("hidden_dim", 512),
+        )
+
+        # Load model weights with error handling for architecture changes
+        try:
+            if "model_state_dict" in checkpoint:
+                model.load_state_dict(checkpoint["model_state_dict"], strict=False)
+                logger.info("Loaded model weights with model_state_dict key")
+            else:
+                # For backward compatibility with older saved models
+                model.load_state_dict(checkpoint, strict=False)
+                logger.info("Loaded model weights directly from checkpoint")
+        except Exception as e:
+            logger.warning(
+                f"Could not load all weights from checkpoint due to architecture changes: {e}"
             )
+            logger.info("Continuing with partially loaded or newly initialized weights")
 
-            packed_output, (hidden, _) = self.lstm(packed_x)
+        model.to(device)
+        model.eval()
 
-            # unpack output
-            output, _ = nn.utils.rnn.pad_packed_sequence(
-                packed_output, batch_first=True
-            )
-
-            # get the last hidden states from both directions
-            # hidden shape: [num_layers * num_directions, batch, hidden_size]
-            last_hidden = torch.cat(
-                [hidden[-2], hidden[-1]], dim=1
-            )  # Take last layer, both directions
-        else:
-            # if no mask, process sequence normally
-            output, (hidden, _) = self.lstm(x)
-            # get the last hidden states from both directions
-            last_hidden = torch.cat([hidden[-2], hidden[-1]], dim=1)
-
-        logits = self.classifier(last_hidden)
-
-        return logits
+        return model
 
 
 class LTPModel(nn.Module):
@@ -452,3 +471,35 @@ def load_ltp_model(model_path):
             logger.info("Using pre-trained model instead")
 
     return processor
+
+
+def load_multi_label_classifier(model_path, tokenizer=None):
+    """
+    Load a trained MultiLabelClassifier model with an optional tokenizer
+
+    Args:
+        model_path (str): Path to the saved model
+        tokenizer: Optional tokenizer to use with the classifier.
+                   If None, a new AutoTokenizer for bge-m3 will be created.
+
+    Returns:
+        tuple: (model, tokenizer) - The loaded classifier model and the tokenizer
+    """
+    device = get_device()
+
+    # Try to load the model
+    try:
+        model = MultiLabelClassifierBaseline.from_pretrained(model_path, device)
+        logger.info(f"Loaded multi-label classifier from {model_path}")
+    except Exception as e:
+        logger.error(f"Failed to load multi-label classifier: {e}")
+        raise e
+
+    # Get or create tokenizer
+    if tokenizer is None:
+        tokenizer = AutoTokenizer.from_pretrained(TEXT_EMBEDDING_DEFAULT_MODEL_NAME)
+        logger.info(
+            f"Created new tokenizer with model {TEXT_EMBEDDING_DEFAULT_MODEL_NAME}"
+        )
+
+    return model, tokenizer
