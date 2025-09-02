@@ -290,10 +290,6 @@ for epoch in range(EPOCHS):
 
 print("\nTraining finished.")
 
-
-print("\nexported model")
-
-
 # plotting and saving the metrics chart
 epochs_range = range(1, EPOCHS + 1)
 
@@ -324,41 +320,3 @@ plt.tight_layout(rect=(0, 0.03, 1, 0.95))
 plt.savefig(TRAINING_METRICS_PLOT_PATH)
 print(f"\nMetrics chart saved to {TRAINING_METRICS_PLOT_PATH}")
 plt.show()
-
-# # --- Convert the model to ONNX model ---
-# # Load the best model state
-# model.load_state_dict(torch.load(BEST_MODEL_STATE_PATH))
-# model.eval()  # Switch to evaluation mode
-
-# # Create a dummy input for ONNX export
-# # Use a dummy embedding tensor with the right dimensions
-# dummy_embeddings = torch.randn(
-#     1, CHAT_TEXT_CLASSIFIER_MAX_INPUT_LENGTH, embedding_dim
-# ).to(device)
-
-# onnx_model_path = MULTI_LABEL_CLASSIFIER_ONNX_PATH
-
-# print(f"\nStart exporting the ONNX model to {onnx_model_path}...")
-
-# try:
-#     # make sure the model is on the CPU for ONNX export, or make sure your ONNX Runtime environment supports CUDA ONNX models
-#     # It is usually recommended to export on the CPU for wider compatibility
-#     model.to("cpu")
-#     dummy_embeddings = dummy_embeddings.to("cpu")
-
-#     torch.onnx.export(
-#         model,
-#         dummy_embeddings,  # Single input
-#         onnx_model_path,
-#         input_names=["embeddings"],
-#         output_names=["logits"],
-#         dynamic_axes={
-#             "embeddings": {0: "batch_size", 1: "sequence_length"},
-#             "logits": {0: "batch_size"},
-#         },
-#         opset_version=ONNX_OPSET_VERSION,  # It is recommended to use a stable and widely supported opset version
-#         do_constant_folding=True,  # Optimization: perform constant folding
-#     )
-#     print(f"ONNX model successfully exported to {onnx_model_path}")
-# except Exception as e:
-#     print(f"ONNX model export failed: {e}")
