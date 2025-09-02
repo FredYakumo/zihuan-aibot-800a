@@ -76,7 +76,7 @@ def batch_process(texts, batch_size=4):
 
             for j, text in enumerate(batch_texts):
                 prob = probs[j]
-                pred_indices = [i for i, p in enumerate(prob) if p > 0.6]
+                pred_indices = [i for i, p in enumerate(prob) if p > 0.5]
                 pred_labels = [id_to_label[i] for i in pred_indices if i in id_to_label]
 
                 top_k = 3
