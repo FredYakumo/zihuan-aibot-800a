@@ -17,6 +17,8 @@ namespace agent {
         PICTURES_REPLY = 1<<4
     };
 
+    
+
     struct ActionAgentResult {
         AgentActionType action_type = AgentActionType::NONE;
         std::string content_text;

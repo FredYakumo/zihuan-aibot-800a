@@ -7,6 +7,7 @@
 #include "msg_prop.h"
 #include <iterator>
 #include <string_utils.hpp>
+#include "agent/action_descript_prompt.hpp"
 
 namespace agent {
 
@@ -79,8 +80,10 @@ namespace agent {
         spdlog::info("Brain agent Processing group message event from group ID: {}, user ID: {}", sender.group.id,
                      sender.id);
 
-        gen_inchat_prompt(m_adapter->get_bot_profile(), *m_adapter, sender, false, "向这条消息做出反应",
+        gen_inchat_prompt(m_adapter->get_bot_profile(), *m_adapter, sender, false, action_prompt::ACTION_TO_USER_MENTION,
                           conf.custom_system_prompt_option);
+
+        
     }
 
 } // namespace agent
