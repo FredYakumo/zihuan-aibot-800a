@@ -51,7 +51,7 @@ inline std::string get_permission_chs(const std::string_view perm) {
 namespace agent {
     using std::string_view;
 
-    std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot_adapter::BotAdapter &adapter,
+    std::string gen_inchat_prompt(const bot_adapter::Profile &bot_profile, const bot_adapter::BotAdapter &adapter,
                                   const bot_adapter::Sender &sender, bool is_deep_think,
                                   string_view action_description,
                                   const std::optional<std::string> additional_system_prompt_option) {

@@ -319,6 +319,10 @@ namespace bot_adapter {
         }
     }
 
+    inline std::string get_permission_chs(const std::string_view perm) {
+        return get_permission_chs(get_group_permission(perm));
+    }
+
     struct GroupInfo {
         qq_id_t group_id;
         std::string name;

@@ -129,7 +129,7 @@ namespace agent {
         }
         auto session_knowledge_opt = rag::query_knowledge(mixed_input_content, false, context.event->sender_ptr->id,
                                                           context.event->sender_ptr->name);
-        std::string system_prompt = gen_common_prompt(adapter->get_bot_profile(), *adapter, *context.event->sender_ptr,
+        std::string system_prompt = gen_inchat_prompt(adapter->get_bot_profile(), *adapter, *context.event->sender_ptr,
                                                       context.is_deep_think, additional_system_prompt_option);
 
         // Add session knowledge to system prompt if available

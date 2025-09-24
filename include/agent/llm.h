@@ -13,7 +13,7 @@
 
 namespace agent {
 
-    std::string gen_common_prompt(const bot_adapter::Profile &bot_profile, const bot_adapter::BotAdapter &adapter,
+    std::string gen_inchat_prompt(const bot_adapter::Profile &bot_profile, const bot_adapter::BotAdapter &adapter,
                       const bot_adapter::Sender &sender, bool is_deep_think,
                       std::string_view action_description,
                       const std::optional<std::string> additional_system_prompt_option = std::nullopt);
