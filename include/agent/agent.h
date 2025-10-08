@@ -20,6 +20,8 @@ namespace agent {
         std::optional<nlohmann::json> function_tools_opt;        // optional tool/function definitions
     };
 
+    
+
     class LLMAgentBase {
       public:
         explicit LLMAgentBase(std::string model_name) : model_name(std::move(model_name)) {}
