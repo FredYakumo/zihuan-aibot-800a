@@ -21,6 +21,18 @@ namespace agent {
         return true;
     }
 
+    void insert_tool_call_record_async(const std::string &sender_name, qq_id_t sender_id,
+                                       const nlohmann::json &msg_json, const std::string &func_name,
+                                       const std::string &func_arguments, const std::string &tool_content) {
+        std::thread([=] {
+            set_thread_name("insert tool call record");
+            spdlog::info("Start insert tool call record thread.");
+            database::get_global_db_connection().insert_tool_calls_record(
+                sender_name, sender_id, msg_json.dump(), std::chrono::system_clock::now(),
+                fmt::format("{}({})", func_name, func_arguments), tool_content);
+        }).detach();
+    }
+
     std::vector<ChatMessage> FunctionCallAgentWrapper::inference(const AgentInferenceParam &param) {
         if (!param.function_tools_opt.has_value() && !validate_function_tool_impled(*param.function_tools_opt)) {
             spdlog::error("FunctionCallAgentWrapper: Validation of function tools failed.");
@@ -42,54 +54,29 @@ namespace agent {
             for (const auto &func_calls : *llm_res.tool_calls) {
                 spdlog::info("Tool calls: {}()", func_calls.name, func_calls.arguments);
                 std::optional<ChatMessage> tool_call_msg = std::nullopt;
-                
+
                 const auto &func = function_map[func_calls.name];
-                
+
                 auto res = func(func_calls.arguments);
                 if (res.has_value()) {
-                    
-                }
+                    res->tool_call_id = func_calls.id;
+                    append_tool_calls.push_back(std::move(*res));
 
-                if (func_calls.name == "search_info") {
-                    tool_call_msg = tool_impl::search_info(context, func_calls, first_replay);
-                } else if (func_calls.name == "fetch_url_content") {
-                    tool_call_msg = tool_impl::fetch_url_content(context, func_calls, llm_res);
-                } else if (func_calls.name == "view_model_info") {
-                    tool_call_msg = tool_impl::view_model_info(func_calls);
-                } else if (func_calls.name == "view_chat_history") {
-                    tool_call_msg = tool_impl::view_chat_history(context, func_calls);
-                } else if (func_calls.name == "query_group") {
-                    tool_call_msg = tool_impl::query_group(context, func_calls);
-                } else if (func_calls.name == "get_function_list") {
-                    tool_call_msg = tool_impl::get_function_list(func_calls);
-                } else {
-                    spdlog::error("Function {} is not impl.", func_calls.name);
-                    tool_call_msg = ChatMessage(ROLE_TOOL,
-                                                "主人还没有实现这个功能,快去github页面( "
-                                                "https://github.com/FredYakumo/zihuan-aibot-800a )提issues吧",
-                                                func_calls.id);
-                }
-
-                if (tool_call_msg.has_value()) {
-                    insert_tool_call_record_async(context.event->sender_ptr->name, context.event->sender_ptr->id,
-                                                  msg_json, func_calls.name, func_calls.arguments,
-                                                  tool_call_msg->content);
-                    append_tool_calls.emplace_back(std::move(*tool_call_msg));
+                    // @TODO: Need fix
+                    // insert_tool_call_record_async(param.)
                 }
             }
+
             if (!append_tool_calls.empty()) {
                 for (auto &append : append_tool_calls) {
-                    add_to_msg_json(msg_json, append);
-                    one_chat_session.emplace_back(std::move(append));
+                    responses.push_back(std::move(append));
                 }
-                // one_chat_session.insert(std::end(one_chat_session),
-                //                             std::make_move_iterator(std::begin(append_tool_calls)),
-                //                             std::make_move_iterator(std::end(append_tool_calls)));
+                responses.insert(std::cend(responses), std::make_move_iterator(std::begin(append_tool_calls)),
+                                 std::make_move_iterator(std::end(append_tool_calls)));
             }
         }
-    }
 
-    return responses;
-}
+        return responses;
+    }
 
 } // namespace agent
